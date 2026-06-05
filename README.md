@@ -26,6 +26,30 @@ Then in Claude Code:
 
 Skills are namespaced once installed: `/skills:diagnose`, `/skills:tdd`, etc.
 
+## I want to…
+
+Start from the task, not the skill. Each entry is the head of a chain — run the command and it hands you to the next hop. The full graph is in [skills/WORKFLOWS.md](skills/WORKFLOWS.md).
+
+| I want to… | Run | …and the path from there |
+|---|---|---|
+| Stress-test a plan or design | `/grill` — or `/grill-with-docs` to challenge it against CONTEXT.md / ADRs | grilling → `to-prd` → `slice` → ready issues on the tracker |
+| Turn this conversation into a spec | `/to-prd` | PRD published as an issue → `slice` |
+| Break a plan or PRD into issues | `/slice` | independently-grabbable issues, each marked `ready-for-agent` (AFK) or `ready-for-human` (HITL) |
+| Find architecture / refactoring opportunities | `/deepen` | seams surfaced → `to-prd` → `slice` |
+| Find what's not tested | `/audit-coverage` | findings → `capture` → `needs-triage` |
+| Run a security audit | `/audit-security` | findings → `capture` → `needs-triage` |
+| Check the docs haven't drifted | `/audit-docs` | findings → `capture` → `needs-triage` |
+| File findings or observations as issues | `/capture` | deduped `needs-triage` issues for a human to `triage` |
+| Triage incoming issues | `/triage` | each routed to `ready-for-agent`, `ready-for-human`, `needs-info`, or `wontfix` |
+| Start implementing a ready issue | `/pickup` | claims it → routes by kind to `tdd` / `diagnose` / `write-skill` / docs / config → review gate → opens a PR |
+| Build a feature test-first | `/tdd` | red-green-refactor loop (usually reached via `pickup`) |
+| Debug a hard bug or perf regression | `/diagnose` | reproduce → minimise → fix → regression test (usually reached via `pickup`) |
+| Answer questions raised on a PR review | `/field` | work through each to shared understanding → back to `pickup` for the rework round |
+| Merge an approved PR | `/land` | merges, strips `in-progress`, deletes the branch/worktree (human-invoked only) |
+| Write a new skill | `/write-skill` | scaffolds structure + progressive disclosure |
+| Run a whole pipeline unattended | `/auto <workflow>` (e.g. `/auto findings`) | walks the chain head-down, halting at the first human gate |
+| Hand off the session to a fresh agent | `/handoff` | a compact handoff doc the next agent picks up |
+
 ## Skills
 
 ### Planning & specs
