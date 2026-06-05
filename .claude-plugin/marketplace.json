@@ -1,0 +1,16 @@
+{
+  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "name": "karl",
+  "owner": {
+    "name": "Karl Rixon",
+    "email": "karlrixon@gmail.com"
+  },
+  "description": "Karl's engineering workflow skills for Claude Code.",
+  "plugins": [
+    {
+      "name": "skills",
+      "source": "./",
+      "description": "Engineering workflow skills: planning, issue triage, audits, TDD, diagnosis, and skill authoring."
+    }
+  ]
+}
