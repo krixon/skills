@@ -49,4 +49,4 @@ discount, so the rounding logic there is unverified.
 
 - The **title** becomes the issue title.
 - **Instances** appears only on a clustered issue (several findings sharing one root). Otherwise omit it.
-- **Source** names the producing audit (`cover`, `deepen`, ad-hoc) so `triage` knows this came from a sweep, not a human reporter. Undated — the tracker timestamps the issue.
+- **Source** names the producing audit (`cover`, `harden`, ad-hoc) so `triage` knows this came from a sweep, not a human reporter. Undated — the tracker timestamps the issue.

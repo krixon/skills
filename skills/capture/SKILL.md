@@ -1,6 +1,6 @@
 ---
 name: capture
-description: Turn audit findings or ad-hoc observations into needs-triage issues on the issue tracker, deduped and culled. Use when an audit skill (cover, deepen) produced findings, the user says "file these as issues" / "capture what we found", or lists problems to track. For designed work use `slice`; to promote issues use `triage`.
+description: Turn audit findings or ad-hoc observations into needs-triage issues on the issue tracker, deduped and culled. Use when an audit skill (cover, harden) produced findings, the user says "file these as issues" / "capture what we found", or lists problems to track. For designed work use `slice`; to promote issues use `triage`.
 argument-hint: "[findings to capture, or leave blank to use conversation context]"
 ---
 
@@ -21,7 +21,7 @@ A finding is an **un-investigated, judgment-gated observation** — an audit sco
 - **Audit-fed** — an audit skill hands you findings already in `FINDING-FORMAT.md` shape. Use them as-is.
 - **Ad-hoc** — the user points at observations in the conversation, or passes them as an argument. Shape each into the six fields ([FINDING-FORMAT.md](FINDING-FORMAT.md)), inferring dimension/category/severity/confidence and confirming anything ambiguous.
 
-If invoked cold with nothing to capture, don't start sweeping — ask what to capture, or suggest running an audit skill (`cover`, `deepen`) first.
+If invoked cold with nothing to capture, don't start sweeping — ask what to capture, or suggest running an audit skill (`cover`, `harden`) first.
 
 ### 2. Dedup against open issues — before offering anything
 
