@@ -50,6 +50,8 @@ Iterate until the user approves the breakdown.
 
 ### 5. Publish the issues to GitHub
 
+If the approved breakdown is a single slice, slicing was a no-op — it didn't decompose anything, and a lone new issue would only duplicate the source. Create nothing. Carry the original source issue forward as the result and hand it to the next hop as if it were the slice output, telling the user the run was a no-op. Only publish when the breakdown is two or more slices.
+
 For each approved slice, create an issue (`gh issue create`). Use the issue body template below. Label by type: **AFK** slices → `ready-for-agent`; **HITL** slices → `ready-for-human` (they carry a judgment step an agent can't clear). For an HITL slice, note in the issue *why* a human is needed, so `pickup` can drive them through it.
 
 Publish issues in dependency order (blockers first) so you can reference real issue identifiers in the "Blocked by" field.
@@ -87,7 +89,7 @@ Do NOT close or modify any parent issue.
 
 Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this row as one `AskUserQuestion`.
 
-- **artifact:** tracer-bullet issues, labelled `ready-for-agent` (AFK) / `ready-for-human` (HITL) by type
+- **artifact:** tracer-bullet issues, labelled `ready-for-agent` (AFK) / `ready-for-human` (HITL) by type — or, when the breakdown was a single slice, no new issue and the original source issue carried forward unchanged
 - **default:** `pickup` — implement a ready issue
 - **alternatives:** stop
 - **auto:** never — the granularity/dependency quiz (step 4) is the judgment and has no safe default.
