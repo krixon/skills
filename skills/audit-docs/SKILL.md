@@ -47,8 +47,6 @@ Shape each surviving contradiction into the six-field finding contract in [../ca
 - **Evidence** — the documented claim, the code that contradicts it, and who it misleads
 - **Severity** / **Confidence** — from step 3
 
-A worked self-test against the drift this skill exists to catch is in [EXAMPLES.md](EXAMPLES.md).
-
 ## Handover
 
 Hand off per [../HANDOVER.md](../HANDOVER.md). Never file issues yourself. End an interactive run by rendering this row as one `AskUserQuestion`.
