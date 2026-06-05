@@ -1,6 +1,6 @@
 ---
 name: auto
-description: Run a skill workflow unattended — walk the handover chain taking the recommended hop at each step, without asking. Use when the user wants to run a pipeline head-down (e.g. "auto cover", "run the findings workflow autonomously", or from a schedule/loop). Stops and stages work at the first human gate.
+description: Run a skill workflow unattended — walk the handover chain taking the recommended hop at each step, without asking. Use when the user wants to run a pipeline head-down (e.g. "auto audit-coverage", "run the findings workflow autonomously", or from a schedule/loop). Stops and stages work at the first human gate.
 argument-hint: "<start-skill or workflow name> [target/scope]"
 ---
 
@@ -15,7 +15,7 @@ Run a workflow unattended. A workflow is a chain of skills linked by handovers (
 `/auto <start> [target]`
 
 - **start** — the skill to begin from, or a workflow alias. Aliases:
-  - `findings` → start at `cover` (audit → file to `needs-triage`)
+  - `findings` → start at `audit-coverage` (audit → file to `needs-triage`)
 - **target** — scope passed to the start skill (a path, area, or left blank for the whole codebase).
 
 Issues and PRs live in GitHub via `gh` ([../GITHUB.md](../GITHUB.md)); the labels are fixed.
@@ -47,4 +47,4 @@ When the run halts, emit a summary:
 - artifacts produced, with references (issue numbers, file paths, branch)
 - **what's staged for a human**, and which skill to run next to pick it up
 
-Example: `/auto findings src/billing` walks `cover` → `capture`, files the survivors as `needs-triage`, and stops (because `capture` is `stage` and `triage` is `never`). The summary lists the filed issues and says `/triage` is the next human step.
+Example: `/auto findings src/billing` walks `audit-coverage` → `capture`, files the survivors as `needs-triage`, and stops (because `capture` is `stage` and `triage` is `never`). The summary lists the filed issues and says `/triage` is the next human step.

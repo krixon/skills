@@ -1,6 +1,6 @@
 # Finding Format
 
-The contract between an **audit** (the producer) and `capture` (the sink). Any skill that surfaces problems — `cover`, future audits, or an ad-hoc human sweep — emits findings in this shape, and `capture` consumes them.
+The contract between an **audit** (the producer) and `capture` (the sink). Any skill that surfaces problems — `audit-coverage`, future audits, or an ad-hoc human sweep — emits findings in this shape, and `capture` consumes them.
 
 A finding is an **un-investigated, judgment-gated observation**: something an audit scored past a confidence threshold, or a human explicitly flagged. It is NOT designed work. Keep it lean — acceptance criteria, key interfaces, and implementation steps are the *agent brief*, which `triage` writes if and when the finding is promoted. Don't pre-empt that here.
 
@@ -43,10 +43,10 @@ discount, so the rounding logic there is unverified.
 - `order_totals.calculate` — discount branch has no test
 - `order_totals.apply_tax` — zero-rate path untested
 
-**Source:** cover audit
+**Source:** audit-coverage
 
 </finding-issue-template>
 
 - The **title** becomes the issue title.
 - **Instances** appears only on a clustered issue (several findings sharing one root). Otherwise omit it.
-- **Source** names the producing audit (`cover`, `harden`, ad-hoc) so `triage` knows this came from a sweep, not a human reporter. Undated — the tracker timestamps the issue.
+- **Source** names the producing audit (`audit-coverage`, `audit-security`, ad-hoc) so `triage` knows this came from a sweep, not a human reporter. Undated — the tracker timestamps the issue.
