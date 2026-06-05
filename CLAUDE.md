@@ -12,6 +12,8 @@ A library of Claude Code agent skills, intended to ultimately be packaged and di
 - `skills/HANDOVER.md` — the per-hop handover contract skills use to chain (and that `auto` walks).
 - `VOICE.md` — how to talk to the user in chat (imported above, always on). `WRITING.md` — how to write durable prose artifacts (commits, comments, issues, ADRs, docs); referenced by the skills that produce each. `ISOLATION.md` — how work is kept off the default branch and out of your live checkout (branch-first, naming, branch vs worktree); referenced by the work-producing skills.
 
+When you add a skill, update `README.md` in the same change: add it to the **Skills** list, and add a row to the **I want to…** table if it heads or joins a workflow chain.
+
 ## Commits
 
 Use [Conventional Commits](https://www.conventionalcommits.org): `<type>[scope]: <description>`. Types: `feat fix chore docs refactor test` (same vocabulary as the branch kinds in `ISOLATION.md`). Subject in imperative mood, lower-case, no trailing period; breaking changes get a `!` before the colon or a `BREAKING CHANGE:` footer. Write the message body per `WRITING.md`.

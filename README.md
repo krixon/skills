@@ -55,6 +55,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 ### Planning & specs
 - **grill** — interview you relentlessly about a plan until shared understanding, resolving each decision branch.
 - **grill-with-docs** — grilling that challenges your plan against the domain model and updates CONTEXT.md / ADRs inline.
+- **field** — field questions put to the agent and converge on shared understanding; the dual of grill, run on PR-review rework.
 - **to-prd** — turn the current conversation into a PRD and publish it as a GitHub issue.
 - **slice** — break a plan, spec, or PRD into independently-grabbable tracer-bullet issues.
 
@@ -69,10 +70,13 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 - **deepen** — find architecture/refactoring opportunities informed by CONTEXT.md and ADRs.
 
 ### Build & fix
+- **pickup** — claim a ready issue and implement it, routing by artifact kind through the review gate to an open PR.
 - **tdd** — red-green-refactor loop, integration-test first.
 - **diagnose** — disciplined loop for hard bugs and perf regressions: reproduce → minimise → hypothesise → instrument → fix → regression-test.
+- **land** — merge an approved PR, strip `in-progress`, and tear down the branch/worktree; human-invoked only.
 
 ### Meta & session
+- **auto** — run a skill workflow unattended, walking the handover chain until the first human gate.
 - **write-skill** — author new skills with proper structure and progressive disclosure.
 - **zoom-out** — map the relevant modules and callers a layer up, in the project's glossary vocabulary.
 - **handoff** — compact the conversation into a handoff doc for a fresh agent.
