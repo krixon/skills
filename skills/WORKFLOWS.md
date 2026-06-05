@@ -57,11 +57,12 @@ flowchart LR
     res -->|yes| rev[[review gate]]
     res -->|walled| rpt[/needs-triage +report/]
     rev --> pr([open PR])
-    pr -.->|approved| merge([human merge])
+    pr -.->|approved| land[[land]]
+    land --> done([merged + cleaned])
     pr -.->|changes requested| pickup
 ```
 
-`pickup` claims a ready issue (adds `in-progress`, keeps the readiness label) so the loop won't re-grab it, routes by **artifact kind**, then — if the work clears — runs the **review gate** over the branch diff and opens a PR for a human to merge (the open PR *is* the review state — there's no review-state label). If a human requests changes on the PR, it re-enters `pickup` for another round on the same branch. If it walls, it returns the issue to `needs-triage` with an attempt report — the failure circuit-breaker back at the first diagram's human gate.
+`pickup` claims a ready issue (adds `in-progress`, keeps the readiness label) so the loop won't re-grab it, routes by **artifact kind**, then — if the work clears — runs the **review gate** over the branch diff and opens a PR for a human to merge (the open PR *is* the review state — there's no review-state label). If a human requests changes on the PR, it re-enters `pickup` for another round on the same branch. If it walls, it returns the issue to `needs-triage` with an attempt report — the failure circuit-breaker back at the first diagram's human gate. Once a human approves the PR, `land` executes the merge and clears the trail — strips `in-progress`, deletes the branch and any worktree; it is human-invoked and never runs from `auto`, so the final merge stays a human act.
 
 Category (`bug`/`enhancement`) only forks the **code** routes; artifact kind is the orthogonal axis the implementer hangs off. `tdd` and `diagnose` are *code* loops — red-green and reproduce-fix — so non-code work routes elsewhere: a **skill** to `write-skill`, **docs/prose** (CONTEXT.md, ADRs, READMEs) to direct authoring against [../WRITING.md](../WRITING.md), **config/harness** (settings.json, hooks, keybindings) to `update-config` / `keybindings-help`. `pickup` infers the kind from what the brief targets.
 
@@ -80,7 +81,7 @@ The gate is **mandatory in an autonomous run** and offered as a **choice when dr
 | **findings** | `audit-*` → `capture` → *needs-triage* | an audit | yes — runs to `needs-triage`, stops |
 | **design** | `deepen` / `grill` / `grill-with-docs` → `to-prd` → `slice` | a conversation | no — grilling/seams/granularity need the user |
 | **fix** | `diagnose` → review gate → PR | a bug report | loop runs AFK; the fix is staged on a branch |
-| **implement** | `pickup` → `tdd` / `diagnose` / `write-skill` / docs / config → review gate → PR | a ready issue | AFK issues yes; HITL issues no |
+| **implement** | `pickup` → `tdd` / `diagnose` / `write-skill` / docs / config → review gate → PR → *(human approves)* `land` | a ready issue | AFK issues yes to the PR; `land` is human-invoked |
 
 Run a workflow **interactively** by invoking its head skill — `/audit-coverage` (findings), `/diagnose` (fix), `/pickup` (implement), `/deepen` etc. (design). Each skill ends by rendering its `## Handover` row as an `AskUserQuestion`; taking the recommended hop at each prompt walks the same chain, every gate confirmed by you and the human gates (`triage`, grilling loops) running in place.
 
