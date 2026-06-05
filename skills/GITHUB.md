@@ -2,6 +2,10 @@
 
 Issues and PRs for this repo live in GitHub `krixon/skills`. The skills use the `gh` CLI directly — there is no tracker abstraction; skills name `gh` and the literal labels below. `gh` infers the repo from the `origin` remote when run inside this clone. This file is the command reference for the verbose incantations; short commands are spelled out inline where used.
 
+## Body formatting
+
+Every body passed to `gh` — issue, comment, PR description — renders as GitHub-Flavored Markdown with the newline extension on, so a newline inside a paragraph becomes a `<br>`. Never hard-wrap body prose. Write each paragraph and each list item as one unbroken physical line and let GitHub soft-wrap to the reader's viewport; separate paragraphs and list items with a blank line. Column-wrapping a body — right for commit messages, where git doesn't soft-wrap — renders here as ragged, prematurely-broken text. This is the inverse of the commit-message rule in [../WRITING.md](../WRITING.md): wrap commit bodies, never wrap tracker bodies.
+
 ## Labels
 
 Two **category** labels: `bug`, `enhancement`.

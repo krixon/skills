@@ -36,6 +36,7 @@ The one rule everything else serves: **if it doesn't need saying, don't say it; 
 - Concrete location and repro — file, line, the steps or input that triggers it. A finding without a location is a guess.
 - Mark assumed vs verified. "Throws on null `user`" (verified) reads differently from "likely unsafe under concurrent writes" (inferred) — label which.
 - No speculation dressed as fact, no severity inflation. State what you observed; if you didn't confirm the impact, say so.
+- Don't hard-wrap a body bound for a GitHub issue, comment, or PR. Write one paragraph per physical line — GitHub turns mid-paragraph newlines into `<br>`, so column-wrapped text renders ragged. Commit bodies are the opposite (wrap those). See [skills/GITHUB.md](skills/GITHUB.md) → *Body formatting*.
 
 ## ADRs
 

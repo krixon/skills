@@ -36,8 +36,7 @@ When `capture` files a survivor, it renders this body. Severity and confidence g
 **Where:** `OrderTotals.calculate` (path as of audit: `src/orders/totals.py`)
 
 **Evidence:**
-The discount branch is never exercised — no test constructs an order with a
-discount, so the rounding logic there is unverified.
+The discount branch is never exercised — no test constructs an order with a discount, so the rounding logic there is unverified.
 
 **Instances** *(only when clustered)*:
 - `order_totals.calculate` — discount branch has no test
