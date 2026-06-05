@@ -1,18 +1,18 @@
 ---
-name: harden
+name: audit-security
 description: Sweep a codebase for security exposure and surface each as a finding. Static-first, no scanner required. Use when the user wants a security audit, to find vulnerabilities, check authz/access control, hunt injection sinks or exposed secrets, or asks "what's exposed?".
 argument-hint: "[path or area to focus on, or leave blank for the whole codebase]"
 ---
 
-# Harden
+# Security Audit
 
-Find where the code leaves the system **exposed to attack**, and surface each as a finding. `harden` is a producer: it audits, then hands findings to `capture`. It does not file issues itself.
+Find where the code leaves the system **exposed to attack**, and surface each as a finding. `audit-security` is a producer: it audits, then hands findings to `capture`. It does not file issues itself.
 
 The aim is *risk-weighted* exposure, not a lint dump. Target weaknesses where exploitation matters.
 
 Read the project's domain glossary (`CONTEXT.md`) and any ADRs in the area first, so finding titles use the project's vocabulary.
 
-**Scope vs `/security-review`.** `harden` is a **standing-repo producer**: it sweeps the whole repo (or a focused path) on demand and emits findings for the tracker. `/security-review` is a **diff gate**: it reviews only changed code at PR time and blocks the merge. Same dimension, orthogonal trigger.
+**Scope vs `/security-review`.** `audit-security` is a **standing-repo producer**: it sweeps the whole repo (or a focused path) on demand and emits findings for the tracker. `/security-review` is a **diff gate**: it reviews only changed code at PR time and blocks the merge. Same dimension, orthogonal trigger.
 
 ## Method: static-first
 

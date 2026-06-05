@@ -1,12 +1,12 @@
 ---
-name: cover
+name: audit-coverage
 description: Audit a codebase for high-risk untested paths and surface them as findings. Static-first, no instrumented coverage run required. Use when the user wants to find test gaps, audit coverage, find untested critical paths, or asks "what's not tested?".
 argument-hint: "[path or area to focus on, or leave blank for the whole codebase]"
 ---
 
-# Cover
+# Coverage Audit
 
-Find where the test suite leaves **high-risk paths unexercised**, and surface each as a finding. `cover` is a producer: it audits, then hands findings to `capture`, which dedups, culls, and files them as `needs-triage` issues. It does not file issues itself.
+Find where the test suite leaves **high-risk paths unexercised**, and surface each as a finding. `audit-coverage` is a producer: it audits, then hands findings to `capture`, which dedups, culls, and files them as `needs-triage` issues. It does not file issues itself.
 
 The aim is *risk-weighted* gaps, not raw uncovered-line count — a flood of trivial misses is noise. Target paths where being untested matters.
 

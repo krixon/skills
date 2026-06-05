@@ -39,7 +39,8 @@ Skills are namespaced once installed: `/skills:diagnose`, `/skills:tdd`, etc.
 - **capture** — turn audit findings or ad-hoc observations into needs-triage issues, deduped and culled.
 
 ### Audits
-- **cover** — audit for high-risk untested paths; static-first, surfaces findings to `capture`.
+- **audit-coverage** — audit for high-risk untested paths; static-first, surfaces findings to `capture`.
+- **audit-security** — sweep for security exposure (authz, injection, secrets); static-first, surfaces findings to `capture`.
 - **deepen** — find architecture/refactoring opportunities informed by CONTEXT.md and ADRs.
 
 ### Build & fix
