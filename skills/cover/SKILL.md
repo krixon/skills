@@ -1,6 +1,6 @@
 ---
 name: cover
-description: Audit a codebase for high-risk untested paths and surface them as findings. Static-first, no instrumented coverage run required. Use when the user wants to find test gaps, audit coverage, find untested critical paths, or asks "what's not tested?". Architecture counterpart is `deepen`; both feed `capture`.
+description: Audit a codebase for high-risk untested paths and surface them as findings. Static-first, no instrumented coverage run required. Use when the user wants to find test gaps, audit coverage, find untested critical paths, or asks "what's not tested?".
 argument-hint: "[path or area to focus on, or leave blank for the whole codebase]"
 ---
 

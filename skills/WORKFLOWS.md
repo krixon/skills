@@ -12,6 +12,7 @@ The dev loop splits into two halves that meet at the **ready** states — the fi
 flowchart LR
     obs([ad-hoc obs]) --> capture[[capture]]
     cover[[cover]] --> capture
+    harden[[harden]] --> capture
     capture --> nt[/needs-triage/]
     nt -.-> triage[[triage]]
     triage --> d{state?}
@@ -32,7 +33,7 @@ flowchart LR
     rfh --> pu
 ```
 
-A finding enters via `capture` (from `cover` or an ad-hoc observation) at `needs-triage`, where `triage` — always a human — decides the state and writes the agent brief. A designed slice (`deepen` / `grill` → `to-prd` → `slice`) skips triage and is published straight to a ready state, its issue body acting as the brief. `needs-triage` and `ready-for-human` are the two human gates.
+A finding enters via `capture` (from `cover`, `harden`, or an ad-hoc observation) at `needs-triage`, where `triage` — always a human — decides the state and writes the agent brief. A designed slice (`deepen` / `grill` → `to-prd` → `slice`) skips triage and is published straight to a ready state, its issue body acting as the brief. `needs-triage` and `ready-for-human` are the two human gates.
 
 ### Implementing a ready issue
 
@@ -75,7 +76,7 @@ The gate is **mandatory in an autonomous run** and offered as a **choice when dr
 
 | workflow | chain | enters from | autonomous? |
 |---|---|---|---|
-| **findings** | `cover` → `capture` → *needs-triage* | an audit | yes — runs to `needs-triage`, stops |
+| **findings** | `cover` / `harden` → `capture` → *needs-triage* | an audit | yes — runs to `needs-triage`, stops |
 | **design** | `deepen` / `grill` / `grill-with-docs` → `to-prd` → `slice` | a conversation | no — grilling/seams/granularity need the user |
 | **fix** | `diagnose` → review gate → PR | a bug report | loop runs AFK; the fix is staged on a branch |
 | **implement** | `pickup` → `tdd` / `diagnose` / `write-skill` / docs / config → review gate → PR | a ready issue | AFK issues yes; HITL issues no |
@@ -119,7 +120,7 @@ Visibility and delegation pull against each other, and the need for each is inve
 
 - **Interactive, one skill** — stay in the main session. Bound the window with hygiene: run noisy feedback loops (`diagnose` Phase 1, `tdd` test runs) in the background and pull only the signal; reserve subagents for mechanical sub-tasks (a `git bisect run`, a fuzz loop) that return a one-line verdict.
 - **`auto` (unattended chain)** — no rule of its own; `auto` inherits each skill's delegation profile above. Cheap hops (findings in → issues out) run inline even unattended; only heavy interiors (a large-tree audit, a `tdd`/`diagnose` loop) delegate. The one difference from interactive: nobody's watching, so when a hop *does* isolate it's a subagent rather than a backgrounded-for-signal job. Visibility never justified delegation — window hygiene does — so `auto` isolates exactly the hops a watched run would, no more, and the window stays within target by construction.
-- **Audits (`cover` / `deepen`)** — fan out `Explore` subagents only when scope is large (> ~25 files), one per area, each returning structured candidates; the main session does the cull (the judgment step, and small). At or below the threshold, explore inline — the reads fit and stay visible.
+- **Audits (`cover` / `deepen` / `harden`)** — fan out `Explore` subagents only when scope is large (> ~25 files), one per area, each returning structured candidates; the main session does the cull (the judgment step, and small). At or below the threshold, explore inline — the reads fit and stay visible.
 - **`pickup` (implement loop)** — hybrid. Orchestration, brief, and routing stay in the main session. Delegate the heavy children: the review gate as two parallel subagents (`/code-review` + `/security-review`), `verify`, and — on the AFK path only — the whole `tdd`/`diagnose` implementation. On HITL keep implementation inline (you're driving) and just background its noisy output.
 
 ## Not in a workflow
