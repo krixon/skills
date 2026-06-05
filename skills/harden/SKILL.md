@@ -1,28 +1,28 @@
 ---
 name: harden
-description: Sweep a codebase for security exposure and surface each as a finding. Static-first, no scanner required. Use when the user wants a security audit, to find vulnerabilities, check authz/access control, hunt injection sinks or exposed secrets, or asks "what's exposed?". The standing-repo producer counterpart to `/security-review`'s diff gate; test-gap sibling is `cover`, architecture sibling is `deepen`; all feed `capture`.
+description: Sweep a codebase for security exposure and surface each as a finding. Static-first, no scanner required. Use when the user wants a security audit, to find vulnerabilities, check authz/access control, hunt injection sinks or exposed secrets, or asks "what's exposed?".
 argument-hint: "[path or area to focus on, or leave blank for the whole codebase]"
 ---
 
 # Harden
 
-Find where the code leaves the system **exposed to attack**, and surface each as a finding. `harden` is a producer: it audits, then hands findings to `capture`, which dedups, culls, and files them as `needs-triage` issues. It does not file issues itself.
+Find where the code leaves the system **exposed to attack**, and surface each as a finding. `harden` is a producer: it audits, then hands findings to `capture`. It does not file issues itself.
 
-The aim is *risk-weighted* exposure, not a lint dump — a flood of low-severity style nits is noise. Target weaknesses where exploitation matters.
+The aim is *risk-weighted* exposure, not a lint dump. Target weaknesses where exploitation matters.
 
 Read the project's domain glossary (`CONTEXT.md`) and any ADRs in the area first, so finding titles use the project's vocabulary.
 
-**Scope vs `/security-review`.** Same dimension, orthogonal trigger. `harden` is a **standing-repo producer**: it sweeps the whole repo (or a focused path) on demand and emits findings for the tracker. `/security-review` is a **diff gate**: it reviews only changed code at PR time and blocks the merge. They don't duplicate — `harden` finds the exposure that already lives in the tree; `/security-review` stops new exposure landing.
+**Scope vs `/security-review`.** `harden` is a **standing-repo producer**: it sweeps the whole repo (or a focused path) on demand and emits findings for the tracker. `/security-review` is a **diff gate**: it reviews only changed code at PR time and blocks the merge. Same dimension, orthogonal trigger.
 
 ## Method: static-first
 
-Reason from the code. If a scanner's output is already present (a gitleaks or semgrep report committed in the repo or emitted by CI), consume it as a signal — but never require running one (scanners are tool- and language-specific, often unconfigured, and mandating one makes the skill non-portable). The risk of static reasoning missing some vulnerability classes is acceptable: the cull and `triage` are downstream gates, and the target is high-risk exposure, not completeness. Static reasoning only — no runtime/dynamic probing.
+Reason from the code. Never require running a scanner — that makes the skill non-portable; if a gitleaks or semgrep report is already in the repo or CI, consume it as a signal. Missing some vulnerability classes is acceptable: the cull and `triage` are downstream gates, and the target is high-risk exposure, not completeness. No runtime/dynamic probing.
 
 ## Process
 
 ### 1. Map risk
 
-Walk the codebase. Above ~25 files in scope, fan out `Explore` subagents (one per area) so the reads never land in the main window; at or below that, explore inline for visibility (see *Context & delegation* in [../WORKFLOWS.md](../WORKFLOWS.md)). Rank code by attack surface:
+Walk the codebase. Above ~25 files in scope, fan out `Explore` subagents (one per area) so the reads never land in the main window; at or below that, explore inline (see *Context & delegation* in [../WORKFLOWS.md](../WORKFLOWS.md)). Rank code by attack surface:
 
 - **Trust boundaries** — where untrusted input crosses in: request handlers, deserialisers, file/CLI parsers, message consumers.
 - **Sensitive operations** — auth, money, data access, command/query execution, file and network egress.
@@ -30,18 +30,18 @@ Walk the codebase. Above ~25 files in scope, fan out `Explore` subagents (one pe
 
 ### 2. Map current mitigations
 
-For the high-risk code, find what already defends it: validation, parameterised queries, authz checks, output encoding, secret-management. A mitigation existing somewhere is not coverage — trace whether it actually guards *this* path. Consume a scanner report here if one exists.
+For the high-risk code, find what already defends it: validation, parameterised queries, authz checks, output encoding, secret-management. A mitigation existing somewhere is not coverage — trace whether it guards *this* path. Consume a scanner report here if one exists.
 
 ### 3. Fan out finders, then score
 
-Following the `code-review` pattern: above the fan-out threshold, spawn parallel finder agents over the high-risk areas, each returning candidate exposures; below it, find inline. Sweep at least these sub-dimensions:
+Above the fan-out threshold, spawn parallel finder agents over the high-risk areas, each returning candidate exposures; below it, find inline. Sweep at least these sub-dimensions:
 
 - **Vulnerable patterns** — unsafe deserialisation, weak crypto, SSRF, path traversal, missing TLS verification.
 - **Authz / access control** — missing or wrong ownership checks, IDOR, privilege escalation, unguarded admin paths.
 - **Injection sinks** — untrusted input reaching SQL, shell, template, or LDAP execution without parameterisation/escaping.
 - **Exposed secrets** — credentials, keys, or tokens committed to the tree or logged.
 
-Then, for each candidate, a separate scoring pass assigns **confidence** (is this genuinely exploitable?) and **severity** (what's the blast radius?). Drop low-confidence noise.
+Then score each candidate for **confidence** (genuinely exploitable?) and **severity** (blast radius?). Drop low-confidence noise.
 
 ### 4. Emit findings
 
