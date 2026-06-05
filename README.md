@@ -41,6 +41,7 @@ Skills are namespaced once installed: `/skills:diagnose`, `/skills:tdd`, etc.
 ### Audits
 - **audit-coverage** — audit for high-risk untested paths; static-first, surfaces findings to `capture`.
 - **audit-security** — sweep for security exposure (authz, injection, secrets); static-first, surfaces findings to `capture`.
+- **audit-docs** — find documentation that has drifted from the code (stale CONTEXT.md vocabulary, violated ADRs, README/behavior claims); static-first, surfaces findings to `capture`.
 - **deepen** — find architecture/refactoring opportunities informed by CONTEXT.md and ADRs.
 
 ### Build & fix

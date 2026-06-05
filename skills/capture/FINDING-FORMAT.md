@@ -11,7 +11,7 @@ Write every prose field per [../../WRITING.md](../../WRITING.md) → *Issues & f
 Every finding carries exactly these six fields:
 
 - **Title** — one-line problem statement. Becomes the issue title.
-- **Dimension** — which audit surfaced it: `test-gap`, `architecture`, `security`, `dead-code`, `debt`, … Drives grouping and, downstream, labels.
+- **Dimension** — which audit surfaced it: `test-gap`, `architecture`, `security`, `docs-drift`, `dead-code`, `debt`, … Drives grouping and, downstream, labels.
 - **Where** — the location, named by **module / type / function**, never by line number (it goes stale — same rule as `../triage/AGENT-BRIEF.md`). A file path is allowed only as an "as-of-audit" pointer in parentheses, not as the anchor.
 - **Evidence** — what was observed that makes this a real, worth-tracking problem: the untested high-risk path, the missing error case, the smell. This justifies the finding during the cull. A one-line *direction* may be appended, but not a full solution.
 - **Suggested category** — `bug` or `enhancement`, mapping straight onto `triage`'s category roles.
@@ -48,4 +48,4 @@ The discount branch is never exercised — no test constructs an order with a di
 
 - The **title** becomes the issue title.
 - **Instances** appears only on a clustered issue (several findings sharing one root). Otherwise omit it.
-- **Source** names the producing audit (`audit-coverage`, `audit-security`, ad-hoc) so `triage` knows this came from a sweep, not a human reporter. Undated — the tracker timestamps the issue.
+- **Source** names the producing audit (`audit-coverage`, `audit-security`, `audit-docs`, ad-hoc) so `triage` knows this came from a sweep, not a human reporter. Undated — the tracker timestamps the issue.
