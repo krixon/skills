@@ -13,6 +13,16 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}/hooks/caveman-reminder.sh\""
+          }
+        ]
+      }
     ]
   }
 }
