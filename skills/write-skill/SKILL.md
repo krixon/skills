@@ -69,6 +69,18 @@ See [REFERENCE.md](REFERENCE.md) for:
 - **When to split files** into REFERENCE/EXAMPLES.
 - **Embedding templates and examples** — `<tag>` vs code-fence delimiter rules.
 
+## House rules for this library
+
+The guidance above writes *any* Claude skill. A skill in this library also inherits its conventions, so it slots into the existing chains and isolation. Reference these source docs from the skill you author rather than restating them — duplication is the anti-goal:
+
+- **Handover row.** A producer/transform skill ends with a `## Handover` section declaring its `artifact` / `default` / `alternatives` per [../HANDOVER.md](../HANDOVER.md), and fires that row as one `AskUserQuestion` when run interactively. If the skill contains a human loop — interview, judgment quiz, approval step — it is **interactive-only**: record that against the property defined in [../HANDOVER.md](../HANDOVER.md) → *Autonomy*, so `auto` never enters it.
+- **Isolation.** A skill that edits files obeys the invariant in [../../ISOLATION.md](../../ISOLATION.md): the repo-root checkout is read-only, every change lands in a worktree on its own branch.
+- **Shared schemas.** When the skill reads or writes a shared artifact (a finding, an agent brief, an ADR, `CONTEXT.md`), reference the schema in [../contracts/](../contracts/) rather than defining the shape inline.
+- **Delegation.** A skill with a heavy interior follows [../DELEGATION.md](../DELEGATION.md) to keep the working window bounded.
+- **Doc-structure convention.** A skill that touches domain docs respects the single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root — per [../../CLAUDE.md](../../CLAUDE.md) → *Domain docs*.
+
+**Design test:** *if every other skill were deleted, would this one still do its job and produce its artifact?* The references above are how skills chain; the skill itself must stand alone.
+
 ## Review Checklist
 
 After drafting, verify:
@@ -80,3 +92,5 @@ After drafting, verify:
 - [ ] Concrete examples included
 - [ ] Reference chains kept shallow (SKILL.md links one level out; reference docs may cross-link a sibling for downstream-only detail)
 - [ ] Inline templates use `<tags>`; verbatim samples use `md`-labelled fences
+- [ ] House rules wired in where they apply: `## Handover` row + interactive-only marker, isolation, `contracts/` schemas, delegation, doc-structure convention — each referencing its source doc, not restating it
+- [ ] Passes the design test: stands alone if every other skill were deleted
