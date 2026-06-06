@@ -25,7 +25,6 @@ flowchart LR
 
     deepen[[deepen]] --> spec[[spec]]
     grill[[grill]] --> spec
-    gwd[[grill-with-docs]] --> spec
     spec -->|multi-slice| slice[[slice]]
     spec -->|single slice| rfa
     spec -->|single slice| rfh
@@ -81,7 +80,7 @@ The gate is **mandatory in an autonomous run** and offered as a **choice when dr
 | workflow | chain | enters from | autonomous? |
 |---|---|---|---|
 | **findings** | `audit-*` → `capture` → *needs-triage* | an audit | yes — runs to `needs-triage`, stops |
-| **design** | `deepen` / `grill` / `grill-with-docs` → `spec` → `slice` (multi-slice) or `pickup` (single slice) | a conversation | no — grilling/seams/granularity need the user |
+| **design** | `deepen` / `grill` → `spec` → `slice` (multi-slice) or `pickup` (single slice) | a conversation | no — grilling/seams/granularity need the user |
 | **fix** | `diagnose` → review gate → PR | a bug report | loop runs AFK; the fix is staged on a branch |
 | **implement** | `pickup` → `tdd` / `diagnose` / `write-skill` / docs / config → review gate → PR → *(human approves)* `land` | a ready issue | AFK issues yes to the PR; `land` is human-invoked |
 

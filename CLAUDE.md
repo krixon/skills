@@ -34,4 +34,4 @@ Issues and PRs live in GitHub `krixon/skills` via the `gh` CLI. GitHub-only, no 
 
 ### Domain docs
 
-Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. Engineering skills read `CONTEXT.md` vocabulary and respect ADRs in the area they touch; if either is absent, proceed silently (`grill-with-docs` creates them lazily).
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. Engineering skills read `CONTEXT.md` vocabulary and respect ADRs in the area they touch; if either is absent, proceed silently (`grill` creates them lazily).
