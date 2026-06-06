@@ -1,13 +1,13 @@
 ---
 name: deepen
-description: Find deepening opportunities in a codebase, informed by the domain language in CONTEXT.md and the decisions in docs/adr/. Use when the user wants to improve architecture, find refactoring opportunities, consolidate tightly-coupled modules, or make a codebase more testable and AI-navigable.
+description: Find deepening opportunities in a codebase, informed by the project's established domain language and recorded decisions. Use when the user wants to improve architecture, find refactoring opportunities, consolidate tightly-coupled modules, or make a codebase more testable and AI-navigable.
 ---
 
 # Improve Codebase Architecture
 
 Surface architectural friction and propose **deepening opportunities** — refactors that turn shallow modules into deep ones. The aim: testability and AI-navigability.
 
-## Glossary
+## Vocabulary
 
 Use these terms exactly in every suggestion. Consistent language is the point — don't drift into "component," "service," "API," or "boundary." Definitions in [LANGUAGE.md](LANGUAGE.md).
 
@@ -32,7 +32,7 @@ The skill is informed by the project's domain model. The domain language names g
 
 ### 1. Explore
 
-Read the project's domain glossary and any ADRs in the area you're touching first.
+Ground in the project's documentation first — its established domain vocabulary and recorded decisions, as the in-context project `CLAUDE.md` points to them. With none present, proceed on the code alone.
 
 Then walk the codebase — above ~25 files in scope, fan out `Explore` subagents (one per area) so the reads stay out of the main window; at or below that, explore inline (see [../DELEGATION.md](../DELEGATION.md)). Don't follow rigid heuristics — explore organically and note where you experience friction:
 
@@ -61,7 +61,7 @@ Each candidate renders as a card:
 
 End the report with a **Top recommendation** section: which candidate you'd tackle first and why.
 
-**Use CONTEXT.md vocabulary for the domain, and [LANGUAGE.md](LANGUAGE.md) vocabulary for the architecture.** If `CONTEXT.md` defines "Order," talk about "the Order intake module" — not "the FooBarHandler," and not "the Order service."
+**Use the project's domain vocabulary for the domain, and [LANGUAGE.md](LANGUAGE.md) vocabulary for the architecture.** If the project's documentation defines "Order," talk about "the Order intake module" — not "the FooBarHandler," and not "the Order service."
 
 **ADR conflicts**: if a candidate contradicts an existing ADR, surface it only when the friction warrants revisiting the ADR. Mark it clearly in the card (e.g. a warning callout: _"contradicts ADR-0007 — but worth reopening because…"_). Don't list every theoretical refactor an ADR forbids.
 
@@ -73,7 +73,7 @@ Do NOT propose interfaces yet. After the file is written, ask the user: "Which o
 
 `deepen` is a finder: it surfaces candidates and stops. The report is its standalone artifact — steps 1–2 produce it without `grill` in the loop.
 
-Once the user picks a candidate, invoke `/grill` on it for the design conversation. `grill` walks the design tree — constraints, dependencies, the shape of the deepened module, what sits behind the seam, what tests survive — and owns the documentation side effects: it sharpens terminology into `CONTEXT.md` and records load-bearing decisions as ADRs inline (see [../contracts/context.md](../contracts/context.md), [../contracts/adr.md](../contracts/adr.md)). Pass the candidate's files, problem, and proposed solution so `grill` opens on the deepening rather than rediscovering it.
+Once the user picks a candidate, invoke `/grill` on it for the design conversation. `grill` walks the design tree — constraints, dependencies, the shape of the deepened module, what sits behind the seam, what tests survive — sharpening fuzzy terminology as it goes and offering a load-bearing decision as an ADR inline (see [../contracts/adr.md](../contracts/adr.md)). Pass the candidate's files, problem, and proposed solution so `grill` opens on the deepening rather than rediscovering it.
 
 Un-picked candidates are rejected, not deferred. Leave them in the report as dead — they are not findings and have no onward path.
 
@@ -82,7 +82,7 @@ Un-picked candidates are rejected, not deferred. Leave them in the report as dea
 Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this row as one `AskUserQuestion`.
 
 - **artifact:** architectural candidates + HTML report
-- **default:** `grill` — design the chosen candidate, sharpening `CONTEXT.md`/ADRs inline
+- **default:** `grill` — design the chosen candidate, sharpening terminology and offering an ADR inline
 - **alternatives:** stop
 
 **Interactive-only** (per [../HANDOVER.md](../HANDOVER.md)) — surfacing candidates ends in a pick the user must make; `auto` never enters it.

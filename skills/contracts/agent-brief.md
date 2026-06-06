@@ -111,27 +111,26 @@ Truncation should break at the last word boundary before 1024 characters and app
 ## Agent Brief
 
 **Category:** enhancement
-**Summary:** Add `.out-of-scope/` directory support for tracking rejected feature requests
+**Summary:** Surface prior rejections during triage so the maintainer doesn't re-litigate a closed `wontfix`
 
 **Current behavior:**
-When a feature request is rejected, the issue is closed with a `wontfix` label and a comment. There is no persistent record of the decision or reasoning. Future similar requests require the maintainer to recall or search for the prior discussion.
+When a feature request is rejected, the issue is closed with a `wontfix` label and the reason in the close comment. Triaging a new issue does not check whether a similar request was already rejected, so the maintainer re-evaluates ground already covered.
 
 **Desired behavior:**
-Rejected feature requests should be documented in `.out-of-scope/<concept>.md` files that capture the decision, reasoning, and links to all issues that requested the feature. When triaging new issues, these files should be checked for matches.
+During triage, the prior-rejection check queries closed `wontfix` issues and surfaces any whose close comment resembles the incoming request, so the maintainer sees the earlier decision and its reason before deciding.
 
 **Key interfaces:**
-- Markdown file format in `.out-of-scope/` — each file should have a `# Concept Name` heading, a `**Decision:**` line, a `**Reason:**` line, and a `**Prior requests:**` list with issue links
-- The triage workflow should read all `.out-of-scope/*.md` files early and match incoming issues against them by concept similarity
+- The triage gather-context step runs `gh issue list --label wontfix --state closed` and matches incoming issues against the results by concept similarity
+- The surfaced match links the prior issue and quotes its close-comment reason
 
 **Acceptance criteria:**
-- [ ] Closing a feature as wontfix creates/updates a file in `.out-of-scope/`
-- [ ] The file includes the decision, reasoning, and link to the closed issue
-- [ ] If a matching `.out-of-scope/` file already exists, the new issue is appended to its "Prior requests" list rather than creating a duplicate
-- [ ] During triage, existing `.out-of-scope/` files are checked and surfaced when a new issue matches a prior rejection
+- [ ] Triage queries closed `wontfix` issues during gather-context
+- [ ] A new issue resembling a prior rejection surfaces the match with a link and the recorded reason
+- [ ] No match found leaves triage unchanged
 
 **Out of scope:**
 - Automated matching (human confirms the match)
 - Reopening previously rejected features
-- Bug reports (only enhancement rejections go to `.out-of-scope/`)
+- Bug reports (only enhancement rejections carry a rejection reason worth matching)
 
 </agent-brief-example>

@@ -8,7 +8,7 @@ argument-hint: "[what's broken]"
 
 A discipline for hard bugs. Skip phases only when explicitly justified.
 
-When exploring the codebase, use the project's domain glossary to get a clear mental model of the relevant modules, and check ADRs in the area you're touching.
+When exploring the codebase, use the project's established vocabulary to get a clear mental model of the relevant modules, and check its recorded decisions in the area you're touching.
 
 ## Phase 1 — Build a feedback loop
 

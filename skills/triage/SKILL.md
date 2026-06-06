@@ -11,7 +11,6 @@ Move issues through a small state machine of triage labels, using the `gh` CLI (
 ## Reference docs
 
 - [../contracts/agent-brief.md](../contracts/agent-brief.md) — how to write durable agent briefs
-- [OUT-OF-SCOPE.md](OUT-OF-SCOPE.md) — how the `.out-of-scope/` knowledge base works
 
 ## Labels
 
@@ -56,7 +55,7 @@ Show counts and a one-line summary per issue. Let the maintainer pick.
 
 ## Triage a specific issue
 
-1. **Gather context.** Read the full issue (body, comments, labels, reporter, dates). Parse any prior triage notes — or a `pickup` attempt report, if the issue returned here walled — so you don't re-ask resolved questions and you address the recorded blocker. Explore the codebase using the project's domain glossary, respecting ADRs in the area. Read `.out-of-scope/*.md` and surface any prior rejection that resembles this issue.
+1. **Gather context.** Read the full issue (body, comments, labels, reporter, dates). Parse any prior triage notes — or a `pickup` attempt report, if the issue returned here walled — so you don't re-ask resolved questions and you address the recorded blocker. Explore the codebase using the project's established vocabulary, respecting recorded decisions in the area. Query prior rejections (`gh issue list --label wontfix --state closed`, see [../GITHUB.md](../GITHUB.md)) and surface any whose close comment resembles this issue.
 
 2. **Recommend.** Tell the maintainer your category and state recommendation with reasoning, plus a brief codebase summary relevant to the issue. Wait for direction.
 
@@ -69,7 +68,7 @@ Show counts and a one-line summary per issue. Let the maintainer pick.
    - `ready-for-human` — same structure as an agent brief, but note why it can't be delegated (judgment calls, external access, design decisions, manual testing).
    - `needs-info` — post triage notes (template below).
    - `wontfix` (bug) — polite explanation, then close.
-   - `wontfix` (enhancement) — write to `.out-of-scope/`, link to it from a comment, then close ([OUT-OF-SCOPE.md](OUT-OF-SCOPE.md)).
+   - `wontfix` (enhancement) — add the `wontfix` label, then close with the reason in the close comment (`gh issue close <n> --comment "..."`). The label plus the reason on the closed issue *is* the rejection record — a later triage finds it via `gh issue list --label wontfix --state closed`. If a closed `wontfix` issue already covers this request, link to it from the comment rather than re-deciding.
    - `needs-triage` — apply the role. Optional comment if there's partial progress.
 
 ## Quick state override
