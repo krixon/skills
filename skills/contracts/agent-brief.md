@@ -8,7 +8,7 @@ Write its prose per [../../WRITING.md](../../WRITING.md) → *Issues & findings*
 
 ### Durability over precision
 
-The issue may sit for days or weeks while the codebase changes underneath it. Write the brief so it survives files being renamed, moved, or refactored.
+The issue may sit while the codebase changes underneath it. Write the brief so it survives files being renamed, moved, or refactored.
 
 - **Do** describe interfaces, types, and behavioral contracts
 - **Do** name specific types, function signatures, or config shapes that the agent should look for or modify

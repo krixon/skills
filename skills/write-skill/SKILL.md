@@ -22,7 +22,7 @@ skill-name/
     └── helper.py
 ```
 
-`SKILL.md` and bundled reference docs are `UPPERCASE-KEBAB.md` (e.g. `REFERENCE.md`, `TESTABLE-INTERFACES.md`). Scripts live under `scripts/` and keep normal lowercase names (`helper.py`, `hitl-loop.template.sh`).
+`SKILL.md` and bundled reference docs are `UPPERCASE-KEBAB.md` (e.g. `REFERENCE.md`, `TESTABLE-INTERFACES.md`). Scripts live under `scripts/` and keep lowercase names (`helper.py`, `hitl-loop.template.sh`).
 
 ## SKILL.md Template
 
