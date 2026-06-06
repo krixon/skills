@@ -16,6 +16,10 @@ A library of Claude Code agent skills, intended to ultimately be packaged and di
 
 Use [Conventional Commits](https://www.conventionalcommits.org): `<type>[scope]: <description>`. Types: `feat fix chore docs refactor test` (same vocabulary as the branch kinds in `ISOLATION.md`). Subject in imperative mood, lower-case, no trailing period; breaking changes get a `!` before the colon or a `BREAKING CHANGE:` footer. Write the message body per `WRITING.md`.
 
+## Pull requests
+
+Open PRs as the `krixon-bot` account, never as the maintainer — command and rationale in `skills/GITHUB.md` → "PR identity".
+
 ## Goal
 
 - Build out a collection of skills, then package them as a distributable Claude Code plugin (intended to add a `plugin.json`/marketplace manifest as the library matures).
