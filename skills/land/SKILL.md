@@ -18,8 +18,6 @@ Merge the PRs a human has **approved**, then clean up after them. `land` is the 
 - **Mergeable** — `mergeable` is `MERGEABLE` and `mergeStateStatus` is `CLEAN`: no conflicts, required checks green. Skip `CONFLICTING` / `BLOCKED` / `UNKNOWN`.
 - **Bot-owned** — authored by `krixon-bot`, the agent's identity (see *PR identity* in [../GITHUB.md](../GITHUB.md)). `land` does not merge a human's PR.
 
-A PR that clears these lands without a prompt — the guardrails are the gate. `land` pauses to confirm only in the unusual cases named in step 2.
-
 ## Process
 
 ### 1. Select the PRs
