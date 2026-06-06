@@ -52,4 +52,3 @@ Hand off per [../HANDOVER.md](../HANDOVER.md). End an interactive run by renderi
 - **artifact:** `needs-triage` issues
 - **default:** `triage` — promotes them out of `needs-triage`
 - **alternatives:** stop
-- **auto:** stage — `needs-triage` is the staging queue, so `auto` stops here and leaves `triage` for a human. (Internal cull gate resolved by the confidence-≥-medium default noted in step 4.)

@@ -63,4 +63,5 @@ Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this r
 - **artifact:** a plan stress-tested against the domain model, with `CONTEXT.md`/ADRs updated inline
 - **default:** `spec` — synthesise the resolved plan into a PRD
 - **alternatives:** `slice` · stop
-- **auto:** never — grilling is an interview.
+
+**Interactive-only** (per [../HANDOVER.md](../HANDOVER.md)) — grilling is an interview; `auto` never enters it.

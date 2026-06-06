@@ -15,4 +15,5 @@ Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this r
 - **artifact:** shared understanding on the questions (in the conversation) — plus, where an agreed answer implies a change, the resulting change deltas.
 - **default:** — (terminal; the understanding lives in the conversation, there's nothing to publish). **Embedded** (a parent skill passed the `embedded` mode and will consume the result): don't render this prompt — return the converged answers and any change deltas to the caller.
 - **alternatives:** stop
-- **auto:** never — a question needs the human; there's no safe unattended default.
+
+**Interactive-only** (per [../HANDOVER.md](../HANDOVER.md)) — a question needs the human; there's no safe unattended default, so `auto` never enters it.

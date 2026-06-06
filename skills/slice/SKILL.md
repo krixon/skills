@@ -89,4 +89,5 @@ Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this r
 - **artifact:** tracer-bullet issues, labelled `ready-for-agent` (AFK) / `ready-for-human` (HITL) by type — or, when the breakdown was a single slice, no new issue and the original source issue carried forward unchanged
 - **default:** `pickup` — implement a ready issue
 - **alternatives:** stop
-- **auto:** never — the granularity/dependency quiz (step 4) is the judgment and has no safe default.
+
+**Interactive-only** (per [../HANDOVER.md](../HANDOVER.md)) — the granularity/dependency quiz (step 4) is the judgment and has no safe default; `auto` never enters it.

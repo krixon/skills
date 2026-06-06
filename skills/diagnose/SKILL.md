@@ -137,4 +137,3 @@ Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this r
 - **artifact:** a fix + regression test on a branch (or a documented missing-seam finding)
 - **default:** — (terminal; open a PR for review)
 - **alternatives:** `/code-review` · `/security-review` · `deepen`, when the fix exposed architectural friction · stop
-- **auto:** stage — the loop runs unattended (Phase 3 proceeds on its own ranking when the user is AFK). The review gate is mandatory before staging: `/code-review` + `/security-review`. The fix is a code change — leave the branch for review, never merge.
