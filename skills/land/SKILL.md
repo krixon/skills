@@ -63,9 +63,9 @@ gh issue edit <n> --remove-label in-progress
 
 If the PR carried no closing reference, you can't name its issue with confidence — and stripping `in-progress` needs that same confidence. Don't touch any issue: report that the PR landed with no linked issue and leave it for the maintainer.
 
-### 6. Close the parent PRD when its last child lands
+### 6. Close the parent epic when its last child lands
 
-A sliced child is a native sub-issue of its parent PRD; nothing closes that parent automatically. After closing the child, check whether it was the parent's last open child.
+A sliced child is a native sub-issue of its parent epic; nothing closes that parent automatically. After closing the child, check whether it was the parent's last open child.
 
 Read the closed child's parent, then the parent's sub-issues:
 
@@ -74,11 +74,11 @@ gh api repos/{owner}/{repo}/issues/<child-n>/parent --jq .number
 gh api repos/{owner}/{repo}/issues/<parent-n>/sub_issues --jq '.[] | {number, state}'
 ```
 
-The parent read 404s (non-zero exit) when the child has no parent — treat that as no parent, not an error. No parent, or the parent is already closed → nothing to do, move on. Otherwise, when **every** sub-issue is now closed and the parent is still open, prompt the maintainer to close it — `land` is human-invoked, so the prompt always faces a person. Show the sub-issue list you checked (number and state of each) and **recommend closing**: the work it tracked is complete. Close on confirmation (`gh issue close <parent-n> --comment "..."`); leave it open if declined. If any sub-issue is still open, don't prompt — the PRD has children left to land.
+The parent read 404s (non-zero exit) when the child has no parent — treat that as no parent, not an error. No parent, or the parent is already closed → nothing to do, move on. Otherwise, when **every** sub-issue is now closed and the parent is still open, prompt the maintainer to close it — `land` is human-invoked, so the prompt always faces a person. Show the sub-issue list you checked (number and state of each) and **recommend closing**: the work it tracked is complete. Close on confirmation (`gh issue close <parent-n> --comment "..."`); leave it open if declined. If any sub-issue is still open, don't prompt — the epic has children left to land.
 
 ### 7. Report
 
-Per PR: merged ✓, its issue closed and `in-progress` stripped, worktree and branch removed — plus any PR skipped at a guardrail, named with the failing check. Note any parent PRD closed (or left open at the maintainer's call) when a child was its last to land. State whether local `main` was fast-forwarded to `origin/main` or skipped, with the reason. There is nothing to hand to; the work is merged.
+Per PR: merged ✓, its issue closed and `in-progress` stripped, worktree and branch removed — plus any PR skipped at a guardrail, named with the failing check. Note any parent epic closed (or left open at the maintainer's call) when a child was its last to land. State whether local `main` was fast-forwarded to `origin/main` or skipped, with the reason. There is nothing to hand to; the work is merged.
 
 ## Handover
 

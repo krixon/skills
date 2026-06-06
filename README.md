@@ -32,9 +32,8 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 
 | I want to… | Run | …and the path from there |
 |---|---|---|
-| Stress-test a plan or design | `/grill` — challenges it against CONTEXT.md / ADRs and updates them inline | grilling → `spec` → `slice` → ready issues on the tracker |
-| Turn this conversation into a spec | `/spec` | PRD published as an issue → `slice` |
-| Break a plan or PRD into issues | `/slice` | independently-grabbable issues, each marked `ready-for-agent` (AFK) or `ready-for-human` (HITL) |
+| Stress-test a plan or design | `/grill` — challenges it against CONTEXT.md / ADRs and updates them inline | grilling → `slice` → ready issues on the tracker |
+| Turn a plan or this conversation into issues | `/slice` | one agent-brief issue, or N independently-grabbable issues under a lean epic, each marked `ready-for-agent` (AFK) or `ready-for-human` (HITL) |
 | Find architecture / refactoring opportunities | `/deepen` | candidates + report surfaced → `grill` to design the chosen one |
 | Find what's not tested | `/audit-coverage` | findings → `capture` → `needs-triage` |
 | Run a security audit | `/audit-security` | findings → `capture` → `needs-triage` |
@@ -56,8 +55,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 ### Planning & specs
 - **grill** — interview you relentlessly about a plan until shared understanding, resolving each decision branch while challenging it against the domain model and updating CONTEXT.md / ADRs inline.
 - **field** — field questions put to the agent and converge on shared understanding; the dual of grill, run on PR-review rework.
-- **spec** — turn the current conversation into a PRD and publish it as a GitHub issue.
-- **slice** — break a plan, spec, or PRD into independently-grabbable tracer-bullet issues.
+- **slice** — turn a plan, the current conversation, or an existing issue into one agent-brief issue or N tracer-bullet issues under a lean epic.
 
 ### Issue tracking
 - **triage** — drive issues through a triage state machine by label.
