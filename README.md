@@ -48,8 +48,14 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 | Cut a plugin version release | `/release` | bumps `plugin.json` and pushes the bump + `v<new>` tag to `main` from a worktree — batched and human-invoked; `land` offers it after a merge |
 | Write a new skill | `/write-skill` | scaffolds structure + progressive disclosure |
 | Run a whole pipeline unattended | `/auto <skill>` (e.g. `/auto audit-coverage`) | walks the chain head-down, halting at the first human gate |
-| Drain the whole `ready-for-agent` queue unattended | `/loop /auto pickup` (no interval) | picks up each ready issue in turn, self-terminating once none are left `ready-for-agent` |
+| Drain the whole `ready-for-agent` queue unattended | `/loop /auto pickup` (no interval) | picks up each ready issue in turn, then polls on a backoff for more — see [Draining the queue unattended](#draining-the-queue-unattended) |
 | Hand off the session to a fresh agent | `/handoff` | a compact handoff doc the next agent picks up |
+
+## Draining the queue unattended
+
+`/loop /auto pickup` (dynamic mode — no interval) drains the whole `ready-for-agent` queue in one sitting: each loop iteration picks up the next ready issue and opens a PR, back-to-back with no idle between them. `pickup` is local work, not a status poll — there's nothing to wait for, so nothing paces the iterations. The queue lives in the tracker (`ready-for-agent` minus `in-progress`), not the conversation, so the loop re-derives it each iteration and stays correct across a long session the harness may compact.
+
+When the queue runs dry the loop doesn't stop — it polls on a widening backoff (`60s → 5m → 15m → 30m → 1h`, then hourly), resets to a hard drain the moment a newly-triaged issue appears, and gives up only after ~a day of finding nothing. Operating details are in [skills/auto/SKILL.md](skills/auto/SKILL.md).
 
 ## Skills
 
