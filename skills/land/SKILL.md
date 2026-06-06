@@ -52,6 +52,7 @@ You cannot delete a branch you are standing on. If you are landing the branch of
 
 - **Worktree** — if the head branch is checked out in a worktree (`git worktree list`), `git worktree remove <path>`; it was the isolation for an unattended or parallel run (see [../../ISOLATION.md](../../ISOLATION.md)).
 - **Branch** — if `--delete-branch` left the local branch behind (it was checked out, or the merge happened in the GitHub UI), `git branch -D <headRefName>`, then `git remote prune origin`.
+- **Local `main`** — bring the checkout that holds `main` current, so the next `pickup` branches from a fresh base rather than a stale one. That checkout is wherever `main` lives: the one you switched to in step 3 for an in-place land, or the primary checkout for a worktree land. There, `git fetch origin`, then fast-forward **only** when both guards pass — don't trust `--ff-only` to enforce them: the working tree is clean (`git status --porcelain` empty) and `main` has not diverged (`git merge-base --is-ancestor main origin/main` succeeds, so `main` is an ancestor of `origin/main`). When both hold, `git merge --ff-only origin/main`. Otherwise skip, leave `main` untouched, and name the reason in the report — dirty tree, or diverged (carries commits `origin` lacks). Never force, never create a merge commit.
 
 ### 5. Close out the issue
 
@@ -65,7 +66,7 @@ If the PR carried no closing reference, you can't name its issue with confidence
 
 ### 6. Report
 
-Per PR: merged ✓, its issue closed and `in-progress` stripped, worktree and branch removed — plus any PR skipped at a guardrail, named with the failing check. There is nothing to hand to; the work is merged.
+Per PR: merged ✓, its issue closed and `in-progress` stripped, worktree and branch removed — plus any PR skipped at a guardrail, named with the failing check. State whether local `main` was fast-forwarded to `origin/main` or skipped, with the reason. There is nothing to hand to; the work is merged.
 
 ## Handover
 
