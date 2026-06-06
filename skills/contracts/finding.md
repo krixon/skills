@@ -4,7 +4,7 @@ The contract between an **audit** (the producer) and `capture` (the sink). Any s
 
 A finding is an **un-investigated, judgment-gated observation**: something an audit scored past a confidence threshold, or a human explicitly flagged. It is NOT designed work. Keep it lean — acceptance criteria, key interfaces, and implementation steps are the *agent brief*, which `triage` writes if and when the finding is promoted. Don't pre-empt that here.
 
-Write every prose field per [../../WRITING.md](../../WRITING.md) → *Issues & findings*: lead with the problem and impact, give a concrete location, mark assumed vs verified, no speculation dressed as fact.
+Write every prose field per [../../WRITING.md](../../WRITING.md) → *Issues & findings*: lead with the problem and impact, give a concrete location, mark assumed vs verified, no speculation dressed as fact. Run the subtract pass before filing.
 
 ## Fields
 

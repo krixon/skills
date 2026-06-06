@@ -15,6 +15,20 @@ The one rule everything else serves: **if it doesn't need saying, don't say it; 
 - Never fabricate — no invented APIs, paths, flags, numbers, or citations.
 - Write the current truth, not the change that produced it. In standing artifacts — code, comments, docs, ADRs, issues — no *this no longer / updated to / previously / now uses / renamed from*. Describe what *is*, as if it had always been so. History is git's job; reach for the past only when a past state is load-bearing for understanding the present (the commit message is the one place change itself belongs).
 
+### The subtract pass
+
+A required action, not a property to aim for. The rules above describe good prose; this is how you get there. The first draft always carries weight the writer can't see while writing it — the pass is where you find it.
+
+After drafting any artifact, before emitting: re-read and delete every word, sentence, and section it survives without. Cut any sentence that restates the title, the diff, or the sentence before it. Collapse a hedge into the claim it surrounds. If nothing got shorter, you didn't run the pass.
+
+A finding's evidence line, before and after:
+
+> Before: *It appears that the discount branch may potentially never actually be exercised by the current test suite, which basically means that the rounding logic living there is essentially left completely unverified at this point in time.* (38 words)
+>
+> After: *The discount branch is never exercised, so its rounding logic is unverified.* (12 words)
+
+The cut removed hedges (*appears / may / potentially*), filler (*actually / basically / essentially / completely*), and a temporal clause that said nothing (*at this point in time*) — no fact was lost.
+
 ## Commit messages
 
 - Imperative subject line — "Fix race in capture dedup", not "Fixed" / "Fixes" / "This commit fixes". One line, no trailing period, ~50 chars.
