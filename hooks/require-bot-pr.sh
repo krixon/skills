@@ -20,12 +20,36 @@ bot="${GITHUB_BOT_ACCOUNT:-}"
 cmd=$(jq -r '.tool_input.command // ""')
 
 # Only PR creation chooses an author; reopen/edit/merge keep the existing one.
-# A command cannot be invoked from inside a quote, so drop quoted spans first:
-# that removes the phrase when it appears as data — an issue body that documents
-# the incantation, a grep searching for it — while leaving every real invocation
-# intact, in any position (after a pipe, xargs, time, &&, …). An unquoted bare
-# mention still trips it, which is the safe direction for a guard.
-unquoted=$(sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g" <<<"$cmd")
+# A command cannot be invoked from inside a quote or a heredoc body, so drop both
+# first: that removes the phrase when it appears as data — an issue body that
+# documents the incantation (heredoc), a quoted doc string, a grep searching for
+# the literal — while leaving every real invocation intact, in any position
+# (after a pipe, xargs, time, &&, …). An unquoted bare mention still trips it,
+# which is the safe direction for a guard.
+#
+# Heredoc bodies arrive as unquoted lines, so the quote-strip cannot reach them;
+# neutralise them first. Match an opener (`<<` / `<<-`, optional space, then a
+# delimiter word that may itself be quoted), then blank every line until the
+# delimiter word appears alone on its own line (`<<-` also allows leading tabs).
+stripped=$(awk '
+  function delim_re(d) { return "^[\t]*" d "[ \t]*$" }
+  {
+    if (in_heredoc) {
+      if ($0 ~ end_re) { in_heredoc = 0; print; next }
+      print ""; next
+    }
+    line = $0
+    if (match(line, /<<-?[ \t]*("[^"]*"|'"'"'[^'"'"']*'"'"'|[A-Za-z_][A-Za-z0-9_]*)/)) {
+      word = substr(line, RSTART, RLENGTH)
+      sub(/^<<-?[ \t]*/, "", word)
+      gsub(/^["'"'"']|["'"'"']$/, "", word)
+      end_re = delim_re(word)
+      in_heredoc = 1
+    }
+    print
+  }
+' <<<"$cmd")
+unquoted=$(sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g" <<<"$stripped")
 grep -qE '(^|[^[:alnum:]_-])gh[[:space:]]+pr[[:space:]]+create([^[:alnum:]_-]|$)' <<<"$unquoted" || exit 0
 
 # An explicit GH_TOKEN= on the command means identity was supplied rather than
