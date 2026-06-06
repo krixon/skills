@@ -61,6 +61,6 @@ If any of the three is missing, skip the ADR. Use the format in [ADR-FORMAT.md](
 Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this row as one `AskUserQuestion`.
 
 - **artifact:** a plan stress-tested against the domain model, with `CONTEXT.md`/ADRs updated inline
-- **default:** `to-prd` — synthesise the resolved plan into a PRD
+- **default:** `spec` — synthesise the resolved plan into a PRD
 - **alternatives:** `slice` · stop
 - **auto:** never — grilling is an interview.

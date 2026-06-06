@@ -84,7 +84,7 @@ Side effects happen inline as decisions crystallise:
 
 A candidate through the grilling loop is no longer an observation — it's *investigated, designed* work. Route it by shape:
 
-- **Chosen + grilled candidate** → offer to hand the design to `/to-prd` (which turns the conversation context into a PRD, then `/slice` cuts it into tracer-bullet issues). Don't flatten a designed deepening into a lean finding — that throws away the investigation.
+- **Chosen + grilled candidate** → offer to hand the design to `/spec` (which turns the conversation context into a PRD, then `/slice` cuts it into tracer-bullet issues). Don't flatten a designed deepening into a lean finding — that throws away the investigation.
 - **Rejected candidate** → offer an ADR, as above, so future reviews don't re-suggest it.
 - **Un-picked candidates** → rejected, not deferred. Leave them in the report as dead. They are not findings and have no onward path — `deepen` does not hand them anywhere.
 
@@ -93,6 +93,6 @@ A candidate through the grilling loop is no longer an observation — it's *inve
 Per [../HANDOVER.md](../HANDOVER.md); routing is step 4 above (multi-way, not a single default). End an interactive run by rendering this row as one `AskUserQuestion`.
 
 - **artifact:** designed candidate (chosen) · ADR (rejected) · nothing (un-picked)
-- **default:** `to-prd`, for a chosen candidate
+- **default:** `spec`, for a chosen candidate
 - **alternatives:** ADR · stop
 - **auto:** never — the grilling loop needs the user.

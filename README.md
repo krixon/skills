@@ -31,7 +31,7 @@ Skills are namespaced once installed: `/skills:diagnose`, `/skills:tdd`, etc.
 ### Planning & specs
 - **grill** — interview you relentlessly about a plan until shared understanding, resolving each decision branch.
 - **grill-with-docs** — grilling that challenges your plan against the domain model and updates CONTEXT.md / ADRs inline.
-- **to-prd** — turn the current conversation into a PRD and publish it as a GitHub issue.
+- **spec** — turn the current conversation into a PRD and publish it as a GitHub issue.
 - **slice** — break a plan, spec, or PRD into independently-grabbable tracer-bullet issues.
 
 ### Issue tracking
