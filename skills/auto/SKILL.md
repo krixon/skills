@@ -42,6 +42,16 @@ Refuse before starting if **start** itself is interactive-only, or if the start 
 - **Isolate every editing hop.** A hop that changes files (`pickup` and its implement loop) runs in a worktree on its own branch, never the repo-root checkout — the single invariant, no different unattended (see [../../ISOLATION.md](../../ISOLATION.md)). Nobody's watching, so the run must not disturb the tree you'll return to.
 - **Bounded.** Honour the `target` scope; don't widen it mid-run.
 
+## Draining the ready queue (`/loop /auto pickup`)
+
+Wrapping `auto pickup` in a dynamic-mode `/loop` (no interval) drains the whole `ready-for-agent` queue in one unattended run — each loop iteration runs `auto pickup`, picks up the next ready issue, and opens a PR. Its pacing and context discipline:
+
+- **Don't pace between issues.** While issues remain, run the next `auto pickup` immediately; never schedule a wake-up between issues.
+- **Hold no state in the conversation.** The queue is durable in the tracker — `ready-for-agent` minus `in-progress`. Re-derive it each iteration rather than remembering it, so the drain stays correct across a long session the harness summarises or compacts.
+- **Keep each iteration's footprint small.** `pickup` delegates its implementation to a subagent on the AFK path (see [../DELEGATION.md](../DELEGATION.md)); only the PR reference returns to the loop. That, with holding no state, is what bounds the window over a queue of any length.
+- **When the queue is dry, poll with backoff.** Don't terminate on the first empty query — the queue refills as a human triages more. Schedule the next wake-up on a widening ladder: `60s → 5m → 15m → 30m → 1h`, then hold at 1h. Finding any ready issue resets the ladder — drain hard again, re-entering backoff only once dry.
+- **Give up after a day idle.** After 24 consecutive hourly (ceiling) polls find nothing, stop scheduling and end the loop; re-launch to resume. Tunable.
+
 ## Report
 
 When the run halts, emit a summary:
