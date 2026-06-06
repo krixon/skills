@@ -65,6 +65,8 @@ Prefixing `GH_TOKEN` is atomic per command — it never mutates the active `gh` 
 
 **This repo's values**: `GITHUB_BOT_ACCOUNT=krixon-bot`, with `GITHUB_BOT_TOKEN_CMD` reading a classic PAT (`repo` scope) from the macOS Keychain — both set in `.claude/settings.json`, which holds the keychain incantation.
 
+This is enforced by `bin/gh`, a wrapper shim the plugin's `bin/` puts ahead of the system `gh` on PATH. It is inert when `GH_PR_BOT_ACCOUNT` is unset (multi-dev default); when the bot account is set it blocks `gh pr create` unless a `GH_TOKEN` override is supplied, and passes every other call straight through. Enforcing at the `gh` argv boundary (not by parsing the command string) means the create phrase appearing as data — in an issue body, a quoted title, a heredoc — can never trip it.
+
 ## PRs and rework
 
 - **Open a PR**: `GH_TOKEN=$(eval "$GITHUB_BOT_TOKEN_CMD") gh pr create --title "..." --body "Closes #<n>"` — drop the `GH_TOKEN` prefix when `GITHUB_BOT_ACCOUNT` is unset. Opens as the bot (or normal identity); the issue stays `in-progress`; the open PR is the review state.
