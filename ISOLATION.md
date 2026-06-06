@@ -1,12 +1,10 @@
 # Isolation
 
-How work is kept off your live checkout. One invariant: the repo-root checkout is read-only — every change is made in a worktree on its own branch, never in the tree you're sitting in. The work-producing skills (`pickup`, `tdd`, `diagnose`, `write-skill`, `release`) and the `auto` loop follow it.
+One invariant, binding on **every** edit to this repo — through a skill, a direct request, or an ad-hoc change alike: the repo-root checkout is read-only; every change is made in a worktree on its own branch. The work-producing skills (`pickup`, `tdd`, `diagnose`, `write-skill`, `release`) and the `auto` loop build on this but don't own it — it precedes them, and nothing is exempt by skipping them.
 
 ## The repo-root checkout is read-only
 
-Read, explore, and run in the repo root freely. The gate is the first *edit*, not the commit: the moment you would change a file, you do it in a worktree on its own branch, never in the repo-root checkout. This holds without exception — code, docs, and releases alike — and it makes concurrent sessions collision-proof, since no two ever share a working tree.
-
-The repo root stays on the default branch (`main` / `master`), clean. Nothing edits or commits there; `main` advances only when a worktree's branch reaches it (below). Override only on an explicit instruction to work in the repo root ("just do it on main here") — and that approval doesn't carry to the next task.
+Read and explore the repo root freely; the gate is the first edit. The moment you would change a file, do it in a worktree on its own branch. This holds without exception — code, docs, releases alike — and makes concurrent sessions collision-proof, since no two share a working tree.
 
 ## A branch is the unit of work
 
