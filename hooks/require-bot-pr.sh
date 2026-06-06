@@ -17,7 +17,13 @@ bot="${GH_PR_BOT_ACCOUNT:-}"
 cmd=$(jq -r '.tool_input.command // ""')
 
 # Only PR creation chooses an author; reopen/edit/merge keep the existing one.
-grep -qE '(^|[^[:alnum:]_-])gh[[:space:]]+pr[[:space:]]+create([^[:alnum:]_-]|$)' <<<"$cmd" || exit 0
+# A command cannot be invoked from inside a quote, so drop quoted spans first:
+# that removes the phrase when it appears as data — an issue body that documents
+# the incantation, a grep searching for it — while leaving every real invocation
+# intact, in any position (after a pipe, xargs, time, &&, …). An unquoted bare
+# mention still trips it, which is the safe direction for a guard.
+unquoted=$(sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g" <<<"$cmd")
+grep -qE '(^|[^[:alnum:]_-])gh[[:space:]]+pr[[:space:]]+create([^[:alnum:]_-]|$)' <<<"$unquoted" || exit 0
 
 # An explicit GH_TOKEN= on the command means identity was supplied rather than
 # defaulting to the logged-in account. That is the signal we require.
