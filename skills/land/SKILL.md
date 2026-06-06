@@ -8,7 +8,7 @@ argument-hint: "[PR number to land just that one, or leave blank to sweep every 
 
 Merge the PRs a human has **approved**, then clean up after them. `land` is the terminal hop of the implement loop: `pickup` opens a PR and stops, a human reviews and approves, and `land` executes the merge the approval authorised — then tidies the trail it leaves: strips the issue's `in-progress` label, removes the local worktree, deletes the branch.
 
-`land` is **human-invoked only**. It never runs from `auto`, `loop`, or `schedule`: merging is outward-facing and hard to reverse, and the system keeps the final merge a human act (see *Two autonomy boundaries* in [../WORKFLOWS.md](../WORKFLOWS.md)). The approval is the gate; `land` is the hand that turns it, not a way around it.
+`land` is **human-invoked only**. It never runs from `auto`, `loop`, or `schedule`: merging is outward-facing and hard to reverse, and the system keeps the final merge a human act (`land` is interactive-only — see *Autonomy* in [../HANDOVER.md](../HANDOVER.md)). The approval is the gate; `land` is the hand that turns it, not a way around it.
 
 ## Guardrails
 

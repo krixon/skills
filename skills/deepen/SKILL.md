@@ -34,7 +34,7 @@ The skill is informed by the project's domain model. The domain language names g
 
 Read the project's domain glossary and any ADRs in the area you're touching first.
 
-Then walk the codebase — above ~25 files in scope, fan out `Explore` subagents (one per area) so the reads stay out of the main window; at or below that, explore inline (see *Context & delegation* in [../WORKFLOWS.md](../WORKFLOWS.md)). Don't follow rigid heuristics — explore organically and note where you experience friction:
+Then walk the codebase — above ~25 files in scope, fan out `Explore` subagents (one per area) so the reads stay out of the main window; at or below that, explore inline (see [../DELEGATION.md](../DELEGATION.md)). Don't follow rigid heuristics — explore organically and note where you experience friction:
 
 - Where does understanding one concept require bouncing between many small modules?
 - Where are modules **shallow** — interface nearly as complex as the implementation?

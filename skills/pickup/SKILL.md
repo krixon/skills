@@ -52,7 +52,7 @@ Branch first; never commit to the default branch (see [../../ISOLATION.md](../..
 
 Infer the kind from the brief's target when it isn't stated. Drive the implementation skill with the brief: its acceptance criteria are the behaviors to satisfy, its interfaces are the seams.
 
-**Delegation (window hygiene — see *Context & delegation* in [../WORKFLOWS.md](../WORKFLOWS.md)).** On the **AFK** path, run the implementation skill as a subagent and keep only its result; nobody's watching, and this keeps `pickup`'s window bounded across the whole loop. On the **HITL** path, run it inline so you can drive it, and background its noisy test/log output rather than letting it accumulate.
+**Delegation (window hygiene — see [../DELEGATION.md](../DELEGATION.md)).** On the **AFK** path, run the implementation skill as a subagent and keep only its result; nobody's watching, and this keeps `pickup`'s window bounded across the whole loop. On the **HITL** path, run it inline so you can drive it, and background its noisy test/log output rather than letting it accumulate.
 
 **Resuming a PR sent back for changes.** If you arrived here from a PR with review activity (step 1), don't start fresh: check out its existing branch, and read the review (`gh pr view <n> --comments`) as an **addendum** to the original brief — the brief's acceptance criteria still hold, the review is the delta.
 
@@ -67,7 +67,7 @@ Infer the kind from the brief's target when it isn't stated. Drive the implement
 
 ### 6. Close the loop
 
-**On success** — first clear the **review gate** before the PR, adapted to the artifact kind (mandatory on the AFK path, the user's choice on HITL — see [../WORKFLOWS.md](../WORKFLOWS.md)). What TDD contributes is a gate that can fail before merge; that generalises:
+**On success** — first clear the **review gate** before the PR, adapted to the artifact kind (mandatory on the AFK path, the user's choice on HITL). What TDD contributes is a gate that can fail before merge; that generalises:
 
 - **code** → `/code-review` + `/security-review` as two parallel subagents, keeping only their findings lists.
 - **skill / docs** → a writing-rubric review against [../../WRITING.md](../../WRITING.md) plus a structure/accuracy check (`write-skill`'s rubric for a skill). `/code-review` and `/security-review` don't apply to prose.

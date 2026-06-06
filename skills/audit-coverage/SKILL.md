@@ -20,7 +20,7 @@ Reason from the code and the tests. If the repo already produces a coverage repo
 
 ### 1. Map risk
 
-Walk the codebase. Above ~25 files in scope, fan out `Explore` subagents (one per area) so the reads never land in the main window; at or below that, explore inline for visibility (see *Context & delegation* in [../WORKFLOWS.md](../WORKFLOWS.md)). Rank code by risk:
+Walk the codebase. Above ~25 files in scope, fan out `Explore` subagents (one per area) so the reads never land in the main window; at or below that, explore inline for visibility (see [../DELEGATION.md](../DELEGATION.md)). Rank code by risk:
 
 - **Criticality** — money, auth, data integrity, external side effects.
 - **Complexity** — branchy logic, error handling, edge cases.

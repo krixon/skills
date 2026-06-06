@@ -123,7 +123,7 @@ Required before declaring done:
 
 ## Phase 7 — Review gate
 
-Before opening the PR, review the branch diff (see [../WORKFLOWS.md](../WORKFLOWS.md)):
+Before opening the PR, review the branch diff:
 
 - `/code-review` — full review: correctness bugs *and* reuse/simplification/efficiency cleanups.
 - `/security-review` — security review of the pending changes.

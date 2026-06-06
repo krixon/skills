@@ -28,7 +28,7 @@ Skills are namespaced once installed: `/skills:diagnose`, `/skills:tdd`, etc.
 
 ## I want to…
 
-Start from the task, not the skill. Each entry is the head of a chain — run the command and it hands you to the next hop. The full graph is in [skills/WORKFLOWS.md](skills/WORKFLOWS.md).
+Start from the task, not the skill. Each entry is the head of a chain — run the command and it hands you to the next hop. Trace a chain by following each skill's handover `default` hop ([skills/HANDOVER.md](skills/HANDOVER.md)).
 
 | I want to… | Run | …and the path from there |
 |---|---|---|
