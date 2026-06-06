@@ -10,7 +10,7 @@ Find where the **prose no longer matches the code** — documented claims the im
 
 The aim is *factual drift* — a doc that contradicts the code — not writing quality. A stale claim that misleads a reader or an agent is the target; an awkward sentence that is still true is not.
 
-`CONTEXT.md` and the ADRs are both the claims to check *and* the vocabulary finding titles use. With neither present, the audit degrades to README and docstring claims; if there is nothing documented to contradict, report nothing rather than invent docs to audit.
+The project's domain vocabulary and recorded decisions (per [../CONVENTIONS.md](../CONVENTIONS.md)) are both the claims to check *and* the vocabulary finding titles use. With neither present, the audit degrades to README and docstring claims; if there is nothing documented to contradict, report nothing rather than invent docs to audit.
 
 ## Risk lens: map claims (step 1)
 

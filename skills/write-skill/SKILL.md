@@ -77,7 +77,7 @@ The guidance above writes *any* Claude skill. A skill in this library also inher
 - **Isolation.** A skill that edits files obeys the invariant in [../../ISOLATION.md](../../ISOLATION.md): the repo-root checkout is read-only, every change lands in a worktree on its own branch.
 - **Shared schemas.** When the skill reads or writes a shared artifact (a finding, an agent brief, an ADR, `CONTEXT.md`), reference the schema in [../contracts/](../contracts/) rather than defining the shape inline.
 - **Delegation.** A skill with a heavy interior follows [../DELEGATION.md](../DELEGATION.md) to keep the working window bounded.
-- **Doc-structure convention.** A skill that touches domain docs respects the single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root — per [../../CLAUDE.md](../../CLAUDE.md) → *Domain docs*.
+- **Doc-structure convention.** A skill that touches domain docs consults the project's vocabulary and decisions through the convention point in [../CONVENTIONS.md](../CONVENTIONS.md) rather than hard-coding paths, and degrades gracefully when the docs are absent.
 
 **Design test:** *if every other skill were deleted, would this one still do its job and produce its artifact?* The references above are how skills chain; the skill itself must stand alone.
 

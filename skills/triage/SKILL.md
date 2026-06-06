@@ -56,7 +56,7 @@ Show counts and a one-line summary per issue. Let the maintainer pick.
 
 ## Triage a specific issue
 
-1. **Gather context.** Read the full issue (body, comments, labels, reporter, dates). Parse any prior triage notes — or a `pickup` attempt report, if the issue returned here walled — so you don't re-ask resolved questions and you address the recorded blocker. Explore the codebase using the project's domain glossary, respecting ADRs in the area. Read `.out-of-scope/*.md` and surface any prior rejection that resembles this issue.
+1. **Gather context.** Read the full issue (body, comments, labels, reporter, dates). Parse any prior triage notes — or a `pickup` attempt report, if the issue returned here walled — so you don't re-ask resolved questions and you address the recorded blocker. Explore the codebase consulting the project's domain vocabulary and recorded decisions in the area (per [../CONVENTIONS.md](../CONVENTIONS.md)). Read the project's rejected scope and surface any prior rejection that resembles this issue ([OUT-OF-SCOPE.md](OUT-OF-SCOPE.md)).
 
 2. **Recommend.** Tell the maintainer your category and state recommendation with reasoning, plus a brief codebase summary relevant to the issue. Wait for direction.
 

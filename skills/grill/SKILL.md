@@ -14,13 +14,7 @@ If a question can be answered by exploring the codebase, explore it instead.
 
 ## Domain awareness
 
-During codebase exploration, also look for existing documentation:
-
-### File structure
-
-Single-context repo: `CONTEXT.md` + `docs/adr/` at the root. Multi-context repo: a `CONTEXT-MAP.md` at the root points to a per-context `CONTEXT.md` + `docs/adr/` under each `src/<context>/`, with root `docs/adr/` holding system-wide decisions.
-
-Create files lazily — only when you have something to write: `CONTEXT.md` when the first term resolves, `docs/adr/` when the first ADR is needed.
+During codebase exploration, look for the project's domain vocabulary and recorded decisions (per [../CONVENTIONS.md](../CONVENTIONS.md)) and consult them. In a multi-context repo, per-context decisions live alongside each context's vocabulary, with system-wide decisions at the root. Create docs lazily, per the consult rule — vocabulary when the first term resolves, a decision record when the first one is needed.
 
 ## During the session
 
