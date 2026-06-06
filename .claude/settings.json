@@ -1,6 +1,7 @@
 {
   "env": {
-    "GH_PR_BOT_ACCOUNT": "krixon-bot"
+    "GH_PR_BOT_ACCOUNT": "krixon-bot",
+    "GH_PR_BOT_TOKEN_CMD": "security find-generic-password -s krixon-bot -w"
   },
   "hooks": {
     "PreToolUse": [

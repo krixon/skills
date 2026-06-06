@@ -53,19 +53,23 @@ Parent/child and blocked-by links live in GitHub's native data model, not in iss
 
 ## PR identity
 
-The agent opens PRs as the **`krixon-bot`** machine account, never as the maintainer — GitHub forbids approving your own PR, and the maintainer (`krixon`) is the approver. Commits and branch pushes stay under the maintainer's identity (SSH `origin`); only the PR-create call switches identity. The bot token is a classic PAT (`repo` scope) in the macOS Keychain; read it inline per command:
+Identity is configured by two env vars, so the plugin ships bot-neutral and the bot dance is a solo-dev opt-in. When `GH_PR_BOT_ACCOUNT` is set, the agent opens PRs as that machine account, never as the maintainer — GitHub forbids approving your own PR, so a separate author keeps the maintainer free to approve. Commits and branch pushes stay under the maintainer's identity (SSH `origin`); only the PR-create call switches identity, by prefixing a bot token. `GH_PR_BOT_TOKEN_CMD` is a shell command that prints that token; evaluate it inline per call so the token never persists:
 
 ```
-GH_TOKEN=$(security find-generic-password -s krixon-bot -w) gh pr create …
+GH_TOKEN=$(eval "$GH_PR_BOT_TOKEN_CMD") gh pr create …
 ```
 
-Prefixing `GH_TOKEN` is atomic per command — it never mutates the active `gh` account, so the maintainer's session is untouched. Because the bot is the author, rework queries filter on `--author krixon-bot`, **not** `@me` (which resolves to the maintainer and would never match the bot's PRs).
+Prefixing `GH_TOKEN` is atomic per command — it never mutates the active `gh` account, so the maintainer's session is untouched. Because the bot is the author, rework queries filter on `--author "$GH_PR_BOT_ACCOUNT"`, **not** `@me` (which resolves to the maintainer and would never match the bot's PRs).
+
+**Unconfigured (multi-dev).** With `GH_PR_BOT_ACCOUNT` unset there is no bot dance: skills open PRs under the agent's normal identity (no `GH_TOKEN` prefix), rework and `land` queries drop the `--author` filter and match any open PR, and the `require-bot-pr.sh` hook is inert. This is the default the plugin ships; setting the two vars opts a solo-dev repo into the bot indirection.
+
+**This repo's values**: `GH_PR_BOT_ACCOUNT=krixon-bot`, with `GH_PR_BOT_TOKEN_CMD` reading a classic PAT (`repo` scope) from the macOS Keychain — both set in `.claude/settings.json`, which holds the keychain incantation.
 
 ## PRs and rework
 
-- **Open a PR**: `GH_TOKEN=$(security find-generic-password -s krixon-bot -w) gh pr create --title "..." --body "Closes #<n>"`. Opens as `krixon-bot`. The issue stays `in-progress`; the open PR is the review state.
+- **Open a PR**: `GH_TOKEN=$(eval "$GH_PR_BOT_TOKEN_CMD") gh pr create --title "..." --body "Closes #<n>"` — drop the `GH_TOKEN` prefix when `GH_PR_BOT_ACCOUNT` is unset. Opens as the bot (or normal identity); the issue stays `in-progress`; the open PR is the review state.
 - **Find rework** — bot-owned PRs the maintainer has sent back with changes requested:
-  `gh pr list --state open --author krixon-bot --json number,title,reviewDecision,headRefName,body --jq '[.[] | select(.reviewDecision == "CHANGES_REQUESTED")]'`
+  `gh pr list --state open --author "$GH_PR_BOT_ACCOUNT" --json number,title,reviewDecision,headRefName,body --jq '[.[] | select(.reviewDecision == "CHANGES_REQUESTED")]'` — drop `--author` when `GH_PR_BOT_ACCOUNT` is unset, to match any open PR.
 - **Read the review** — the comments that form the rework brief:
   `gh pr view <n> --comments` (or `--json reviews,comments`).
 - **Update a PR**: push more commits to its branch; the open PR tracks the branch, no re-create needed.
