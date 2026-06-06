@@ -60,4 +60,3 @@ Hand off per [../HANDOVER.md](../HANDOVER.md). Never file issues yourself. End a
 - **artifact:** findings (in [../contracts/finding.md](../contracts/finding.md) shape)
 - **default:** `capture` — dedups against open issues, culls, files survivors as `needs-triage`
 - **alternatives:** stop (review the findings yourself first)
-- **auto:** advance

@@ -26,6 +26,8 @@ Create the issue (`gh issue create`) with that label. Write its prose per [../..
 
 Sketch out the seams at which you're going to test the feature. Existing seams should be preferred to new ones. Use the highest seam possible. If new seams are needed, propose them at the highest point you can. Check with the user that these seams match their expectations.
 
+The seam check is an internal gate. Run unattended (under `auto`), record the seams you chose and flag them unconfirmed in the PRD rather than holding for confirmation; synthesise the artifact and stop without proceeding to `slice`.
+
 Write the PRD using the template below, then create the issue (`gh issue create`). The parent PRD carries the **category label only** (`enhancement` / `bug`) and **no readiness label** — it isn't actionable as-is; `slice` produces the actionable children, each with its own `ready-for-agent`/`ready-for-human` label. Write its prose per [../../WRITING.md](../../WRITING.md) → *Docs*: task-first, declarative, no marketing tone.
 
 <prd-template>
@@ -91,4 +93,3 @@ Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this r
 - **artifact:** a lean agent-brief issue (single slice) or a full PRD issue (multiple slices)
 - **default:** conditional on shape — lean agent-brief → `pickup` (implement the ready issue); full PRD → `slice` (cut the PRD into tracer-bullet issues)
 - **alternatives:** lean path → `slice` · stop; full path → stop
-- **auto:** stage for both shapes — synthesise the artifact and stop. On the multi-slice path the seam check is a human gate; unattended, record the seams you chose and flag them unconfirmed rather than proceeding to `slice`.

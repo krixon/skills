@@ -87,4 +87,5 @@ Hand off per [../HANDOVER.md](../HANDOVER.md). End an interactive run by renderi
 - **artifact:** merged PRs — issues closed and de-labelled, branches and worktrees cleaned
 - **default:** — (terminal; the work is merged and the trail is clean)
 - **alternatives:** `release`, surfaced only when material commits (`feat fix refactor perf`, or a breaking change) have landed since the last `v*` tag — shown with a count (e.g. *"3 material changes since v0.1.0 — cut a release?"*); otherwise just `stop`
-- **auto:** never — merging is the human-authorised act `auto` must not take; `land` is interactive-only, and the implement loop halts before it. The conditional `release` alternative does not change this: cutting a release is its own human-invoked act, never reached unattended.
+
+**Interactive-only** (per [../HANDOVER.md](../HANDOVER.md)) — merging is the human-authorised act `auto` must not take, and the implement loop halts before it. The conditional `release` alternative does not change this: cutting a release is its own human-invoked act, never reached unattended.

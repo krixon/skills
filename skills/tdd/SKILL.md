@@ -36,6 +36,8 @@ Explore using the project's domain glossary so test names and interface vocabula
 - [ ] Identify [deep modules](DEEP-MODULES.md) and design interfaces for [testability](TESTABLE-INTERFACES.md)
 - [ ] List behaviors to test (not implementation steps), and get user approval
 
+Planning is an internal gate. Run unattended (under `auto`, entered through `pickup` on a `ready-for-agent` issue), the agent-brief stands in for that approval: take the interface and behaviors from the brief and proceed without prompting. When the brief leaves the interface or critical behaviors underspecified, wall rather than guess.
+
 ### 2. Tracer bullet
 
 One test, one behavior, end-to-end: `RED` (test fails) → `GREEN` (minimal code passes). Proves the path works.
@@ -75,4 +77,3 @@ Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this r
 - **artifact:** a tested feature (behaviors covered, GREEN), on a branch
 - **default:** — (terminal; open a PR for review)
 - **alternatives:** `/code-review` · `/security-review` · stop
-- **auto:** never to enter — planning needs the user to approve the interface and the behaviors to test. Once running, the review gate is mandatory: `/code-review` + `/security-review` before the PR is staged.

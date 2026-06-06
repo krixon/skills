@@ -53,4 +53,5 @@ Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this r
 - **artifact:** a released version — bumped `plugin.json` and an annotated `v<new>` tag on `main`
 - **default:** — (terminal; the release is cut)
 - **alternatives:** stop
-- **auto:** never — it makes a version-number judgment and pushes the bump straight to `main`, neither safe unattended.
+
+**Interactive-only** (per [../HANDOVER.md](../HANDOVER.md)) — it makes a version-number judgment and pushes the bump straight to `main`, neither safe unattended, so `auto` never enters it.

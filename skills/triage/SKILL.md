@@ -107,4 +107,5 @@ Per [../HANDOVER.md](../HANDOVER.md), `triage` is the human gate at the end of t
 - **artifact:** triaged issues (one category + one state label)
 - **default:** — (terminal; promotion to `ready-for-*` is the maintainer's call)
 - **alternatives:** `pickup`, for an issue promoted to `ready-for-agent`/`ready-for-human` · stop
-- **auto:** never — `triage`'s state decisions need human judgment, so `auto` will not enter it.
+
+**Interactive-only** (per [../HANDOVER.md](../HANDOVER.md)) — `triage`'s state decisions need human judgment; `auto` never enters it.

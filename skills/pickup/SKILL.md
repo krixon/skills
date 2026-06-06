@@ -63,7 +63,7 @@ Infer the kind from the brief's target when it isn't stated. Drive the implement
 
 **Order: field first.** Run `field` and settle the questions before implementing change requests — a converged answer can reshape what a change should be. Then re-run the review gate (step 6) and push to the branch; the open PR updates in place — no new PR. A pure-question review with no resulting change skips straight to resolved threads — nothing to push.
 
-**Autonomy.** Any question forces the whole rework round onto the HITL path, whatever the issue's label — `field` is `auto: never`, and a change request can't be built on an unanswered question. Under `auto`, stop and stage: report the unresolved questions, implement nothing this pass. A change-request-only review keeps the issue's autonomy — AFK resumes unattended, HITL stops for the human.
+**Autonomy.** Any question forces the whole rework round onto the HITL path, whatever the issue's label — `field` is interactive-only, and a change request can't be built on an unanswered question. Under `auto`, stop and stage: report the unresolved questions, implement nothing this pass. A change-request-only review keeps the issue's autonomy — AFK resumes unattended, HITL stops for the human.
 
 ### 6. Close the loop
 
@@ -95,4 +95,3 @@ Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this r
 - **artifact:** an open PR (issue at `in-progress`), or a walled issue returned to `needs-triage` with an attempt report
 - **default:** — (terminal; a human reviews and merges)
 - **alternatives:** `verify` · `/code-review` · stop
-- **auto:** conditional on the issue's readiness label — `ready-for-agent` (AFK) → **stage** (claim, implement on a branch, open a PR, stop for review; never merge; on a wall, return to `needs-triage` and stop). Resumes change-request-only rework on a later run; a question on the review overrides the label → stop and stage, reporting the unresolved questions. `ready-for-human` (HITL) → **never**.

@@ -95,4 +95,5 @@ Per [../HANDOVER.md](../HANDOVER.md); routing is step 4 above (multi-way, not a 
 - **artifact:** designed candidate (chosen) · ADR (rejected) · nothing (un-picked)
 - **default:** `spec`, for a chosen candidate
 - **alternatives:** ADR · stop
-- **auto:** never — the grilling loop needs the user.
+
+**Interactive-only** (per [../HANDOVER.md](../HANDOVER.md)) — the grilling loop needs the user; `auto` never enters it.
