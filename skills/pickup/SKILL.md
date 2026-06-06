@@ -36,7 +36,7 @@ Add `in-progress` before touching code, so the loop and any parallel agents don'
 
 ### 4. Load the brief
 
-The contract is the **agent brief**: read the brief comment if the issue has one (triage-promoted issues), otherwise the issue body (sliced issues — `slice` writes the body in the brief shape). Either way it follows [../contracts/agent-brief.md](../contracts/agent-brief.md). Explore the codebase **fresh** — the brief is durable, so trust its interfaces and acceptance criteria over any stale paths. Use `CONTEXT.md` vocabulary and respect ADRs in the area.
+The contract is the **agent brief**: read the brief comment if the issue has one (triage-promoted issues), otherwise the issue body (sliced issues — `slice` writes the body in the brief shape). Either way it follows [../contracts/agent-brief.md](../contracts/agent-brief.md). Explore the codebase **fresh** — the brief is durable, so trust its interfaces and acceptance criteria over any stale paths. Use the project's established vocabulary and respect its recorded decisions in the area.
 
 No brief and a thin body → wall (step 6). The issue isn't ready; return it to `/triage` to have one written.
 
@@ -47,7 +47,7 @@ Work in a worktree on its own branch — never the repo-root checkout (see [../.
 - **code · `bug`** → `diagnose` — build the feedback loop, fix, regression-test.
 - **code · `enhancement`** → `tdd` — red→green per behavior in the brief's acceptance criteria.
 - **skill** (a `SKILL.md` + bundled resources) → `write-skill` — structure and progressive disclosure are the rubric, not red-green.
-- **docs/prose** (`CONTEXT.md`, ADRs, READMEs, comments) → author directly against [../../WRITING.md](../../WRITING.md). No test loop.
+- **docs/prose** (ADRs, READMEs, comments) → author directly against [../../WRITING.md](../../WRITING.md). No test loop.
 - **config/harness** (`settings.json`, hooks, keybindings) → `update-config` / `keybindings-help`.
 
 Infer the kind from the brief's target when it isn't stated. Drive the implementation skill with the brief: its acceptance criteria are the behaviors to satisfy, its interfaces are the seams.

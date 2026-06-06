@@ -32,7 +32,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 
 | I want to… | Run | …and the path from there |
 |---|---|---|
-| Stress-test a plan or design | `/grill` — challenges it against CONTEXT.md / ADRs and updates them inline | grilling → `slice` → ready issues on the tracker |
+| Stress-test a plan or design | `/grill` — challenges it against the project's domain model, sharpens terminology, offers an ADR where one is warranted | grilling → `slice` → ready issues on the tracker |
 | Turn a plan or this conversation into issues | `/slice` | one agent-brief issue, or N independently-grabbable issues under a lean epic, each marked `ready-for-agent` (AFK) or `ready-for-human` (HITL) |
 | Find architecture / refactoring opportunities | `/deepen` | candidates + report surfaced → `grill` to design the chosen one |
 | Find what's not tested | `/audit-coverage` | findings → `capture` → `needs-triage` |
@@ -53,7 +53,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 ## Skills
 
 ### Planning & specs
-- **grill** — interview you relentlessly about a plan until shared understanding, resolving each decision branch while challenging it against the domain model and updating CONTEXT.md / ADRs inline.
+- **grill** — interview you relentlessly about a plan until shared understanding, resolving each decision branch while challenging it against the domain model, sharpening terminology, and offering an ADR where a decision warrants it.
 - **field** — field questions put to the agent and converge on shared understanding; the dual of grill, run on PR-review rework.
 - **slice** — turn a plan, the current conversation, or an existing issue into one agent-brief issue or N tracer-bullet issues under a lean epic.
 
@@ -64,8 +64,8 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 ### Audits
 - **audit-coverage** — audit for high-risk untested paths; static-first, surfaces findings to `capture`.
 - **audit-security** — sweep for security exposure (authz, injection, secrets); static-first, surfaces findings to `capture`.
-- **audit-docs** — find documentation that has drifted from the code (stale CONTEXT.md vocabulary, violated ADRs, README/behavior claims); static-first, surfaces findings to `capture`.
-- **deepen** — find architecture/refactoring opportunities informed by CONTEXT.md and ADRs.
+- **audit-docs** — find documentation that has drifted from the code (stale vocabulary, violated decisions, README/behavior claims); static-first, surfaces findings to `capture`.
+- **deepen** — find architecture/refactoring opportunities informed by the project's domain language and recorded decisions.
 
 ### Build & fix
 - **pickup** — claim a ready issue and implement it, routing by artifact kind through the review gate to an open PR.
@@ -77,7 +77,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 ### Meta & session
 - **auto** — run a skill workflow unattended, walking the handover chain until the first human gate.
 - **write-skill** — author new skills with proper structure and progressive disclosure.
-- **zoom-out** — map the relevant modules and callers a layer up, in the project's glossary vocabulary.
+- **zoom-out** — map the relevant modules and callers a layer up, in the project's established vocabulary.
 - **handoff** — compact the conversation into a handoff doc for a fresh agent.
 - **caveman** — ultra-compressed output mode; drops filler, keeps technical accuracy.
 

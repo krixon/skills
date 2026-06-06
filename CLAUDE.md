@@ -35,4 +35,4 @@ Issues and PRs live in GitHub `krixon/skills` via the `gh` CLI. GitHub-only, no 
 
 ### Domain docs
 
-Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. Engineering skills read `CONTEXT.md` vocabulary and respect ADRs in the area they touch; if either is absent, proceed silently (`grill` creates them lazily).
+Skills ground in whatever documentation a project already has, discovered through the in-context project `CLAUDE.md` — they impose no layout, taxonomy, or methodology. They use the project's established vocabulary, respect its recorded decisions, and surface conflicts; with nothing documented, they proceed silently. The one artifact a skill persists to the repo is an ADR, offered sparingly on the three-criteria gate and following the project's lead. This repo records its own decisions under `docs/adr/`.

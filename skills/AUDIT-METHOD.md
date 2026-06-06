@@ -6,7 +6,7 @@ An audit is a **producer**: it sweeps the repo (or a focused path), then hands f
 
 The aim is *risk-weighted* findings, not a raw dump — a flood of trivial hits is noise. Target the cases where the problem matters.
 
-Read the project's domain glossary (`CONTEXT.md`) and any ADRs in the area first, so finding titles use the project's vocabulary.
+Ground in the project's documentation first — its established vocabulary and recorded decisions, as the in-context project `CLAUDE.md` points to them — so finding titles use the project's terms. With nothing documented, proceed on the code alone.
 
 ## Static-first
 

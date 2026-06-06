@@ -30,7 +30,7 @@ RIGHT (vertical):    test1→impl1, test2→impl2, test3→impl3, ...
 
 ### 1. Planning
 
-Explore using the project's domain glossary so test names and interface vocabulary match the project's language; respect ADRs in the area. Before any code:
+Explore using the project's established vocabulary so test names and interface vocabulary match the project's language; respect its recorded decisions in the area. Before any code:
 
 - [ ] Confirm with the user the interface changes and which behaviors to test (prioritised — you can't test everything; focus on critical paths and complex logic, not every edge case)
 - [ ] Identify [deep modules](DEEP-MODULES.md) and design interfaces for [testability](TESTABLE-INTERFACES.md)
