@@ -16,7 +16,7 @@ Issues and PRs live in GitHub; use the `gh` CLI ([../GITHUB.md](../GITHUB.md) fo
 
 - **By reference** — the user passes an issue number/URL. Fetch it.
 - **Next ready** — no argument, take **rework before new work**:
-  1. **Rework** — an open PR you own with changes requested *or any unresolved review thread* (`gh pr list … CHANGES_REQUESTED`, plus the unresolved-thread query, see [../GITHUB.md](../GITHUB.md)). The unresolved-thread half catches a review that carries only questions — a `COMMENT`-state review never sets `CHANGES_REQUESTED`, but its open thread still needs you. Resume the oldest via *Resuming a PR sent back for changes* (step 5).
+  1. **Rework** — an open PR you own with changes requested *or any unresolved review thread* (`gh pr list … CHANGES_REQUESTED`, plus the unresolved-thread query, see [../GITHUB.md](../GITHUB.md)). The unresolved-thread half catches a review that carries only questions — a `COMMENT`-state review never sets `CHANGES_REQUESTED`, but its open thread still needs you. **Actionable only when the newest review activity (review submission or thread comment) postdates HEAD** — if HEAD is newer the rework is already pushed and awaiting re-review, so skip it. Neither `CHANGES_REQUESTED` nor an unresolved thread clears before the maintainer re-reviews, so without this check a drain re-grabs the same delivered PR every iteration. Resume the oldest actionable one via *Resuming a PR sent back for changes* (step 5).
   2. **New work** — otherwise query issues labelled `ready-for-agent` and not `in-progress`, then `ready-for-human` and not `in-progress`, oldest first.
 
   Confirm which you're taking unless running unattended.
