@@ -16,10 +16,6 @@ A library of Claude Code agent skills, intended to ultimately be packaged and di
 
 Use [Conventional Commits](https://www.conventionalcommits.org): `<type>[scope]: <description>`. Types: `feat fix chore docs refactor test` (same vocabulary as the branch kinds in `ISOLATION.md`). Subject in imperative mood, lower-case, no trailing period; breaking changes get a `!` before the colon or a `BREAKING CHANGE:` footer. Write the message body per `WRITING.md`.
 
-## Pull requests
-
-Always open PRs as the `krixon-bot` machine account, never as the maintainer — GitHub forbids approving your own PR, and `krixon` is the approver. This holds for ad-hoc PRs too, not only those opened through a skill: `GH_TOKEN=$(security find-generic-password -s krixon-bot -w) gh pr create …`. Commits and pushes stay under `krixon`; only the `pr create` call switches identity. A `PreToolUse` hook (`hooks/require-bot-pr.sh`, shipped with the plugin) blocks any `gh pr create` lacking a `GH_TOKEN=` prefix; it activates off the `GH_PR_BOT_ACCOUNT` env var, set to `krixon-bot` for this repo in `.claude/settings.json`. The hook is generic — the `krixon-bot` binding lives only in that local settings file, never in the distributed plugin. Full reference: `skills/GITHUB.md` → "PR identity".
-
 ## Goal
 
 - Build out a collection of skills, then package them as a distributable Claude Code plugin (intended to add a `plugin.json`/marketplace manifest as the library matures).

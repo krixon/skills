@@ -43,8 +43,6 @@ GH_TOKEN=$(security find-generic-password -s krixon-bot -w) gh pr create …
 
 Prefixing `GH_TOKEN` is atomic per command — it never mutates the active `gh` account, so the maintainer's session is untouched. Because the bot is the author, rework queries filter on `--author krixon-bot`, **not** `@me` (which resolves to the maintainer and would never match the bot's PRs).
 
-A `PreToolUse` hook (`hooks/require-bot-pr.sh`, shipped with the plugin via `hooks/hooks.json`) blocks any `gh pr create` that lacks a `GH_TOKEN=` prefix, so the rule holds even for an ad-hoc PR opened outside the skill chain. The hook is generic — inert until `GH_PR_BOT_ACCOUNT` names the bot account. This repo sets it to `krixon-bot` in `.claude/settings.json`, which also wires the hook for local dev sessions. `CLAUDE.md` carries the short form; this file is the full reference.
-
 ## PRs and rework
 
 - **Open a PR**: `GH_TOKEN=$(security find-generic-password -s krixon-bot -w) gh pr create --title "..." --body "Closes #<n>"`. Opens as `krixon-bot`. The issue stays `in-progress`; the open PR is the review state.
