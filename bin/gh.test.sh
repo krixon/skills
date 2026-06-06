@@ -80,17 +80,17 @@ run "passthrough: bot set, pr list" \
     0 "REAL_GH_CALLED: pr list" "" \
     GH_PR_BOT_ACCOUNT=krixon-bot -- pr list
 
-# 5. #85 case: create phrase as DATA in an argument -> passthrough.
-run "passthrough (#85): issue comment body mentions gh pr create" \
+# 5. create phrase as DATA in an argument -> passthrough.
+run "passthrough: issue comment body mentions gh pr create" \
     0 "REAL_GH_CALLED: issue comment" "" \
     GH_PR_BOT_ACCOUNT=krixon-bot -- issue comment --body "please run gh pr create --fill"
 
-# 6. #85 case: create phrase in a title -> passthrough.
-run "passthrough (#85): issue create title mentions gh pr create" \
+# 6. create phrase in a title -> passthrough.
+run "passthrough: issue create title mentions gh pr create" \
     0 "REAL_GH_CALLED: issue create" "" \
     GH_PR_BOT_ACCOUNT=krixon-bot -- issue create --title "gh pr create docs"
 
-# 7. DEFECT 1: global flag before subcommand -> still BLOCKED.
+# 7. global flag before subcommand -> still BLOCKED.
 run "blocked: -R owner/repo pr create, no token" \
     1 "Open the PR as the krixon-bot account" "REAL_GH_CALLED" \
     GH_PR_BOT_ACCOUNT=krixon-bot -- -R owner/repo pr create --fill
@@ -103,23 +103,23 @@ run "blocked: glued -Rowner/repo pr create, no token" \
     1 "Open the PR as the krixon-bot account" "REAL_GH_CALLED" \
     GH_PR_BOT_ACCOUNT=krixon-bot -- -Rowner/repo pr create
 
-# 8. DEFECT 1: global flag before subcommand WITH token -> passthrough.
+# 8. global flag before subcommand WITH token -> passthrough.
 run "passthrough: --repo owner/repo pr create, token supplied" \
     0 "REAL_GH_CALLED: --repo owner/repo pr create" "" \
     GH_PR_BOT_ACCOUNT=krixon-bot GH_TOKEN=x -- --repo owner/repo pr create
 
-# 9. DEFECT 1: non-create with global flag still passes.
+# 9. non-create with global flag still passes.
 run "passthrough: bot set, -R owner/repo pr list" \
     0 "REAL_GH_CALLED: -R owner/repo pr list" "" \
     GH_PR_BOT_ACCOUNT=krixon-bot -- -R owner/repo pr list
 
-# 10. DEFECT 1 boundary: title is ONE quoted token "pr create", not two
+# 10. boundary: title is ONE quoted token "pr create", not two
 #     adjacent tokens -> must NOT block.
 run "passthrough: issue create --title \"pr create\" (single token)" \
     0 "REAL_GH_CALLED: issue create --title pr create" "Open the PR as" \
     GH_PR_BOT_ACCOUNT=krixon-bot -- issue create --title "pr create"
 
-# 11. DEFECT 2: GH_REAL_BIN pointed at the shim itself must NOT recurse.
+# 11. GH_REAL_BIN pointed at the shim itself must NOT recurse.
 #     Stage a real-gh stub on PATH; the shim must ignore the self-pointer and
 #     resolve the PATH stub instead. Bounded by timeout so a regression (the
 #     fork bomb) fails loud instead of hanging.
@@ -154,9 +154,9 @@ if [ -z "$d2_rc" ]; then            # still alive => hung/recursing
 fi
 d2_out="$(cat "$d2_outfile")"
 if [ "$d2_rc" != 124 ] && grep -qE "PATH_STUB_CALLED: version" <<<"$d2_out"; then
-  pass=$((pass+1)); printf 'PASS  %s\n' "defect2: GH_REAL_BIN=self does not recurse, resolves PATH stub"
+  pass=$((pass+1)); printf 'PASS  %s\n' "GH_REAL_BIN=self does not recurse, resolves PATH stub"
 else
-  fail=$((fail+1)); printf 'FAIL  %s\n' "defect2: GH_REAL_BIN=self does not recurse, resolves PATH stub"
+  fail=$((fail+1)); printf 'FAIL  %s\n' "GH_REAL_BIN=self does not recurse, resolves PATH stub"
   printf '      exit=%s (124=timeout/hang)\n' "$d2_rc"
   printf '      output: %s\n' "$d2_out"
 fi

@@ -6,10 +6,10 @@
 # author; doing so as the logged-in (approver) account makes self-approval
 # impossible (GitHub forbids it), so the PR must be created with the bot's token.
 #
-# Why a shim instead of a PreToolUse text matcher: bash splits argv before this
-# runs, so the create phrase living inside a quoted string or heredoc body never
-# arrives as `argv = pr create`. The data/invocation ambiguity is gone by
-# construction — no command-string parsing.
+# The shim acts on the split argv, never on the command string: bash splits argv
+# before this runs, so the create phrase living inside a quoted string or heredoc
+# body never arrives as `argv = pr create`. The data/invocation ambiguity is gone
+# by construction — no command-string parsing.
 
 # Resolve the REAL gh, never recursing into this shim.
 real_gh() {
