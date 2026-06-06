@@ -43,7 +43,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 | Start implementing a ready issue | `/pickup` | claims it → routes by kind to `tdd` / `diagnose` / `write-skill` / docs / config → review gate → opens a PR |
 | Build a feature test-first | `/tdd` | red-green-refactor loop (usually reached via `pickup`) |
 | Debug a hard bug or perf regression | `/diagnose` | reproduce → minimise → fix → regression test (usually reached via `pickup`) |
-| Answer questions raised on a PR review | `/field` | work through each to shared understanding → back to `pickup` for the rework round |
+| Ask questions on a PR review (not just request changes) | Comment them on the PR, then `/pickup` | `pickup`'s rework query catches the unresolved thread → routes the questions to `field`, where the agent works each to a converged answer with you → the answers post back to the thread |
 | Merge an approved PR | `/land` | merges, strips `in-progress`, deletes the branch/worktree (human-invoked only) |
 | Cut a plugin version release | `/release` | bumps `plugin.json` and pushes the bump + `v<new>` tag to `main` from a worktree — batched and human-invoked; `land` offers it after a merge |
 | Write a new skill | `/write-skill` | scaffolds structure + progressive disclosure |
