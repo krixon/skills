@@ -36,6 +36,10 @@ The agent needs to know when it's done. Every agent brief must have concrete, te
 
 State what is out of scope. This stops the agent gold-plating or making assumptions about adjacent features.
 
+## AFK/HITL label decision
+
+A brief moves an issue to one of two readiness labels. Label `ready-for-agent` if an agent can clear the change end-to-end. Label `ready-for-human` if it carries a judgement step a human must make — an architectural decision, a design review, external access. For a `ready-for-human` issue, note in the brief *why* a human is needed, so `pickup` can drive them through it.
+
 ## Template
 
 <agent-brief-template>

@@ -39,7 +39,7 @@ Then score each candidate for **confidence** (genuine drift, not merely imprecis
 
 ### 4. Emit findings
 
-Shape each surviving contradiction into the six-field finding contract in [../capture/FINDING-FORMAT.md](../capture/FINDING-FORMAT.md):
+Shape each surviving contradiction into the six-field finding contract in [../contracts/finding.md](../contracts/finding.md):
 
 - **Dimension** — `docs-drift` (the sub-dimension goes in the title/evidence, e.g. "stale glossary term …", "README flag … no longer wired" — never as a new top-level dimension)
 - **Suggested category** — usually `enhancement` ("realign the doc with X"); a doc that actively misleads into wrong behavior is a `bug`
@@ -51,7 +51,7 @@ Shape each surviving contradiction into the six-field finding contract in [../ca
 
 Hand off per [../HANDOVER.md](../HANDOVER.md). Never file issues yourself. End an interactive run by rendering this row as one `AskUserQuestion`.
 
-- **artifact:** findings (in [../capture/FINDING-FORMAT.md](../capture/FINDING-FORMAT.md) shape)
+- **artifact:** findings (in [../contracts/finding.md](../contracts/finding.md) shape)
 - **default:** `capture` — dedups against open issues, culls, files survivors as `needs-triage`
 - **alternatives:** stop (review the findings yourself first)
 - **auto:** advance

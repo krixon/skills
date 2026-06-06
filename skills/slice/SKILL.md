@@ -52,11 +52,11 @@ Iterate until the user approves the breakdown.
 
 If the approved breakdown is a single slice, slicing was a no-op — it didn't decompose anything, and a lone new issue would only duplicate the source. Create nothing. Carry the original source issue forward as the result and hand it to the next hop as if it were the slice output, telling the user the run was a no-op. Only publish when the breakdown is two or more slices.
 
-For each approved slice, create an issue (`gh issue create`). Use the issue body template below. Label by type: **AFK** slices → `ready-for-agent`; **HITL** slices → `ready-for-human` (they carry a judgment step an agent can't clear). For an HITL slice, note in the issue *why* a human is needed, so `pickup` can drive them through it.
+For each approved slice, create an issue (`gh issue create`). Use the issue body template below. Label by the AFK/HITL decision in [../contracts/agent-brief.md](../contracts/agent-brief.md).
 
 Publish issues in dependency order (blockers first) so a blocked slice's blockers already exist when you record the dependency.
 
-The child's body is the **agent brief** alone — `pickup` reads it origin-blind, the same shape it gets from a triage-promoted issue. Follow the brief in [../triage/AGENT-BRIEF.md](../triage/AGENT-BRIEF.md) (behavioral, durable, no file paths). Parent and blocked-by links are native GitHub relations, not body prose; record them after creating the issue (below).
+The child's body is the **agent brief** alone — `pickup` reads it origin-blind, the same shape it gets from a triage-promoted issue. Follow the brief in [../contracts/agent-brief.md](../contracts/agent-brief.md) (behavioral, durable, no file paths). Parent and blocked-by links are native GitHub relations, not body prose; record them after creating the issue (below).
 
 <issue-template>
 ## Agent Brief
