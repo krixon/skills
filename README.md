@@ -42,6 +42,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 | Find dead or unused code | `/audit-dead-code` | findings → `capture` → `needs-triage` |
 | Find resource leaks (unclosed handles) | `/audit-resource-leak` | findings → `capture` → `needs-triage` |
 | Harvest TODOs / find tech debt | `/audit-debt` | findings → `capture` → `needs-triage` |
+| Find critical paths running blind | `/audit-observability` | findings → `capture` → `needs-triage` |
 | File findings or observations as issues | `/capture` | deduped `needs-triage` issues for a human to `triage` |
 | Triage incoming issues | `/triage` | each routed to `ready-for-agent`, `ready-for-human`, `needs-info`, or `wontfix` |
 | Start implementing a ready issue | `/pickup` | claims it → routes by kind to `tdd` / `diagnose` / `write-skill` / docs / config → review gate → opens a PR |
@@ -81,6 +82,7 @@ When the queue runs dry the loop doesn't stop — it polls on a widening backoff
 - **audit-dead-code** — sweep for dead code (unreachable branches, never-called functions, orphaned modules); static-first, surfaces findings to `capture`.
 - **audit-resource-leak** — sweep for acquire sites (handles, connections, contexts, locks) with no guaranteed release on every path; static-first, surfaces findings to `capture`.
 - **audit-debt** — harvest in-code debt markers (TODO/FIXME/HACK/XXX and known shortcuts) clustered by area; static-first, surfaces findings to `capture`.
+- **audit-observability** — find critical paths (money, auth, data mutation, external calls) running blind with no log, metric, or trace; static-first, surfaces findings to `capture`.
 - **deepen** — find architecture/refactoring opportunities informed by the project's domain language and recorded decisions.
 
 ### Build & fix
