@@ -40,9 +40,9 @@ The contract is the **agent brief**: read the brief comment if the issue has one
 
 No brief and a thin body → wall (step 6). The issue isn't ready; return it to `/triage` to have one written.
 
-### 5. Implement — branch first
+### 5. Implement — in a worktree
 
-Branch first; never commit to the default branch (see [../../ISOLATION.md](../../ISOLATION.md) — and isolate in a worktree when this `pickup` runs unattended or alongside other work). Route by **artifact kind** — what the brief targets — then, for code, by category role. `tdd` and `diagnose` are *code* loops; non-code work routes elsewhere:
+Work in a worktree on its own branch — never the repo-root checkout (see [../../ISOLATION.md](../../ISOLATION.md)). Route by **artifact kind** — what the brief targets — then, for code, by category role. `tdd` and `diagnose` are *code* loops; non-code work routes elsewhere:
 
 - **code · `bug`** → `diagnose` — build the feedback loop, fix, regression-test.
 - **code · `enhancement`** → `tdd` — red→green per behavior in the brief's acceptance criteria.

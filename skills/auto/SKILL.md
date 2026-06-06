@@ -40,7 +40,7 @@ Refuse before starting if **start** itself is interactive-only, or if the start 
 - **Delegate by interior cost, not by default.** `auto` carries no delegation rule of its own — it follows each skill's own delegation profile (see [../DELEGATION.md](../DELEGATION.md)). A cheap hop (findings in → issues out) runs inline; a heavy interior (an audit over a large tree, a `tdd`/`diagnose` loop) delegates to a subagent so its reads and test/log output never land in the main window. Pass the prior artifact in; take the next artifact out. Delegating is for window hygiene, not visibility — nobody watching is no reason to isolate a hop whose interior is already small.
 - **Stop-and-stage is the policy.** Only push through an internal gate when the skill declares it safe (and says why). When in doubt, stop and stage.
 - **Stage, don't decide.** An autonomous run accretes reviewable artifacts (issues in `needs-triage`, a report, a branch) — it does not make irreversible or judgment calls a human would normally own.
-- **Isolate when staging code.** A hop that produces commits (`pickup` and its implement loop) runs on its own branch in a worktree, never your live checkout — nobody's watching, so the run must not disturb the tree you'll return to. See [../../ISOLATION.md](../../ISOLATION.md).
+- **Isolate every editing hop.** A hop that changes files (`pickup` and its implement loop) runs in a worktree on its own branch, never the repo-root checkout — the single invariant, no different unattended (see [../../ISOLATION.md](../../ISOLATION.md)). Nobody's watching, so the run must not disturb the tree you'll return to.
 - **Bounded.** Honour the `target` scope; don't widen it mid-run.
 
 ## Report

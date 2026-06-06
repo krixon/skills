@@ -1,16 +1,16 @@
 # Isolation
 
-How work is isolated from the default branch and from your live checkout. Branches keep commits off `main`; worktrees keep concurrent work out of your working tree. The work-producing skills (`pickup`, `tdd`, `diagnose`, `write-skill`) and the `auto` loop follow this; it's the same `branch → gate → PR → human merge` invariant stated once.
+How work is kept off your live checkout. One invariant: the repo-root checkout is read-only — every change is made in a worktree on its own branch, never in the tree you're sitting in. The work-producing skills (`pickup`, `tdd`, `diagnose`, `write-skill`, `release`) and the `auto` loop follow it.
 
-## The default branch is protected
+## The repo-root checkout is read-only
 
-Never commit to the default branch (`main` / `master`). Branch before the first commit. Reading, exploring, and editing the working tree are fine — the gate is the *commit*, not the edit. Override only on an explicit instruction to work on or commit to `main` ("commit straight to main", "no branch"). Approval to commit to `main` once does not carry to the next task.
+Read, explore, and run in the repo root freely. The gate is the first *edit*, not the commit: the moment you would change a file, you do it in a worktree on its own branch, never in the repo-root checkout. This holds without exception — code, docs, and releases alike — and it makes concurrent sessions collision-proof, since no two ever share a working tree.
 
-The one standing carve-out is **`release`**: it commits the version bump (`chore(release): v<new>`) and its annotated `v<new>` tag directly to `main`, because a release *marks* `main` rather than proposing a change to it. The carve-out is narrow and guarded — `release` aborts to a release PR if `main` is dirty or the push is rejected, never forcing (see [skills/release/SKILL.md](skills/release/SKILL.md)). No other skill commits to `main`.
+The repo root stays on the default branch (`main` / `master`), clean. Nothing edits or commits there; `main` advances only when a worktree's branch reaches it (below). Override only on an explicit instruction to work in the repo root ("just do it on main here") — and that approval doesn't carry to the next task.
 
 ## A branch is the unit of work
 
-One branch per issue or task. Name it `<kind>/<issue>-<slug>` when there's a tracker issue, `<kind>/<slug>` when there isn't:
+One branch per issue or task, in its own worktree. Name it `<kind>/<issue>-<slug>` when there's a tracker issue, `<kind>/<slug>` when there isn't:
 
 - `fix/142-null-deref-on-empty-cart`
 - `feat/87-csv-export`
@@ -18,11 +18,24 @@ One branch per issue or task. Name it `<kind>/<issue>-<slug>` when there's a tra
 
 Kinds: `feat fix chore docs refactor`. Pick the kind from the artifact, not the mood — a bug fix is `fix`, a new behavior is `feat`, a pure restructure is `refactor`.
 
-## Branch vs worktree
+Create the worktree under `.claude/worktrees/<slug>`:
 
-A branch and a worktree solve different problems. Default to a branch; reach for a worktree only when work runs **concurrently**.
+```
+git worktree add .claude/worktrees/<slug> -b <kind>/<slug> main
+```
 
-- **Sequential, interactive, you're watching** → a branch in the main working tree. Simplest; switch with `git switch -c`.
-- **Concurrent or background / AFK** — parallel issues, an `auto` run, a scheduled or looped agent, anything you shouldn't have to babysit in your live checkout → a **git worktree**, so the work never disturbs the tree you're sitting in. The harness supports this directly: `isolation: "worktree"` on a spawned agent, and the `worktree.bgIsolation` setting for background tasks.
+## Reaching main, then teardown
 
-A worktree is not a substitute for branching — it's a branch *plus* its own directory. Concurrent work still lands on its own named branch inside the worktree, and still goes through the gate to a PR.
+A branch reaches `main` one of two ways, both from its worktree, neither touching the repo-root checkout:
+
+- **Reviewed work** — everything `pickup` produces → a PR a human merges; `land` performs the merge.
+- **A release** — `release` pushes its version bump and `v<new>` tag straight to `main` from its worktree. A release *marks* `main` rather than proposing a change to it, so it needs no PR — only the same isolation.
+
+When the work lands, tear the worktree down:
+
+```
+git worktree remove <path>
+git branch -D <branch>
+```
+
+This closes the worktree lifecycle — `land` does it after a merge, `release` after its push — and leaves the repo-root checkout exactly as you left it. (`land` adds the cleanup only a merged PR needs: deleting the remote branch and fast-forwarding local `main`.)
