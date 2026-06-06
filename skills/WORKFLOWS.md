@@ -36,7 +36,7 @@ flowchart LR
     rfh --> pu
 ```
 
-A finding enters via `capture` (from any `audit-*` finder, or an ad-hoc observation) at `needs-triage`, where `triage` — always a human — decides the state and writes the agent brief. A designed change (`deepen` / `grill` → `spec`) skips triage: for a single-slice change `spec` emits a lean ready issue directly, its body acting as the brief; for a multi-slice one it emits a PRD parent (category label only, no ready state) that `slice` cuts into ready children. `needs-triage` and `ready-for-human` are the two human gates.
+A finding enters via `capture` (from any `audit-*` finder, or an ad-hoc observation) at `needs-triage`, where `triage` — always a human — decides the state and writes the agent brief. A designed change (`deepen` / `grill` → `spec`) skips triage: for a single-slice change `spec` emits a lean ready issue directly, its body acting as the brief; for a multi-slice one it emits a PRD parent (category label only, no ready state) that `slice` cuts into ready children, each linked to the PRD as a native GitHub **sub-issue** and to its blockers as native **dependencies** (not body prose). `pickup` reads those dependencies to decide grabbability, and `land` reads the parent's sub-issues to close the PRD once its last child lands. `needs-triage` and `ready-for-human` are the two human gates.
 
 ### Implementing a ready issue
 

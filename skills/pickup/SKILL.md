@@ -21,7 +21,7 @@ Issues and PRs live in GitHub; use the `gh` CLI ([../GITHUB.md](../GITHUB.md) fo
 
   Confirm which you're taking unless running unattended.
 
-**Skip anything blocked.** If the brief/body's "Blocked by" section names issues that aren't closed, the slice isn't grabbable — skip it and take the next. Skip `in-progress` issues too: already claimed by another run. Refuse anything in `needs-triage` / `needs-info` — not specified yet; send it back to `/triage`.
+**Skip anything blocked.** Read the issue's native dependencies — `gh api repos/{owner}/{repo}/issues/<n>/dependencies/blocked_by` ([../GITHUB.md](../GITHUB.md) → *Issue relations*). If any blocker is still open, the slice isn't grabbable — skip it and take the next. Skip `in-progress` issues too: already claimed by another run. Refuse anything in `needs-triage` / `needs-info` — not specified yet; send it back to `/triage`.
 
 ### 2. Gate on HITL / AFK
 

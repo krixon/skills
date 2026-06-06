@@ -33,6 +33,20 @@ There is **no** review-state label. A claimed issue (`in-progress`) with an open
 - **Label**: `gh issue edit <n> --add-label "..."` / `--remove-label "..."`.
 - **Close**: `gh issue close <n> --comment "..."`.
 
+## Issue relations
+
+Parent/child and blocked-by links live in GitHub's native data model, not in issue-body prose. Both APIs key writes on an issue's internal **id**, not its issue number — resolve it with `gh api repos/{owner}/{repo}/issues/<number> --jq .id` (`{owner}/{repo}` resolve to the current repo).
+
+- **Sub-issues** — the parent/child relation. The parent PRD holds its sliced children as sub-issues.
+  - **Add a child**: `gh api repos/{owner}/{repo}/issues/<parent-number>/sub_issues -F sub_issue_id=<child-id>` — `sub_issue_id` is the child's resolved id and must be a typed integer (`-F`); passing it as a string (`-f`) returns HTTP 422.
+  - **List children**: `gh api repos/{owner}/{repo}/issues/<parent-number>/sub_issues --jq '.[] | {number, state}'`.
+  - **Remove a child**: `gh api -X DELETE repos/{owner}/{repo}/issues/<parent-number>/sub_issue -F sub_issue_id=<child-id>`.
+  - **Read a child's parent**: `gh api repos/{owner}/{repo}/issues/<child-number>/parent --jq .number` — the parent lives at the dedicated `/parent` endpoint, not as a field on the issue payload. 404s (non-zero exit) when the child has no parent.
+- **Dependencies** — the blocked-by relation. An issue blocked by another can't be grabbed until the blocker closes.
+  - **Add a blocker**: `gh api repos/{owner}/{repo}/issues/<number>/dependencies/blocked_by -F issue_id=<blocker-id>` — `issue_id` is the blocker's resolved id and must be a typed integer (`-F`); a string (`-f`) returns HTTP 422.
+  - **List blockers**: `gh api repos/{owner}/{repo}/issues/<number>/dependencies/blocked_by --jq '.[] | {number, state}'`.
+  - **List blocking** (the inverse): `gh api repos/{owner}/{repo}/issues/<number>/dependencies/blocking`.
+
 ## PR identity
 
 The agent opens PRs as the **`krixon-bot`** machine account, never as the maintainer — GitHub forbids approving your own PR, and the maintainer (`krixon`) is the approver. Commits and branch pushes stay under the maintainer's identity (SSH `origin`); only the PR-create call switches identity. The bot token is a classic PAT (`repo` scope) in the macOS Keychain; read it inline per command:
