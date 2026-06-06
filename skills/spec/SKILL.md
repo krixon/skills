@@ -16,9 +16,9 @@ Issues live in GitHub; use the `gh` CLI ([../GITHUB.md](../GITHUB.md) for comman
 
 ### Single slice → lean agent-brief
 
-Emit the shared agent brief from [../triage/AGENT-BRIEF.md](../triage/AGENT-BRIEF.md) verbatim as the issue body. A lean single-slice issue has no parent and no blockers, so there are no relations to record. Run **no seam check**: `pickup`/`tdd` pick seams downstream, exactly as they do for a slice.
+Emit the shared agent brief from [../contracts/agent-brief.md](../contracts/agent-brief.md) verbatim as the issue body. A lean single-slice issue has no parent and no blockers, so there are no relations to record. Run **no seam check**: `pickup`/`tdd` pick seams downstream, exactly as they do for a slice.
 
-Apply the AFK/HITL judgement `slice` uses: label `ready-for-agent` if an agent can clear the change end-to-end, `ready-for-human` if it carries a judgement step a human must make (architectural decision, design review, external access). For a `ready-for-human` issue, note in the brief *why* a human is needed, so `pickup` can drive them through it.
+Apply the AFK/HITL label decision in [../contracts/agent-brief.md](../contracts/agent-brief.md).
 
 Create the issue (`gh issue create`) with that label. Write its prose per [../../WRITING.md](../../WRITING.md) → *Issues & findings*: lead with the problem, plainly, no hedging where you know.
 

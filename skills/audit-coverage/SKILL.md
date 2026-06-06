@@ -36,7 +36,7 @@ Following the `code-review` pattern: above the fan-out threshold, spawn parallel
 
 ### 4. Emit findings
 
-Shape each surviving gap into the six-field finding contract in [../capture/FINDING-FORMAT.md](../capture/FINDING-FORMAT.md):
+Shape each surviving gap into the six-field finding contract in [../contracts/finding.md](../contracts/finding.md):
 
 - **Dimension** — `test-gap`
 - **Suggested category** — usually `enhancement` ("add coverage for X"); a gap that already masks a likely defect is a `bug`
@@ -48,7 +48,7 @@ Shape each surviving gap into the six-field finding contract in [../capture/FIND
 
 Hand off per [../HANDOVER.md](../HANDOVER.md). Never file issues yourself. End an interactive run by rendering this row as one `AskUserQuestion`.
 
-- **artifact:** findings (in [../capture/FINDING-FORMAT.md](../capture/FINDING-FORMAT.md) shape)
+- **artifact:** findings (in [../contracts/finding.md](../contracts/finding.md) shape)
 - **default:** `capture` — dedups against open issues, culls, files survivors as `needs-triage`
 - **alternatives:** stop (review the findings yourself first)
 - **auto:** advance

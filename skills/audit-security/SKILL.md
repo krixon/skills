@@ -45,7 +45,7 @@ Then score each candidate for **confidence** (genuinely exploitable?) and **seve
 
 ### 4. Emit findings
 
-Shape each surviving exposure into the six-field finding contract in [../capture/FINDING-FORMAT.md](../capture/FINDING-FORMAT.md):
+Shape each surviving exposure into the six-field finding contract in [../contracts/finding.md](../contracts/finding.md):
 
 - **Dimension** — `security` (the sub-dimension goes in the title/evidence, e.g. "SQL injection in …", "missing ownership check in …" — never as a new top-level dimension)
 - **Suggested category** — usually `bug` (an exploitable weakness is a defect); a hardening that prevents a class of future exposure is an `enhancement`
@@ -57,7 +57,7 @@ Shape each surviving exposure into the six-field finding contract in [../capture
 
 Hand off per [../HANDOVER.md](../HANDOVER.md). Never file issues yourself. End an interactive run by rendering this row as one `AskUserQuestion`.
 
-- **artifact:** findings (in [../capture/FINDING-FORMAT.md](../capture/FINDING-FORMAT.md) shape)
+- **artifact:** findings (in [../contracts/finding.md](../contracts/finding.md) shape)
 - **default:** `capture` — dedups against open issues, culls, files survivors as `needs-triage`
 - **alternatives:** stop (review the findings yourself first)
 - **auto:** advance

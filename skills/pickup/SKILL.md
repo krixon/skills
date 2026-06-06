@@ -36,7 +36,7 @@ Add `in-progress` before touching code, so the loop and any parallel agents don'
 
 ### 4. Load the brief
 
-The contract is the **agent brief**: read the brief comment if the issue has one (triage-promoted issues), otherwise the issue body (sliced issues — `slice` writes the body in the brief shape). Either way it follows [../triage/AGENT-BRIEF.md](../triage/AGENT-BRIEF.md). Explore the codebase **fresh** — the brief is durable, so trust its interfaces and acceptance criteria over any stale paths. Use `CONTEXT.md` vocabulary and respect ADRs in the area.
+The contract is the **agent brief**: read the brief comment if the issue has one (triage-promoted issues), otherwise the issue body (sliced issues — `slice` writes the body in the brief shape). Either way it follows [../contracts/agent-brief.md](../contracts/agent-brief.md). Explore the codebase **fresh** — the brief is durable, so trust its interfaces and acceptance criteria over any stale paths. Use `CONTEXT.md` vocabulary and respect ADRs in the area.
 
 No brief and a thin body → wall (step 6). The issue isn't ready; return it to `/triage` to have one written.
 
