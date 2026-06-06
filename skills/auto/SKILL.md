@@ -44,10 +44,12 @@ Refuse before starting if **start** itself is interactive-only, or if the start 
 
 ## Draining the ready queue (`/loop /auto pickup`)
 
-Wrapping `auto pickup` in a dynamic-mode `/loop` (no interval) drains the whole `ready-for-agent` queue in one unattended run — each loop iteration runs `auto pickup`, picks up the next ready issue, and opens a PR. Its pacing and context discipline:
+Wrapping `auto pickup` in a dynamic-mode `/loop` (no interval) drains the whole ready queue in one unattended run — each loop iteration runs `auto pickup`, which takes the next unit of work and opens or updates a PR. Its pacing and context discipline:
 
-- **Don't pace between issues.** While issues remain, run the next `auto pickup` immediately; never schedule a wake-up between issues.
-- **Hold no state in the conversation.** The queue is durable in the tracker — `ready-for-agent` minus `in-progress`. Re-derive it each iteration rather than remembering it, so the drain stays correct across a long session the harness summarises or compacts.
+- **Let `pickup` choose; don't hand it an issue number.** Its step 1 takes **rework before new work** — an owned PR sent back for changes or with an unresolved thread first, then the oldest `ready-for-agent` issue not `in-progress`. Deriving the queue in the loop and passing a number bypasses that scan: rework PRs sit on `in-progress` issues, which a `ready-for-agent` minus `in-progress` query excludes, so feedback rounds get skipped. Re-invoke bare `auto pickup` each iteration.
+- **Don't pace between units.** While work remains, run the next `auto pickup` immediately — no wake-up between units.
+- **Hold no state in the conversation.** The queue is durable in the tracker — owned PRs needing rework, plus `ready-for-agent` minus `in-progress`. Re-derive it each iteration rather than remembering it, so the drain stays correct across a long session the harness summarises or compacts.
+- **Run one drain at a time.** `in-progress` locks *new* work — the next-ready query skips it — but a rework round runs on an already-`in-progress` issue, so the label can't claim it: two concurrent drains would race the same rework PR. Sequential iterations within one loop are safe; don't launch a second `/loop /auto pickup` on the same tracker.
 - **Keep each iteration's footprint small.** `pickup` delegates its implementation to a subagent on the AFK path (see [../DELEGATION.md](../DELEGATION.md)); only the PR reference returns to the loop. That, with holding no state, is what bounds the window over a queue of any length.
 - **When the queue is dry, poll with backoff.** Don't terminate on the first empty query — the queue refills as a human triages more. Schedule the next wake-up on a widening ladder: `60s → 5m → 15m → 30m → 1h`, then hold at 1h. Finding any ready issue resets the ladder — drain hard again, re-entering backoff only once dry.
 - **Give up after a day idle.** After 24 consecutive hourly (ceiling) polls find nothing, stop scheduling and end the loop; re-launch to resume. Tunable.
