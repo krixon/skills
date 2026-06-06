@@ -1,6 +1,6 @@
 # Writing
 
-Rules for durable prose — anything written down to be read later: commit messages, code comments, issues, findings, ADRs, docs. The companion to [VOICE.md](VOICE.md), which governs how you talk to the user in chat; this governs what you leave behind in the repo and tracker.
+Rules for durable prose — commit messages, code comments, issues, findings, ADRs, docs. Companion to [VOICE.md](VOICE.md): that governs how you talk to the user in chat; this governs what you leave behind in the repo and tracker.
 
 Unlike voice, these don't apply every turn. A prose-producing skill `@`-references this file at the point it writes, and the reader skips sections that don't apply.
 
@@ -18,7 +18,7 @@ The one rule everything else serves: **if it doesn't need saying, don't say it; 
 ## Commit messages
 
 - Imperative subject line — "Fix race in capture dedup", not "Fixed" / "Fixes" / "This commit fixes". One line, no trailing period, ~50 chars.
-- Body explains *why* and what the change is, not what the diff already shows. The reader can see *what* lines changed; tell them the reason it changed.
+- Body explains *why*, not what the diff already shows — the reader can see *what* changed; give them the reason.
 - Skip the body when the subject is self-evident. Don't pad a one-line change with a paragraph.
 - No "as requested", "per discussion", "various fixes". Say the actual change.
 
