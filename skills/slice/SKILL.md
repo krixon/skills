@@ -24,11 +24,10 @@ If you have not already explored the codebase, do so to understand the state of 
 
 **Assess decomposability first.** A single vertical slice cuts end-to-end through every layer (schema, API, UI, tests) as one grabbable piece. If the work is one such slice, the breakdown is a single agent-brief issue — there is no epic and no children. If it naturally breaks into several slices with dependencies between them, it's multi-slice: a lean epic parent with N linked children.
 
-Break the plan into **tracer bullet** issues. Each issue is a thin vertical slice that cuts through ALL integration layers end-to-end, NOT a horizontal slice of one layer.
+Break the plan into **tracer bullet** issues — each a thin vertical slice cutting through ALL layers end-to-end (schema, API, UI, tests), never a horizontal slice of one layer.
 
 Slices may be 'HITL' or 'AFK'. HITL slices require human interaction, such as an architectural decision or a design review. AFK slices can be implemented and merged without human interaction. Prefer AFK over HITL where possible.
 
-- Each slice delivers a narrow but COMPLETE path through every layer (schema, API, UI, tests)
 - A completed slice is demoable or verifiable on its own
 - Prefer many thin slices over few thick ones
 

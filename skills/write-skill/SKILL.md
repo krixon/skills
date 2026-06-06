@@ -7,21 +7,9 @@ description: Create new agent skills with proper structure, progressive disclosu
 
 ## Process
 
-1. **Gather requirements** - ask user about:
-   - What task/domain does the skill cover?
-   - What specific use cases should it handle?
-   - Does it need executable scripts or just instructions?
-   - Any reference materials to include?
-
-2. **Draft the skill** - create:
-   - SKILL.md with concise instructions
-   - Additional reference files if SKILL.md would exceed ~100 lines
-   - Utility scripts for deterministic operations
-
-3. **Review with user** - present draft and ask:
-   - Does this cover your use cases?
-   - Anything missing or unclear?
-   - Should any section be more/less detailed?
+1. **Gather requirements** — ask the user what task/domain the skill covers, which use cases it handles, whether it needs executable scripts, and what reference materials to include.
+2. **Draft** — `SKILL.md` with concise instructions; reference files if it would exceed ~100 lines; utility scripts for deterministic operations.
+3. **Review with user** — present the draft; ask whether it covers their use cases and what's missing or mis-scoped.
 
 ## Skill Structure
 
@@ -34,7 +22,7 @@ skill-name/
     └── helper.py
 ```
 
-`SKILL.md` and bundled reference docs are `UPPERCASE-KEBAB.md` (e.g. `REFERENCE.md`, `TESTABLE-INTERFACES.md`). Scripts live under `scripts/` and keep normal lowercase names (`helper.py`, `hitl-loop.template.sh`).
+`SKILL.md` and bundled reference docs are `UPPERCASE-KEBAB.md` (e.g. `REFERENCE.md`, `TESTABLE-INTERFACES.md`). Scripts live under `scripts/` and keep lowercase names (`helper.py`, `hitl-loop.template.sh`).
 
 ## SKILL.md Template
 

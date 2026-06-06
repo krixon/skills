@@ -18,33 +18,13 @@ Skip `allowed-tools` in a distributed plugin: read tools are usually already all
 
 ## Description Requirements
 
-The description is **the only thing your agent sees** when deciding which skill to load. It's surfaced in the system prompt alongside all other installed skills. The agent reads these descriptions and picks the relevant skill based on the user's request.
+The description is **the only thing the agent sees** when choosing which skill to load — surfaced in the system prompt alongside every other installed skill. It must convey what capability the skill provides and when to trigger it (specific keywords, contexts, file types).
 
-**Goal**: Give the agent enough info to know:
+**Format**: max 1024 chars, third person. First sentence what it does; second "Use when [specific triggers]".
 
-1. What capability this skill provides
-2. When/why to trigger it (specific keywords, contexts, file types)
+**Good**: `Extract text and tables from PDF files, fill forms, merge documents. Use when working with PDF files or when user mentions PDFs, forms, or document extraction.`
 
-**Format**:
-
-- Max 1024 chars
-- Write in third person
-- First sentence: what it does
-- Second sentence: "Use when [specific triggers]"
-
-**Good example**:
-
-```
-Extract text and tables from PDF files, fill forms, merge documents. Use when working with PDF files or when user mentions PDFs, forms, or document extraction.
-```
-
-**Bad example**:
-
-```
-Helps with documents.
-```
-
-The bad example gives the agent no way to distinguish this from other document skills.
+**Bad**: `Helps with documents.` — no way to distinguish it from other document skills.
 
 ## When to Add Scripts
 
