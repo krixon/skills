@@ -1,22 +1,32 @@
 ---
 name: spec
-description: Turn the current conversation context into a PRD and publish it to the project issue tracker. Use when user wants to create a PRD from the current context.
-argument-hint: "[optional focus for the PRD]"
+description: Turn the current conversation context into a tracker artifact sized to the change — a lean agent-brief for a single-slice change (routing to `pickup`) or a full PRD for a multi-slice change (routing to `slice`). Use when the user wants to spec work out from the current context.
+argument-hint: "[optional focus for the spec]"
 ---
 
-Produce a PRD from the current conversation context and codebase understanding. Do NOT interview the user — synthesize what you already know.
+Produce a tracker artifact from the current conversation context and codebase understanding, sized to the change. Do NOT interview the user — synthesize what you already know.
 
 Issues live in GitHub; use the `gh` CLI ([../GITHUB.md](../GITHUB.md) for commands and the label list).
 
 ## Process
 
-1. Explore the repo to understand the current state of the codebase, if you haven't already. Use the project's domain glossary vocabulary throughout the PRD, and respect any ADRs in the area you're touching.
+1. Explore the repo to understand the current state of the codebase, if you haven't already. Use the project's domain glossary vocabulary throughout, and respect any ADRs in the area you're touching.
 
-2. Sketch out the seams at which you're going to test the feature. Existing seams should be preferred to new ones. Use the highest seam possible. If new seams are needed, propose them at the highest point you can.
+2. **Assess decomposability.** Decide whether the change is one vertical slice or many. A single vertical slice cuts end-to-end through every layer (schema, API, UI, tests) as one grabbable piece; if the work naturally breaks into several such slices with dependencies between them, it's multi-slice. Branch on this — the lean path below for one slice, the full PRD for many.
 
-Check with the user that these seams match their expectations.
+### Single slice → lean agent-brief
 
-3. Write the PRD using the template below, then create the issue (`gh issue create`). Apply the `ready-for-agent` label - no need for additional triage. Write its prose per [../../WRITING.md](../../WRITING.md) → *Docs*: task-first, declarative, no marketing tone.
+Emit the shared agent brief from [../triage/AGENT-BRIEF.md](../triage/AGENT-BRIEF.md) verbatim as the issue body — no Parent/Blocked-by wrapper (those are slice-specific). Run **no seam check**: `pickup`/`tdd` pick seams downstream, exactly as they do for a slice.
+
+Apply the AFK/HITL judgement `slice` uses: label `ready-for-agent` if an agent can clear the change end-to-end, `ready-for-human` if it carries a judgement step a human must make (architectural decision, design review, external access). For a `ready-for-human` issue, note in the brief *why* a human is needed, so `pickup` can drive them through it.
+
+Create the issue (`gh issue create`) with that label. Write its prose per [../../WRITING.md](../../WRITING.md) → *Issues & findings*: lead with the problem, plainly, no hedging where you know.
+
+### Multiple slices → full PRD
+
+Sketch out the seams at which you're going to test the feature. Existing seams should be preferred to new ones. Use the highest seam possible. If new seams are needed, propose them at the highest point you can. Check with the user that these seams match their expectations.
+
+Write the PRD using the template below, then create the issue (`gh issue create`). The parent PRD carries the **category label only** (`enhancement` / `bug`) and **no readiness label** — it isn't actionable as-is; `slice` produces the actionable children, each with its own `ready-for-agent`/`ready-for-human` label. Write its prose per [../../WRITING.md](../../WRITING.md) → *Docs*: task-first, declarative, no marketing tone.
 
 <prd-template>
 
@@ -76,9 +86,9 @@ Any further notes about the feature.
 
 ## Handover
 
-Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this row as one `AskUserQuestion`.
+Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this row as one `AskUserQuestion`, picking the default for the shape you produced.
 
-- **artifact:** a published PRD issue
-- **default:** `slice` — cut the PRD into tracer-bullet issues
-- **alternatives:** stop
-- **auto:** stage — synthesise the PRD and stop. The seam check (step 2) is a human gate; unattended, record the seams you chose and flag them unconfirmed rather than proceeding to `slice`.
+- **artifact:** a lean agent-brief issue (single slice) or a full PRD issue (multiple slices)
+- **default:** conditional on shape — lean agent-brief → `pickup` (implement the ready issue); full PRD → `slice` (cut the PRD into tracer-bullet issues)
+- **alternatives:** lean path → `slice` · stop; full path → stop
+- **auto:** stage for both shapes — synthesise the artifact and stop. On the multi-slice path the seam check is a human gate; unattended, record the seams you chose and flag them unconfirmed rather than proceeding to `slice`.

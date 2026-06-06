@@ -26,7 +26,9 @@ flowchart LR
     deepen[[deepen]] --> spec[[spec]]
     grill[[grill]] --> spec
     gwd[[grill-with-docs]] --> spec
-    spec --> slice[[slice]]
+    spec -->|multi-slice| slice[[slice]]
+    spec -->|single slice| rfa
+    spec -->|single slice| rfh
     slice --> rfa
     slice --> rfh
 
@@ -34,7 +36,7 @@ flowchart LR
     rfh --> pu
 ```
 
-A finding enters via `capture` (from any `audit-*` finder, or an ad-hoc observation) at `needs-triage`, where `triage` — always a human — decides the state and writes the agent brief. A designed slice (`deepen` / `grill` → `spec` → `slice`) skips triage and is published straight to a ready state, its issue body acting as the brief. `needs-triage` and `ready-for-human` are the two human gates.
+A finding enters via `capture` (from any `audit-*` finder, or an ad-hoc observation) at `needs-triage`, where `triage` — always a human — decides the state and writes the agent brief. A designed change (`deepen` / `grill` → `spec`) skips triage: for a single-slice change `spec` emits a lean ready issue directly, its body acting as the brief; for a multi-slice one it emits a PRD parent (category label only, no ready state) that `slice` cuts into ready children. `needs-triage` and `ready-for-human` are the two human gates.
 
 ### Implementing a ready issue
 
@@ -79,7 +81,7 @@ The gate is **mandatory in an autonomous run** and offered as a **choice when dr
 | workflow | chain | enters from | autonomous? |
 |---|---|---|---|
 | **findings** | `audit-*` → `capture` → *needs-triage* | an audit | yes — runs to `needs-triage`, stops |
-| **design** | `deepen` / `grill` / `grill-with-docs` → `spec` → `slice` | a conversation | no — grilling/seams/granularity need the user |
+| **design** | `deepen` / `grill` / `grill-with-docs` → `spec` → `slice` (multi-slice) or `pickup` (single slice) | a conversation | no — grilling/seams/granularity need the user |
 | **fix** | `diagnose` → review gate → PR | a bug report | loop runs AFK; the fix is staged on a branch |
 | **implement** | `pickup` → `tdd` / `diagnose` / `write-skill` / docs / config → review gate → PR → *(human approves)* `land` | a ready issue | AFK issues yes to the PR; `land` is human-invoked |
 
