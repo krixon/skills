@@ -5,14 +5,10 @@
 # .claude/worktrees/<slug> on its own branch. This hook enforces it: a write whose
 # target resolves inside the main checkout but outside .claude/worktrees/ is denied.
 #
-# Generic and inert by default. It activates only when CLAUDE_WORKTREE_ONLY is set
-# to a non-empty value, so the plugin ships without imposing worktree-only editing
-# on consumers who edit main directly. Enable it per repo in that repo's
-# .claude/settings.json:
-#   { "env": { "CLAUDE_WORKTREE_ONLY": "1" } }
+# Always enforces — the skill suite is built on worktree isolation (ISOLATION.md),
+# so the guidance already drives every consumer into the model; this is its
+# backstop, not an opt-in. Registered in hooks/hooks.json.
 set -euo pipefail
-
-[ -n "${CLAUDE_WORKTREE_ONLY:-}" ] || exit 0   # not enabled — nothing to enforce
 
 input=$(cat)
 path=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' <<<"$input")
@@ -44,7 +40,7 @@ reason="Refusing to edit the live repo-root checkout — it is read-only (ISOLAT
 
   git worktree add .claude/worktrees/<slug> -b <kind>/<slug> main
 
-then edit the file under .claude/worktrees/<slug>/ and address it by that path. (This check is active because CLAUDE_WORKTREE_ONLY is set.)"
+then edit the file under .claude/worktrees/<slug>/ and address it by that path."
 
 jq -n --arg r "$reason" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
 exit 0

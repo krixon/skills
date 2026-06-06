@@ -1,7 +1,6 @@
 {
   "env": {
-    "GH_PR_BOT_ACCOUNT": "krixon-bot",
-    "CLAUDE_WORKTREE_ONLY": "1"
+    "GH_PR_BOT_ACCOUNT": "krixon-bot"
   },
   "hooks": {
     "PreToolUse": [

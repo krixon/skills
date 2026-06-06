@@ -6,9 +6,9 @@ How work is kept off your live checkout. One invariant, binding on **every** edi
 
 Read, explore, and run in the repo root freely. The gate is the first *edit*, not the commit: the moment you would change a file — any file, for any reason — you do it in a worktree on its own branch, never in the repo-root checkout. This holds without exception — code, docs, and releases alike — and it makes concurrent sessions collision-proof, since no two ever share a working tree.
 
-A `PreToolUse` hook (`hooks/worktree-only-edits.sh`, active when `CLAUDE_WORKTREE_ONLY` is set — it is, in this repo's `.claude/settings.json`) enforces this: it denies any `Edit`/`Write`/`NotebookEdit` whose target lands inside the main checkout but outside `.claude/worktrees/`. The rule is the contract; the hook is the backstop for when an agent reads the rule as documentation rather than instruction.
+A `PreToolUse` hook (`hooks/worktree-only-edits.sh`) enforces this: it denies any `Edit`/`Write`/`NotebookEdit` whose target lands inside the main checkout but outside `.claude/worktrees/`. The rule is the contract; the hook is the backstop for when an agent reads the rule as documentation rather than instruction.
 
-The repo root stays on the default branch (`main` / `master`), clean. Nothing edits or commits there; `main` advances only when a worktree's branch reaches it (below). Override only on an explicit instruction to work in the repo root ("just do it on main here") — and that approval doesn't carry to the next task.
+The repo root stays on the default branch (`main` / `master`), clean. Nothing edits or commits there; `main` advances only when a worktree's branch reaches it (below).
 
 ## A branch is the unit of work
 
