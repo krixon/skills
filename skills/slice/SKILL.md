@@ -54,15 +54,11 @@ If the approved breakdown is a single slice, slicing was a no-op — it didn't d
 
 For each approved slice, create an issue (`gh issue create`). Use the issue body template below. Label by type: **AFK** slices → `ready-for-agent`; **HITL** slices → `ready-for-human` (they carry a judgment step an agent can't clear). For an HITL slice, note in the issue *why* a human is needed, so `pickup` can drive them through it.
 
-Publish issues in dependency order (blockers first) so you can reference real issue identifiers in the "Blocked by" field.
+Publish issues in dependency order (blockers first) so a blocked slice's blockers already exist when you record the dependency.
 
-Write each issue body as an **agent brief** so `pickup` reads it origin-blind — same shape it gets from a triage-promoted issue. Follow the brief in [../triage/AGENT-BRIEF.md](../triage/AGENT-BRIEF.md) (behavioral, durable, no file paths), wrapped with slice-specific Parent and Blocked-by sections:
+The child's body is the **agent brief** alone — `pickup` reads it origin-blind, the same shape it gets from a triage-promoted issue. Follow the brief in [../triage/AGENT-BRIEF.md](../triage/AGENT-BRIEF.md) (behavioral, durable, no file paths). Parent and blocked-by links are native GitHub relations, not body prose; record them after creating the issue (below).
 
 <issue-template>
-## Parent
-
-A reference to the parent issue on the issue tracker (omit if the source wasn't an existing issue).
-
 ## Agent Brief
 
 **Category:** bug / enhancement
@@ -75,15 +71,16 @@ A reference to the parent issue on the issue tracker (omit if the source wasn't 
 - [ ] testable criterion 2
 **Out of scope:** what this slice does NOT touch
 
-## Blocked by
-
-A reference to the blocking issue(s), or "None — can start immediately".
-
 </issue-template>
 
 If a prototype produced a snippet that encodes a decision more precisely than prose (state machine, reducer, schema, type shape), inline its decision-rich parts under **Key interfaces** and note it came from a prototype.
 
-Do NOT close or modify any parent issue.
+**Link the slice with native relations** (commands in [../GITHUB.md](../GITHUB.md) → *Issue relations*). Both relation APIs key writes on an issue's internal **id**, not its number, so resolve each id with `gh api repos/{owner}/{repo}/issues/<number> --jq .id` after `gh issue create` returns the number, and pass it as a typed integer (`-F`, not `-f` — a string returns HTTP 422):
+
+- **Parent** — when the source was an existing issue (the PRD), make each child a sub-issue of it: resolve the child's id, then `gh api repos/{owner}/{repo}/issues/<parent-number>/sub_issues -F sub_issue_id=<child-id>`. Omit when the source wasn't an existing issue.
+- **Blocked by** — for each blocking slice, resolve the blocker's id and record the dependency on the blocked child: `gh api repos/{owner}/{repo}/issues/<child-number>/dependencies/blocked_by -F issue_id=<blocker-id>`. Publishing blockers first guarantees the blocker exists when you write the dependency.
+
+Do NOT close or modify any parent issue's body, labels, or state — adding a sub-issue relation is the only parent write.
 
 ## Handover
 
