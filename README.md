@@ -47,7 +47,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 | Merge an approved PR | `/land` | merges, strips `in-progress`, deletes the branch/worktree (human-invoked only) |
 | Cut a plugin version release | `/release` | bumps `plugin.json` and pushes the bump + `v<new>` tag to `main` from a worktree — batched and human-invoked; `land` offers it after a merge |
 | Write a new skill | `/write-skill` | scaffolds structure + progressive disclosure |
-| Run a whole pipeline unattended | `/auto <workflow>` (e.g. `/auto findings`) | walks the chain head-down, halting at the first human gate |
+| Run a whole pipeline unattended | `/auto <skill>` (e.g. `/auto audit-coverage`) | walks the chain head-down, halting at the first human gate |
 | Hand off the session to a fresh agent | `/handoff` | a compact handoff doc the next agent picks up |
 
 ## Skills
