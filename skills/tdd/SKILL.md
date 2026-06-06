@@ -68,7 +68,7 @@ Before opening the PR, review the branch diff:
 
 **Required in auto, your choice in manual.** Address findings (or log them on the issue) before the PR.
 
-Write the commit and PR prose, and any code comments, per [../../WRITING.md](../../WRITING.md) → *Commit messages*, *Code comments*: imperative subject, body says why not what, comment intent never narration.
+Write the commit and PR prose, and any code comments, per [../../WRITING.md](../../WRITING.md) → *Commit messages*, *Code comments*: imperative subject, body says why not what, comment intent never narration. Run the subtract pass before committing or opening the PR.
 
 ## Handover
 
