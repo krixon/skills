@@ -41,6 +41,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 | File findings or observations as issues | `/capture` | deduped `needs-triage` issues for a human to `triage` |
 | Triage incoming issues | `/triage` | each routed to `ready-for-agent`, `ready-for-human`, `needs-info`, or `wontfix` |
 | Start implementing a ready issue | `/pickup` | claims it → routes by kind to `tdd` / `diagnose` / `write-skill` / docs / config → review gate → opens a PR |
+| Ship a small fix with no tracked issue | `/patch` | branch in a worktree → review gate → a no-issue PR (body led by `No-issue:`) a human lands; human-invoked, for fixes too small to file |
 | Build a feature test-first | `/tdd` | red-green-refactor loop (usually reached via `pickup`) |
 | Debug a hard bug or perf regression | `/diagnose` | reproduce → minimise → fix → regression test (usually reached via `pickup`) |
 | Answer questions raised on a PR review | `/field` | work through each to shared understanding → back to `pickup` for the rework round |
@@ -69,6 +70,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 
 ### Build & fix
 - **pickup** — claim a ready issue and implement it, routing by artifact kind through the review gate to an open PR.
+- **patch** — ship a small fix straight from a conversation, no tracked issue: worktree branch → review gate → a no-issue PR (`No-issue:` marker) a human lands; human-invoked.
 - **tdd** — red-green-refactor loop, integration-test first.
 - **diagnose** — disciplined loop for hard bugs and perf regressions: reproduce → minimise → hypothesise → instrument → fix → regression-test.
 - **land** — merge an approved PR, strip `in-progress`, and tear down the branch/worktree; human-invoked only.

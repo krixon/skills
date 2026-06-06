@@ -34,7 +34,7 @@ Default to proceeding: a single approved, mergeable, bot-owned PR lands without 
 
 - **Multi-PR sweep** — more than one PR will land in this invocation.
 - **Stale against a moved `main`** — `main` advanced between selecting the PR and merging it (the swept list went stale, per step 1's re-check), so the approved diff now lands on a moved base. A PR that no longer re-checks `CLEAN` is skipped at the guardrail, not prompted.
-- **No `Closes #` reference** — the PR names no issue, so the cleanup in step 5 can't strip `in-progress` with confidence.
+- **No issue and none declared** — the PR carries neither a `Closes #` reference nor a `No-issue:` marker, so the cleanup in step 5 can't strip `in-progress` with confidence. A PR whose body leads with `No-issue:` (a `patch`, see [../patch/SKILL.md](../patch/SKILL.md)) declares the absence as intentional — that is **not** unusual; land it without a prompt.
 
 A user who already said to land without asking waives even these.
 
@@ -65,7 +65,9 @@ The `Closes #<n>` reference auto-closes the issue on merge; confirm it (`gh pr v
 gh issue edit <n> --remove-label in-progress
 ```
 
-If the PR carried no closing reference, you can't name its issue with confidence — and stripping `in-progress` needs that same confidence. Don't touch any issue: report that the PR landed with no linked issue and leave it for the maintainer.
+If the PR's body leads with a `No-issue:` marker, it's an issue-less `patch` by design — there's no issue to close or de-label. Land it and move on; don't report it as an anomaly.
+
+If the PR carries neither a closing reference nor a `No-issue:` marker, you can't name its issue with confidence — and stripping `in-progress` needs that same confidence. Don't touch any issue: report that the PR landed with no linked issue and no declaration, and leave it for the maintainer.
 
 ### 6. Close the parent epic when its last child lands
 
