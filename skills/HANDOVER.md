@@ -6,7 +6,7 @@ The shared contract for how one skill hands work to the next. A **workflow** is 
 
 Each skill's `## Handover` section carries exactly these fields:
 
-- **artifact** — what the skill passes forward (e.g. findings, a PRD, needs-triage issues).
+- **artifact** — what the skill passes forward (e.g. findings, an epic, needs-triage issues).
 - **default** — the recommended next skill. Becomes option 1, marked `(Recommended)`. `—` if terminal.
 - **alternatives** — other valid hops, plus `stop`.
 

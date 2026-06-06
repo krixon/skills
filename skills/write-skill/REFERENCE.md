@@ -68,7 +68,7 @@ Split into separate files when:
 
 When content stays inline, pick the delimiter by role:
 
-- **`<kebab-tag>` for a template the model fills in and emits** as content — a PRD, an issue, a comment, a file it writes. Contents render as markdown (so they can contain `##` headings) and nest cleanly. Name templates `<thing-template>` and examples `<thing-example>`.
+- **`<kebab-tag>` for a template the model fills in and emits** as content — an epic, an issue, a comment, a file it writes. Contents render as markdown (so they can contain `##` headings) and nest cleanly. Name templates `<thing-template>` and examples `<thing-example>`.
 - **Code fence for verbatim content shown literally** — a code snippet, command output, or a file scaffold meant to be copied byte-for-byte. Label markdown fences `md` (not `markdown`).
 
 If a fenced sample must itself contain a fenced block, use a four-backtick outer fence — or, better, switch it to a `<tag>` so the inner fence renders cleanly. Triple-backtick-inside-triple-backtick breaks rendering.

@@ -10,6 +10,10 @@ Every body passed to `gh` — issue, comment, PR description — renders as GitH
 
 Two **category** labels: `bug`, `enhancement`.
 
+One **structure** label (`slice` owns it):
+
+- `epic` — a lean multi-slice parent issue holding its sliced children as sub-issues
+
 Five maintainer **state** labels (driven through `triage`):
 
 - `needs-triage` — needs maintainer evaluation
@@ -37,7 +41,7 @@ There is **no** review-state label. A claimed issue (`in-progress`) with an open
 
 Parent/child and blocked-by links live in GitHub's native data model, not in issue-body prose. Both APIs key writes on an issue's internal **id**, not its issue number — resolve it with `gh api repos/{owner}/{repo}/issues/<number> --jq .id` (`{owner}/{repo}` resolve to the current repo).
 
-- **Sub-issues** — the parent/child relation. The parent PRD holds its sliced children as sub-issues.
+- **Sub-issues** — the parent/child relation. The parent epic holds its sliced children as sub-issues.
   - **Add a child**: `gh api repos/{owner}/{repo}/issues/<parent-number>/sub_issues -F sub_issue_id=<child-id>` — `sub_issue_id` is the child's resolved id and must be a typed integer (`-F`); passing it as a string (`-f`) returns HTTP 422.
   - **List children**: `gh api repos/{owner}/{repo}/issues/<parent-number>/sub_issues --jq '.[] | {number, state}'`.
   - **Remove a child**: `gh api -X DELETE repos/{owner}/{repo}/issues/<parent-number>/sub_issue -F sub_issue_id=<child-id>`.
