@@ -32,7 +32,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 
 | I want to… | Run | …and the path from there |
 |---|---|---|
-| Stress-test a plan or design | `/grill` — or `/grill-with-docs` to challenge it against CONTEXT.md / ADRs | grilling → `spec` → `slice` → ready issues on the tracker |
+| Stress-test a plan or design | `/grill` — challenges it against CONTEXT.md / ADRs and updates them inline | grilling → `spec` → `slice` → ready issues on the tracker |
 | Turn this conversation into a spec | `/spec` | PRD published as an issue → `slice` |
 | Break a plan or PRD into issues | `/slice` | independently-grabbable issues, each marked `ready-for-agent` (AFK) or `ready-for-human` (HITL) |
 | Find architecture / refactoring opportunities | `/deepen` | seams surfaced → `spec` → `slice` |
@@ -54,8 +54,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 ## Skills
 
 ### Planning & specs
-- **grill** — interview you relentlessly about a plan until shared understanding, resolving each decision branch.
-- **grill-with-docs** — grilling that challenges your plan against the domain model and updates CONTEXT.md / ADRs inline.
+- **grill** — interview you relentlessly about a plan until shared understanding, resolving each decision branch while challenging it against the domain model and updating CONTEXT.md / ADRs inline.
 - **field** — field questions put to the agent and converge on shared understanding; the dual of grill, run on PR-review rework.
 - **spec** — turn the current conversation into a PRD and publish it as a GitHub issue.
 - **slice** — break a plan, spec, or PRD into independently-grabbable tracer-bullet issues.
