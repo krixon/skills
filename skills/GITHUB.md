@@ -51,3 +51,12 @@ Prefixing `GH_TOKEN` is atomic per command — it never mutates the active `gh` 
 - **Read the review** — the comments that form the rework brief:
   `gh pr view <n> --comments` (or `--json reviews,comments`).
 - **Update a PR**: push more commits to its branch; the open PR tracks the branch, no re-create needed.
+
+## Review threads (questions)
+
+A review can carry *questions* aimed at the agent, not change requests — usually a `COMMENT`-state review, so `reviewDecision` stays null and the **unresolved thread** is the signal. `pickup` triggers rework on "changes requested **or** any unresolved thread", hands questions to `field`, and resolves each thread as it posts the answer (see [pickup/SKILL.md](pickup/SKILL.md)).
+
+- **Find unresolved threads** on a PR (run per open bot-owned PR to decide whether it needs resume):
+  `gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){reviewThreads(first:100){nodes{id isResolved comments(first:1){nodes{databaseId body path author{login}}}}}}}}' -F owner=krixon -F repo=skills -F pr=<n> --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)'`
+- **Reply to a thread** — post the converged answer onto the question's thread (`<comment-id>` is the `databaseId` of the thread's first comment from the query above): `gh api repos/krixon/skills/pulls/<n>/comments/<comment-id>/replies -f body="..."`.
+- **Resolve a thread** after answering (`<thread-id>` is the node `id` from the query above): `gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=<thread-id>`.

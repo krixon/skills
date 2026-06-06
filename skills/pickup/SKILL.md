@@ -16,7 +16,7 @@ Issues and PRs live in GitHub; use the `gh` CLI ([../GITHUB.md](../GITHUB.md) fo
 
 - **By reference** — the user passes an issue number/URL. Fetch it.
 - **Next ready** — no argument, take **rework before new work**:
-  1. **Rework** — an open PR you own with changes requested (`gh pr list … CHANGES_REQUESTED`, see [../GITHUB.md](../GITHUB.md)). Resume the oldest via *Resuming a PR sent back for changes* (step 5).
+  1. **Rework** — an open PR you own with changes requested *or any unresolved review thread* (`gh pr list … CHANGES_REQUESTED`, plus the unresolved-thread query, see [../GITHUB.md](../GITHUB.md)). The unresolved-thread half catches a review that carries only questions — a `COMMENT`-state review never sets `CHANGES_REQUESTED`, but its open thread still needs you. Resume the oldest via *Resuming a PR sent back for changes* (step 5).
   2. **New work** — otherwise query issues labelled `ready-for-agent` and not `in-progress`, then `ready-for-human` and not `in-progress`, oldest first.
 
   Confirm which you're taking unless running unattended.
@@ -54,7 +54,16 @@ Infer the kind from the brief's target when it isn't stated. Drive the implement
 
 **Delegation (window hygiene — see *Context & delegation* in [../WORKFLOWS.md](../WORKFLOWS.md)).** On the **AFK** path, run the implementation skill as a subagent and keep only its result; nobody's watching, and this keeps `pickup`'s window bounded across the whole loop. On the **HITL** path, run it inline so you can drive it, and background its noisy test/log output rather than letting it accumulate.
 
-**Resuming a PR sent back for changes.** If you arrived here from a changes-requested PR (step 1), don't start fresh: check out its existing branch, and read the PR review comments (`gh pr view <n> --comments`) as an **addendum** to the original brief — the brief's acceptance criteria still hold, the review comments are the delta. Address them through the same implementation route, then re-run the review gate (step 6) and push to the branch; the open PR updates in place — no new PR. Autonomy is the issue's `ready-for-agent`/`ready-for-human` label: under `auto`, only AFK issues resume unattended — HITL rework stops for the human (see the handover).
+**Resuming a PR sent back for changes.** If you arrived here from a PR with review activity (step 1), don't start fresh: check out its existing branch, and read the review (`gh pr view <n> --comments`) as an **addendum** to the original brief — the brief's acceptance criteria still hold, the review is the delta.
+
+**Classify each review comment by what an answer would produce.** A **change request** is satisfied by a diff — even when phrased as a question ("why are you swallowing this error?" wants it *fixed*). A **question** is aimed at you, the agent, and resolving it changes a shared *understanding*, not necessarily the code ("why this approach?", "did you consider Y?"). When a comment is genuinely both, treat it as a question first — the agreed answer may *then* spawn a change. When you can't tell, default to question: erring toward surfacing it to the maintainer is the safe direction.
+
+- **Questions** → hand the whole set to `field` in `embedded` mode (its input *is* the questions; it returns the converged answers to you rather than prompting) and converge with the maintainer one at a time. Then **post each converged answer back to its review thread and resolve the thread** — the maintainer approves the draft before it posts (an outward write). Resolve the thread even when the answer produced no code change: an unresolved thread is what re-triggers the rework query (step 1), so resolving it is how a pure-question review closes out without an empty commit.
+- **Change requests** → address them through the same implementation route as the original brief, *plus* any change an answer in the `field` pass spawned.
+
+**Order: field first.** Run `field` and settle the questions before implementing change requests — a converged answer can reshape what a change should be. Then re-run the review gate (step 6) and push to the branch; the open PR updates in place — no new PR. A pure-question review with no resulting change skips straight to resolved threads — nothing to push.
+
+**Autonomy.** Any question forces the whole rework round onto the HITL path, whatever the issue's label — `field` is `auto: never`, and a change request can't be built on an unanswered question. Under `auto`, stop and stage: report the unresolved questions, implement nothing this pass. A change-request-only review keeps the issue's autonomy — AFK resumes unattended, HITL stops for the human.
 
 ### 6. Close the loop
 
@@ -86,4 +95,4 @@ Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this r
 - **artifact:** an open PR (issue at `in-progress`), or a walled issue returned to `needs-triage` with an attempt report
 - **default:** — (terminal; a human reviews and merges)
 - **alternatives:** `verify` · `/code-review` · stop
-- **auto:** conditional on the issue's readiness label — `ready-for-agent` (AFK) → **stage** (claim, implement on a branch, open a PR, stop for review; never merge — and on a wall, return to `needs-triage` and stop). Covers **rework**: a later `auto` run resumes an AFK issue whose PR has changes requested, addresses the review, and stops again at the PR. `ready-for-human` (HITL) → **never**.
+- **auto:** conditional on the issue's readiness label — `ready-for-agent` (AFK) → **stage** (claim, implement on a branch, open a PR, stop for review; never merge; on a wall, return to `needs-triage` and stop). Resumes change-request-only rework on a later run; a question on the review overrides the label → stop and stage, reporting the unresolved questions. `ready-for-human` (HITL) → **never**.
