@@ -48,6 +48,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 | Cut a plugin version release | `/release` | bumps `plugin.json` and pushes the bump + `v<new>` tag to `main` from a worktree — batched and human-invoked; `land` offers it after a merge |
 | Write a new skill | `/write-skill` | scaffolds structure + progressive disclosure |
 | Run a whole pipeline unattended | `/auto <skill>` (e.g. `/auto audit-coverage`) | walks the chain head-down, halting at the first human gate |
+| Drain the whole `ready-for-agent` queue unattended | `/loop /auto pickup` (no interval) | picks up each ready issue in turn, self-terminating once none are left `ready-for-agent` |
 | Hand off the session to a fresh agent | `/handoff` | a compact handoff doc the next agent picks up |
 
 ## Skills
