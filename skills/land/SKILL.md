@@ -18,8 +18,6 @@ Merge the PRs a human has **approved**, then clean up after them. `land` is the 
 - **Mergeable** — `mergeable` is `MERGEABLE` and `mergeStateStatus` is `CLEAN`: no conflicts, required checks green. Skip `CONFLICTING` / `BLOCKED` / `UNKNOWN`.
 - **Bot-owned** — authored by `krixon-bot`, the agent's identity (see *PR identity* in [../GITHUB.md](../GITHUB.md)). `land` does not merge a human's PR.
 
-Merging is irreversible and outward — confirm the set before merging unless the user already said to land without asking.
-
 ## Process
 
 ### 1. Select the PRs
@@ -30,9 +28,15 @@ Merging is irreversible and outward — confirm the set before merging unless th
 
 Re-check mergeability per PR at merge time (`gh pr view <n> --json mergeable,mergeStateStatus`) — a swept list goes stale the moment `main` moves.
 
-### 2. Confirm
+### 2. Confirm only when something is unusual
 
-List the PRs about to land — number, title, the issue each closes — and get the go-ahead. Skip the prompt only when the user already told you to land without asking.
+Default to proceeding: a single approved, mergeable, bot-owned PR lands without a prompt — the guardrails already cleared it. Pause to confirm — listing the PRs about to land, number, title, and the issue each closes — only when one of these holds:
+
+- **Multi-PR sweep** — more than one PR will land in this invocation.
+- **Stale against a moved `main`** — `main` advanced between selecting the PR and merging it (the swept list went stale, per step 1's re-check), so the approved diff now lands on a moved base. A PR that no longer re-checks `CLEAN` is skipped at the guardrail, not prompted.
+- **No `Closes #` reference** — the PR names no issue, so the cleanup in step 5 can't strip `in-progress` with confidence.
+
+A user who already said to land without asking waives even these.
 
 ### 3. Merge
 
