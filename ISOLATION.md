@@ -6,6 +6,8 @@ How work is isolated from the default branch and from your live checkout. Branch
 
 Never commit to the default branch (`main` / `master`). Branch before the first commit. Reading, exploring, and editing the working tree are fine — the gate is the *commit*, not the edit. Override only on an explicit instruction to work on or commit to `main` ("commit straight to main", "no branch"). Approval to commit to `main` once does not carry to the next task.
 
+The one standing carve-out is **`release`**: it commits the version bump (`chore(release): v<new>`) and its annotated `v<new>` tag directly to `main`, because a release *marks* `main` rather than proposing a change to it. The carve-out is narrow and guarded — `release` aborts to a release PR if `main` is dirty or the push is rejected, never forcing (see [skills/release/SKILL.md](skills/release/SKILL.md)). No other skill commits to `main`.
+
 ## A branch is the unit of work
 
 One branch per issue or task. Name it `<kind>/<issue>-<slug>` when there's a tracker issue, `<kind>/<slug>` when there isn't:
