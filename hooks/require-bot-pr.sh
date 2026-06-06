@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# PreToolUse(Bash) guard: when a repo opens PRs as a dedicated bot account — so a
+# human can approve them, since GitHub forbids approving your own PR — an agent
+# must not open a PR as the logged-in (approver) account.
+#
+# Generic and inert by default. It activates only when GH_PR_BOT_ACCOUNT names the
+# bot account, so the plugin ships without assuming any particular account. Enable
+# it per repo, e.g. in that repo's .claude/settings.json:
+#   { "env": { "GH_PR_BOT_ACCOUNT": "your-bot-login" } }
+# then open PRs with that account's token:
+#   GH_TOKEN=<token for the bot> gh pr create …
+set -euo pipefail
+
+bot="${GH_PR_BOT_ACCOUNT:-}"
+[ -n "$bot" ] || exit 0   # no bot account configured — nothing to enforce
+
+cmd=$(jq -r '.tool_input.command // ""')
+
+# Only PR creation chooses an author; reopen/edit/merge keep the existing one.
+grep -qE '(^|[^[:alnum:]_-])gh[[:space:]]+pr[[:space:]]+create([^[:alnum:]_-]|$)' <<<"$cmd" || exit 0
+
+# An explicit GH_TOKEN= on the command means identity was supplied rather than
+# defaulting to the logged-in account. That is the signal we require.
+grep -qE '(^|[[:space:]])GH_TOKEN=' <<<"$cmd" && exit 0
+
+reason="Open the PR as the ${bot} account, not the logged-in account — GitHub forbids approving your own PR, so the author cannot also be the approver. Re-run supplying ${bot}'s token, which switches identity for this one command only:
+
+  GH_TOKEN=<token for ${bot}> gh pr create …
+
+(This check is active because GH_PR_BOT_ACCOUNT=${bot}.)"
+
+jq -n --arg r "$reason" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
+exit 0
