@@ -17,7 +17,11 @@ At the end of the skill, render the row as one `AskUserQuestion`:
 
 - **question:** `<artifact> ready. What next?`
 - **header:** `Next step`
-- **options:** the **default** first, labelled `<skill> (Recommended)` with a one-line description of what it does; then each **alternative**; then `Stop here`. When the default is terminal (`—`), `Stop here` leads as the recommended option and the alternatives follow.
+- **options:** the **default** first, labelled `<skill> (Recommended)` with a one-line description of what it does; then **Run under `/auto`** when the derived condition below holds; then each **alternative**; then `Stop here`. When the default is terminal (`—`), `Stop here` leads as the recommended option and the alternatives follow.
+
+**Run under `/auto`** is a derived option, not a declared one — no skill lists it in its row, and the row schema gains no field for it. It appears iff the default hop's `auto` directive resolves to `advance` or `stage` *for the current artifact* — i.e. the chain past this gate is safe to run unattended. Its meaning is "go AFK from here": delegate the rest of the chain to `auto` starting at the default hop, running to the next human gate, rather than walking it one interactive step at a time. Choosing it invokes `/auto <default-skill> <target>` (e.g. `/auto pickup 27`); the plain default option, by contrast, takes a single interactive hop. It sits **after the default, before the alternatives**.
+
+The trigger is that one derived condition, never a separate per-skill flag. For a labelled work-item the readiness label folds into it through the default skill's directive: `pickup`'s directive is conditional on the label, so a `ready-for-agent` issue makes the hop enterable and the option shows, while a `ready-for-human` issue resolves to `never` and it does not. For an unlabelled artifact (findings, a report) the directive alone decides. When the default hop is a `never` skill, the option never appears.
 
 This is an action, not a closing summary — every skill ends by *firing* this `AskUserQuestion`, never by describing the next step in prose.
 
