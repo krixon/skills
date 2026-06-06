@@ -20,7 +20,7 @@ Reason from the prose and the code that should back it. Never require running a 
 
 ### 1. Map claims
 
-Walk the documentation. Above ~25 files in scope, fan out `Explore` subagents (one per doc area) so the reads never land in the main window; at or below that, explore inline (see *Context & delegation* in [../WORKFLOWS.md](../WORKFLOWS.md)). Collect concrete, checkable assertions — a glossary term's definition, an ADR's decision, a README's described command or flag, a docstring's stated behavior. Skip aspirational or roadmap prose: only claims the code is supposed to back right now.
+Walk the documentation. Above ~25 files in scope, fan out `Explore` subagents (one per doc area) so the reads never land in the main window; at or below that, explore inline (see [../DELEGATION.md](../DELEGATION.md)). Collect concrete, checkable assertions — a glossary term's definition, an ADR's decision, a README's described command or flag, a docstring's stated behavior. Skip aspirational or roadmap prose: only claims the code is supposed to back right now.
 
 ### 2. Locate the backing code
 

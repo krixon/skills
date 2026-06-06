@@ -22,7 +22,7 @@ Reason from the code. Never require running a scanner — that makes the skill n
 
 ### 1. Map risk
 
-Walk the codebase. Above ~25 files in scope, fan out `Explore` subagents (one per area) so the reads never land in the main window; at or below that, explore inline (see *Context & delegation* in [../WORKFLOWS.md](../WORKFLOWS.md)). Rank code by attack surface:
+Walk the codebase. Above ~25 files in scope, fan out `Explore` subagents (one per area) so the reads never land in the main window; at or below that, explore inline (see [../DELEGATION.md](../DELEGATION.md)). Rank code by attack surface:
 
 - **Trust boundaries** — where untrusted input crosses in: request handlers, deserialisers, file/CLI parsers, message consumers.
 - **Sensitive operations** — auth, money, data access, command/query execution, file and network egress.
