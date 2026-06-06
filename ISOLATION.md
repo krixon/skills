@@ -1,10 +1,12 @@
 # Isolation
 
-How work is kept off your live checkout. One invariant: the repo-root checkout is read-only — every change is made in a worktree on its own branch, never in the tree you're sitting in. The work-producing skills (`pickup`, `tdd`, `diagnose`, `write-skill`, `release`) and the `auto` loop follow it.
+How work is kept off your live checkout. One invariant, binding on **every** edit to this repo — through a skill, a direct request, or an ad-hoc change alike: the repo-root checkout is read-only. Every change is made in a worktree on its own branch, never in the tree you're sitting in. The work-producing skills (`pickup`, `tdd`, `diagnose`, `write-skill`, `release`) and the `auto` loop build on this, but they don't own it and nothing is exempt by not going through one of them — the invariant precedes the skills.
 
 ## The repo-root checkout is read-only
 
-Read, explore, and run in the repo root freely. The gate is the first *edit*, not the commit: the moment you would change a file, you do it in a worktree on its own branch, never in the repo-root checkout. This holds without exception — code, docs, and releases alike — and it makes concurrent sessions collision-proof, since no two ever share a working tree.
+Read, explore, and run in the repo root freely. The gate is the first *edit*, not the commit: the moment you would change a file — any file, for any reason — you do it in a worktree on its own branch, never in the repo-root checkout. This holds without exception — code, docs, and releases alike — and it makes concurrent sessions collision-proof, since no two ever share a working tree.
+
+A `PreToolUse` hook (`hooks/worktree-only-edits.sh`, active when `CLAUDE_WORKTREE_ONLY` is set — it is, in this repo's `.claude/settings.json`) enforces this: it denies any `Edit`/`Write`/`NotebookEdit` whose target lands inside the main checkout but outside `.claude/worktrees/`. The rule is the contract; the hook is the backstop for when an agent reads the rule as documentation rather than instruction.
 
 The repo root stays on the default branch (`main` / `master`), clean. Nothing edits or commits there; `main` advances only when a worktree's branch reaches it (below). Override only on an explicit instruction to work in the repo root ("just do it on main here") — and that approval doesn't carry to the next task.
 
