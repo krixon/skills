@@ -6,7 +6,7 @@ argument-hint: "<start-skill or workflow name> [target/scope]"
 
 # Auto
 
-Run a workflow unattended. A workflow is a chain of skills linked by handovers (see [../HANDOVER.md](../HANDOVER.md)); `auto` walks that chain from a starting skill, **taking the recommended hop at each handover without asking**, until it reaches a skill it can't clear unattended. Then it stops and reports what it staged.
+Run a workflow unattended. A workflow is a chain of skills linked by handovers (see [../HANDOVER.md](../HANDOVER.md)); `auto` walks that chain from a starting skill, **taking the recommended hop at each handover without asking**, until a stop condition halts it. Then it stops and reports what it staged.
 
 `auto` is the seam that turns the interactive skill chain into an autonomous run. `/schedule` and `/loop` invoke it for hands-off execution.
 
@@ -22,17 +22,21 @@ Issues and PRs live in GitHub via `gh` ([../GITHUB.md](../GITHUB.md)); the label
 
 ## How it walks the chain
 
-For each skill, read its `## Handover` block and act on the `auto` directive:
+`auto` has exactly **two stop conditions** (defined once in *Autonomy* in [../HANDOVER.md](../HANDOVER.md)):
 
-1. **advance** — run the skill unattended, applying any internal-gate defaults it declares. Then take its **default** hop and continue into the next skill (invoke it via the Skill tool).
-2. **stage** — run the skill unattended (with its declared defaults), then **stop**. Its artifact is the hand-back point; the default hop is left for a human.
-3. **never** — do **not** enter it. If you arrive here by following a default hop, halt before running it and stage what the previous skill produced.
+1. **Interactive-only skill** — a skill that contains a human loop: `grill`, `deepen`, `triage`, `slice`, `field`, `release`, `land`. `auto` never enters one.
+2. **Gate label** — an artifact sitting at `needs-triage` or `ready-for-human`. `auto` never acts on one; it leaves the work staged there.
 
-Refuse immediately if **start** itself is a `never` skill (e.g. `deepen`, `grill`) — those contain a human loop and can't run unattended. Say so and suggest running them interactively.
+The walk, for each skill in turn:
+
+1. **Run it** unattended, resolving its internal gates by the unattended defaults declared in its own body (stop-and-stage when none is safe — see Rules).
+2. **Look at its default hop.** Continue into the next skill (invoke it via the Skill tool) *unless* a stop condition holds — the default skill is interactive-only, or the artifact now sits at a gate label. On either, **halt and report** what's staged. A terminal default (`—`) ends the walk the same way.
+
+Refuse before starting if **start** itself is interactive-only, or if the start target already sits at a gate label (e.g. `/auto pickup` on a `ready-for-human` issue) — there's nothing to run unattended. Say so and name the human step: run the interactive skill yourself, or `/triage` the gated issue.
 
 ## Rules
 
-- **No questions.** Never call `AskUserQuestion`. Handover gates are cleared by taking the default; internal gates are cleared by the skill's declared unattended default or not at all.
+- **No questions.** Never call `AskUserQuestion`. The chain advances by taking each default hop; a skill's internal gates are cleared by its declared unattended default or not at all.
 - **Delegate by interior cost, not by default.** `auto` carries no delegation rule of its own — it follows each skill's own delegation profile (see *Context & delegation* in [../WORKFLOWS.md](../WORKFLOWS.md)). A cheap hop (findings in → issues out) runs inline; a heavy interior (an audit over a large tree, a `tdd`/`diagnose` loop) delegates to a subagent so its reads and test/log output never land in the main window. Pass the prior artifact in; take the next artifact out. Delegating is for window hygiene, not visibility — nobody watching is no reason to isolate a hop whose interior is already small.
 - **Stop-and-stage is the policy.** Only push through an internal gate when the skill declares it safe (and says why). When in doubt, stop and stage.
 - **Stage, don't decide.** An autonomous run accretes reviewable artifacts (issues in `needs-triage`, a report, a branch) — it does not make irreversible or judgment calls a human would normally own.
@@ -47,4 +51,4 @@ When the run halts, emit a summary:
 - artifacts produced, with references (issue numbers, file paths, branch)
 - **what's staged for a human**, and which skill to run next to pick it up
 
-Example: `/auto findings src/billing` walks `audit-coverage` → `capture`, files the survivors as `needs-triage`, and stops (because `capture` is `stage` and `triage` is `never`). The summary lists the filed issues and says `/triage` is the next human step.
+Example: `/auto findings src/billing` walks `audit-coverage` → `capture`, files the survivors as `needs-triage`, and stops — `capture`'s output sits at the `needs-triage` gate label and its default hop `triage` is interactive-only. The summary lists the filed issues and says `/triage` is the next human step.
