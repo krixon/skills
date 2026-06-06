@@ -30,7 +30,7 @@ Six **state** labels. The maintainer owns the first five; `pickup` owns the exec
 
 There is no review-state label: a claimed issue with an open PR *is* in review.
 
-Every triaged issue carries exactly one category label and one state label. If state labels conflict, flag it and ask the maintainer before doing anything else.
+Every triaged issue carries exactly one category label and exactly one of the five maintainer-owned state labels. `pickup`'s `in-progress` layers on top of that: a claimed issue legitimately carries `ready-for-*` *and* `in-progress` — the *claimed* state, not a conflict. A genuine conflict is two maintainer-owned state labels at once; flag that and ask the maintainer before doing anything else.
 
 State transitions: an unlabeled issue normally goes to `needs-triage` first; from there it moves to `needs-info`, `ready-for-agent`, `ready-for-human`, or `wontfix`. `needs-info` returns to `needs-triage` once the reporter replies. `pickup` then drives the execution tail: `ready-for-*` → `in-progress` (claim) → open PR (the review state, no label) → closed (human merge); a human requesting changes on the PR sends it back to `pickup` for another round on the same branch. A walled `pickup` returns `in-progress` → `needs-triage` with an attempt report — the failure circuit-breaker, landing the issue back at the human gate rather than retrying forever. The maintainer can override at any time — flag transitions that look unusual and ask before proceeding.
 
@@ -103,7 +103,7 @@ If prior triage notes exist on the issue, read them, check whether the reporter 
 
 Per [../HANDOVER.md](../HANDOVER.md), `triage` is the human gate at the end of the findings chain. End an interactive run by rendering this row as one `AskUserQuestion`.
 
-- **artifact:** triaged issues (one category + one state label)
+- **artifact:** triaged issues (one category + one maintainer-owned state label)
 - **default:** — (terminal; promotion to `ready-for-*` is the maintainer's call)
 - **alternatives:** `pickup`, for an issue promoted to `ready-for-agent`/`ready-for-human` · stop
 
