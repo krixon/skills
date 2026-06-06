@@ -15,6 +15,6 @@ If a question can be answered by exploring the codebase, explore it instead.
 Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this row as one `AskUserQuestion`.
 
 - **artifact:** a stress-tested plan (shared understanding in the conversation)
-- **default:** `to-prd` — synthesise the resolved plan into a PRD
+- **default:** `spec` — synthesise the resolved plan into a PRD
 - **alternatives:** `slice` · stop
 - **auto:** never — grilling is an interview.
