@@ -53,7 +53,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 
 ## Draining the queue unattended
 
-`/loop /auto pickup` (dynamic mode — no interval) drains the whole `ready-for-agent` queue in one sitting: each loop iteration picks up the next ready issue and opens a PR, back-to-back with no idle between them. `pickup` is local work, not a status poll — there's nothing to wait for, so nothing paces the iterations. The queue lives in the tracker (`ready-for-agent` minus `in-progress`), not the conversation, so the loop re-derives it each iteration and stays correct across a long session the harness may compact.
+`/loop /auto pickup` (dynamic mode — no interval) drains the whole `ready-for-agent` queue in one sitting: each loop iteration picks up the next ready issue and opens a PR, back-to-back with no idle between them. The queue lives in the tracker (`ready-for-agent` minus `in-progress`), not the conversation, so the loop re-derives it each iteration and stays correct across a long session the harness may compact.
 
 When the queue runs dry the loop doesn't stop — it polls on a widening backoff (`60s → 5m → 15m → 30m → 1h`, then hourly), resets to a hard drain the moment a newly-triaged issue appears, and gives up only after ~a day of finding nothing. Operating details are in [skills/auto/SKILL.md](skills/auto/SKILL.md).
 

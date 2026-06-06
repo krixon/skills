@@ -46,10 +46,10 @@ Refuse before starting if **start** itself is interactive-only, or if the start 
 
 Wrapping `auto pickup` in a dynamic-mode `/loop` (no interval) drains the whole `ready-for-agent` queue in one unattended run — each loop iteration runs `auto pickup`, picks up the next ready issue, and opens a PR. Its pacing and context discipline:
 
-- **Don't pace between issues.** `pickup` is local work done in-turn, not a poll — there's nothing to wait for. While issues remain, run the next `auto pickup` immediately; never schedule a wake-up between issues. The minutes-long idle that suits a status poll is wrong here.
+- **Don't pace between issues.** While issues remain, run the next `auto pickup` immediately; never schedule a wake-up between issues.
 - **Hold no state in the conversation.** The queue is durable in the tracker — `ready-for-agent` minus `in-progress`. Re-derive it each iteration rather than remembering it, so the drain stays correct across a long session the harness summarises or compacts.
-- **Keep each iteration's footprint small.** `pickup` delegates its implementation to a subagent on the AFK path (see [../DELEGATION.md](../DELEGATION.md)); only the PR reference returns to the loop. That, with holding no state, is what bounds the window over a queue of any length — a `ScheduleWakeup` resume re-reads the same conversation, so it is not itself a context reset.
-- **When the queue is dry, poll with backoff.** Don't terminate on the first empty query — the queue refills as a human triages more. Schedule the next wake-up on a widening ladder: `60s → 5m → 15m → 30m → 1h`, then hold at 1h (the harness clamps a wake-up to a 1h maximum). Finding any ready issue resets the ladder — drain hard again, re-entering backoff only once dry.
+- **Keep each iteration's footprint small.** `pickup` delegates its implementation to a subagent on the AFK path (see [../DELEGATION.md](../DELEGATION.md)); only the PR reference returns to the loop. That, with holding no state, is what bounds the window over a queue of any length.
+- **When the queue is dry, poll with backoff.** Don't terminate on the first empty query — the queue refills as a human triages more. Schedule the next wake-up on a widening ladder: `60s → 5m → 15m → 30m → 1h`, then hold at 1h. Finding any ready issue resets the ladder — drain hard again, re-entering backoff only once dry.
 - **Give up after a day idle.** After 24 consecutive hourly (ceiling) polls find nothing, stop scheduling and end the loop; re-launch to resume. Tunable.
 
 ## Report
