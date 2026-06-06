@@ -42,7 +42,7 @@ No brief and a thin body → wall (step 6). The issue isn't ready; return it to 
 
 ### 5. Implement — branch first
 
-Branch first; never commit to the default branch (see [../../ISOLATION.md](../../ISOLATION.md) — and isolate in a worktree when this `pickup` runs unattended or alongside other work). Route by **artifact kind** — what the brief targets — then, for code, by category role. `tdd` and `diagnose` are *code* loops; non-code work routes elsewhere:
+Branch first; never commit to the default branch (see [../../ISOLATION.md](../../ISOLATION.md) — isolate in a worktree when the primary tree is occupied, or when running unattended; that file holds the detection predicate and the worktree location). Route by **artifact kind** — what the brief targets — then, for code, by category role. `tdd` and `diagnose` are *code* loops; non-code work routes elsewhere:
 
 - **code · `bug`** → `diagnose` — build the feedback loop, fix, regression-test.
 - **code · `enhancement`** → `tdd` — red→green per behavior in the brief's acceptance criteria.

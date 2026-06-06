@@ -1,6 +1,6 @@
 # Isolation
 
-How work is isolated from the default branch and from your live checkout. Branches keep commits off `main`; worktrees keep concurrent work out of your working tree. The work-producing skills (`pickup`, `tdd`, `diagnose`, `write-skill`) and the `auto` loop follow this; it's the same `branch → gate → PR → human merge` invariant stated once.
+How work is isolated from the default branch and from your live checkout. Branches keep commits off `main`; worktrees keep work out of the primary working tree when its single slot is already taken. The work-producing skills (`pickup`, `tdd`, `diagnose`, `write-skill`) and the `auto` loop follow this; it's the same `branch → gate → PR → human merge` invariant stated once.
 
 ## The default branch is protected
 
@@ -18,9 +18,35 @@ Kinds: `feat fix chore docs refactor`. Pick the kind from the artifact, not the 
 
 ## Branch vs worktree
 
-A branch and a worktree solve different problems. Default to a branch; reach for a worktree only when work runs **concurrently**.
+The **primary working tree** holds at most one active branch. That is the one-occupant invariant: the single permitted occupant is the solo, sequential branch a human `git switch -c` into and keeps in the live tree for visibility. Every task started while that slot is taken is isolated in its own worktree.
 
-- **Sequential, interactive, you're watching** → a branch in the main working tree. Simplest; switch with `git switch -c`.
-- **Concurrent or background / AFK** — parallel issues, an `auto` run, a scheduled or looped agent, anything you shouldn't have to babysit in your live checkout → a **git worktree**, so the work never disturbs the tree you're sitting in. The harness supports this directly: `isolation: "worktree"` on a spawned agent, and the `worktree.bgIsolation` setting for background tasks.
+A worktree is not a substitute for branching — it's a branch *plus* its own directory. Worktree work still lands on its own named branch and still goes through the gate to a PR.
 
-A worktree is not a substitute for branching — it's a branch *plus* its own directory. Concurrent work still lands on its own named branch inside the worktree, and still goes through the gate to a PR.
+### Occupied
+
+The primary tree is **occupied** iff it is *not* (clean working tree *and* on the default branch). Two distinct things occupy it, and either is enough:
+
+- **Uncommitted changes on any branch — including the default.** A dirty tree is occupied even on `main`. There is no exploratory-write exemption: need to write, isolate.
+- **Any non-default branch checked out, even when clean.** A clean feature-branch checkout still counts — the tree may be mid-read and about to be edited, and that branch is the one occupant.
+
+Free is the complement: clean *and* on the default branch. Only then is the primary tree available to take.
+
+### Detection
+
+Before starting any committable work, test the **primary working tree** — the original clone, the top entry of `git worktree list` (linked worktrees live under `.git/worktrees`). It is free iff both hold:
+
+```
+git -C <primary> status --porcelain     # empty
+git -C <primary> branch --show-current   # equals the default branch
+```
+
+Resolve the default branch dynamically — `git symbolic-ref refs/remotes/origin/HEAD` — never hardcode `main`.
+
+- **Free** → take the primary tree: `git switch -c <branch>`. The solo occupant, in the live tree, where you can watch it.
+- **Occupied** → create a worktree. The work runs isolated and never disturbs the occupant.
+
+Unattended callers (`auto`, an AFK `pickup`) skip the check and always worktree — nobody is watching the primary tree to take it deliberately.
+
+### Worktree location
+
+Create worktrees at `.claude/worktrees/<branch-slug>`, not an arbitrary path. Creation and teardown agree on this location so a landed branch's worktree can be found and removed. The harness also supports `isolation: "worktree"` on a spawned agent and the `worktree.bgIsolation` setting for background tasks.
