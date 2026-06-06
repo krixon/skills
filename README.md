@@ -46,7 +46,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 | Debug a hard bug or perf regression | `/diagnose` | reproduce → minimise → fix → regression test (usually reached via `pickup`) |
 | Answer questions raised on a PR review | `/field` | work through each to shared understanding → back to `pickup` for the rework round |
 | Merge an approved PR | `/land` | merges, strips `in-progress`, deletes the branch/worktree (human-invoked only) |
-| Cut a plugin version release | `/release` | bumps `plugin.json`, commits to `main`, tags `v<new>` — batched and human-invoked; `land` offers it after a merge |
+| Cut a plugin version release | `/release` | bumps `plugin.json` and pushes the bump + `v<new>` tag to `main` from a worktree — batched and human-invoked; `land` offers it after a merge |
 | Write a new skill | `/write-skill` | scaffolds structure + progressive disclosure |
 | Run a whole pipeline unattended | `/auto <workflow>` (e.g. `/auto findings`) | walks the chain head-down, halting at the first human gate |
 | Hand off the session to a fresh agent | `/handoff` | a compact handoff doc the next agent picks up |
@@ -74,7 +74,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 - **tdd** — red-green-refactor loop, integration-test first.
 - **diagnose** — disciplined loop for hard bugs and perf regressions: reproduce → minimise → hypothesise → instrument → fix → regression-test.
 - **land** — merge an approved PR, strip `in-progress`, and tear down the branch/worktree; human-invoked only.
-- **release** — cut a batched plugin version release: derive the bump from Conventional-Commit types, then bump `plugin.json`, commit to `main`, and tag `v<new>`; human-invoked only.
+- **release** — cut a batched plugin version release: derive the bump from Conventional-Commit types, then bump `plugin.json` and push the bump + `v<new>` tag to `main` from a worktree; human-invoked only.
 
 ### Meta & session
 - **auto** — run a skill workflow unattended, walking the handover chain until the first human gate.

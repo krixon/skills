@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut a plugin version release — bump plugin.json, commit to main, and create an annotated tag — covering the batch of material changes landed since the previous release. Human-invoked only. Use when the maintainer wants to release, cut a version, bump the plugin version, or publish accumulated changes; land offers it after a merge once material changes have accrued.
+description: Cut a plugin version release — bump plugin.json and push the bump plus an annotated tag to main from a worktree — covering the batch of material changes landed since the previous release. Human-invoked only. Use when the maintainer wants to release, cut a version, bump the plugin version, or publish accumulated changes; land offers it after a merge once material changes have accrued.
 argument-hint: "[target version to override the derived bump, or blank to derive it]"
 ---
 
@@ -8,7 +8,7 @@ argument-hint: "[target version to override the derived bump, or blank to derive
 
 Version the published plugin. A **release** covers the batch of material changes landed on `main` since the previous release — not one bump per merge. Releasing is distinct from landing: `land` merges a PR; `release` versions the accumulation of merges. Batching is the point — `land` offers `/release` after a merge, but the maintainer decides when enough has accrued to cut one.
 
-`release` is **human-invoked only**: it makes a version-number judgment and commits directly to `main`, neither safe unattended. It never runs from `auto`, `loop`, or `schedule`.
+`release` is **human-invoked only**: it makes a version-number judgment and pushes the bump straight to `main`, neither safe unattended. It never runs from `auto`, `loop`, or `schedule`.
 
 ## Process
 
@@ -34,13 +34,15 @@ Present the derived version and the material changes it covers, then wait for co
 
 ### 4. Apply the bump
 
-On confirmation:
+On confirmation, do the whole thing in a worktree — the repo-root checkout is never touched (see [../../ISOLATION.md](../../ISOLATION.md)):
 
-1. **Guard `main`.** It must be clean and current: abort if `git status --porcelain` is non-empty, and `git fetch` then confirm `main` has not diverged from `origin/main`. If it is dirty or diverged, abort and tell the maintainer to land a release PR instead.
-2. Edit `.claude-plugin/plugin.json` `version` to the new value.
-3. Commit directly to `main`: `chore(release): v<new>`. This is the standard release-commit carve-out to the "never commit to `main`" norm (see [../../ISOLATION.md](../../ISOLATION.md)).
-4. Create an annotated tag: `git tag -a v<new> -m "v<new>"`.
-5. Push the commit and tag. **If the push is rejected** (branch protection), do **not** force it — undo the local commit (`git reset --hard origin/main`) and direct the maintainer to land a release PR.
+1. **Sync.** `git fetch origin`. The bump must build on the current tip; if `main` moved since you derived the range, re-derive (step 1) rather than tagging a stale tip.
+2. **Worktree.** `git worktree add .claude/worktrees/release-v<new> -b chore/release-v<new> origin/main`.
+3. In that worktree, edit `.claude-plugin/plugin.json` `version` to the new value.
+4. Commit: `chore(release): v<new>`.
+5. Annotated tag on that commit: `git tag -a v<new> -m "v<new>"`.
+6. Push the bump and tag to `main` in one step: `git push origin HEAD:main --follow-tags` (a fast-forward, since the branch is based on `origin/main`). **If the push is rejected** — branch protection, or `main` moved under you — do **not** force it: tear the worktree down (step 7) and tell the maintainer. A `main` that rejects a direct push can't take a release this way.
+7. **Tear down** per [../../ISOLATION.md](../../ISOLATION.md): `git worktree remove .claude/worktrees/release-v<new>`, then `git branch -D chore/release-v<new>`. No remote branch was created, so there's nothing to prune.
 
 `.claude-plugin/marketplace.json` has no version field and is **not** touched.
 
@@ -51,4 +53,4 @@ Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this r
 - **artifact:** a released version — bumped `plugin.json` and an annotated `v<new>` tag on `main`
 - **default:** — (terminal; the release is cut)
 - **alternatives:** stop
-- **auto:** never — it makes a version-number judgment and takes the `main`-commit carve-out, neither safe unattended.
+- **auto:** never — it makes a version-number judgment and pushes the bump straight to `main`, neither safe unattended.

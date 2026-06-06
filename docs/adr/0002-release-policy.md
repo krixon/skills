@@ -14,7 +14,7 @@ Releases are **batched and cut by a dedicated `release` skill**, not bumped per-
 
 - The increment is **derived from the Conventional-Commit types** in range — `feat` → minor, `fix`/`refactor`/`perf` → patch, `!`/`BREAKING CHANGE` → breaking — and **confirmed by a human** before it applies, never silent.
 - **Pre-1.0** (major `0`), a breaking change bumps minor and `feat` bumps minor; `fix` bumps patch. Cutting `1.0.0` is a manual decision, never auto-derived.
-- `release` **commits the bump directly to `main` and creates an annotated `v<version>` tag** — a narrow carve-out to the "never commit to `main`" norm, guarded against a dirty or branch-protected `main`: it aborts to a release PR rather than forcing.
+- `release` **pushes the bump commit and an annotated `v<version>` tag to `main` from a throwaway worktree** — no PR, since a release marks `main` rather than proposing a change to it. The repo-root checkout is never touched (see [../../ISOLATION.md](../../ISOLATION.md)); on a rejected push (a diverged or branch-protected `main`) it tears the worktree down and reports rather than forcing.
 - Materiality excludes `docs` and `chore`; a range with no material change is a no-op, not an empty bump.
 
 We rejected per-merge bumping in `land` and version bumping inside feature PRs for the races above, and kept `land` a narrow merge hop.

@@ -10,7 +10,7 @@ A library of Claude Code agent skills, intended to ultimately be packaged and di
 - Optional per-skill files: `REFERENCE.md`, `EXAMPLES.md`, `scripts/`.
 - `skills/HANDOVER.md` — the per-hop handover contract skills use to chain (and that `auto` walks). The skill graph lives here: trace a chain by following each skill's `default` hop. Start from the README **I want to…** table to find a chain's head.
 - `skills/DELEGATION.md` — the shared rule for keeping the working window bounded by pushing interior work into subagents; referenced by the skills with heavy interiors (`auto`, `pickup`, the audits).
-- `VOICE.md` — how to talk to the user in chat (imported above, always on). `WRITING.md` — how to write durable prose artifacts (commits, comments, issues, ADRs, docs); referenced by the skills that produce each. `ISOLATION.md` — how work is kept off the default branch and out of your live checkout (branch-first, naming, branch vs worktree); referenced by the work-producing skills.
+- `VOICE.md` — how to talk to the user in chat (imported above, always on). `WRITING.md` — how to write durable prose artifacts (commits, comments, issues, ADRs, docs); referenced by the skills that produce each. `ISOLATION.md` — how work is kept off your live checkout (read-only repo-root checkout, always a worktree, branch naming, teardown); referenced by the work-producing skills.
 
 When you add a skill, update `README.md` in the same change: add it to the **Skills** list, and update the **I want to…** table if it heads or joins a workflow chain — a new row, or an edit to an existing one.
 
