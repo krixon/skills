@@ -35,7 +35,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 | Stress-test a plan or design | `/grill` — challenges it against CONTEXT.md / ADRs and updates them inline | grilling → `spec` → `slice` → ready issues on the tracker |
 | Turn this conversation into a spec | `/spec` | PRD published as an issue → `slice` |
 | Break a plan or PRD into issues | `/slice` | independently-grabbable issues, each marked `ready-for-agent` (AFK) or `ready-for-human` (HITL) |
-| Find architecture / refactoring opportunities | `/deepen` | seams surfaced → `spec` → `slice` |
+| Find architecture / refactoring opportunities | `/deepen` | candidates + report surfaced → `grill` to design the chosen one |
 | Find what's not tested | `/audit-coverage` | findings → `capture` → `needs-triage` |
 | Run a security audit | `/audit-security` | findings → `capture` → `needs-triage` |
 | Check the docs haven't drifted | `/audit-docs` | findings → `capture` → `needs-triage` |

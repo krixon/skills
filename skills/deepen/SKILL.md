@@ -69,31 +69,20 @@ See [HTML-REPORT.md](HTML-REPORT.md) for the full HTML scaffold, diagram pattern
 
 Do NOT propose interfaces yet. After the file is written, ask the user: "Which of these would you like to explore?"
 
-### 3. Grilling loop
+### 3. Hand the chosen candidate to `grill`
 
-Once the user picks a candidate, drop into a grilling conversation. Walk the design tree with them — constraints, dependencies, the shape of the deepened module, what sits behind the seam, what tests survive.
+`deepen` is a finder: it surfaces candidates and stops. The report is its standalone artifact — steps 1–2 produce it without `grill` in the loop.
 
-Side effects happen inline as decisions crystallise:
+Once the user picks a candidate, invoke `/grill` on it for the design conversation. `grill` walks the design tree — constraints, dependencies, the shape of the deepened module, what sits behind the seam, what tests survive — and owns the documentation side effects: it sharpens terminology into `CONTEXT.md` and records load-bearing decisions as ADRs inline (see [../contracts/context.md](../contracts/context.md), [../contracts/adr.md](../contracts/adr.md)). Pass the candidate's files, problem, and proposed solution so `grill` opens on the deepening rather than rediscovering it.
 
-- **Naming a deepened module after a concept not in `CONTEXT.md`?** Add the term to `CONTEXT.md` — same discipline as `/grill` (see [../contracts/context.md](../contracts/context.md)). Create the file lazily if it doesn't exist.
-- **Sharpening a fuzzy term during the conversation?** Update `CONTEXT.md` right there.
-- **User rejects the candidate with a load-bearing reason?** Offer an ADR, framed as: _"Want me to record this as an ADR so future architecture reviews don't re-suggest it?"_ Offer only when a future explorer would need the reason to avoid re-suggesting the same thing — skip ephemeral reasons ("not worth it right now") and self-evident ones. See [../contracts/adr.md](../contracts/adr.md).
-- **Want to explore alternative interfaces for the deepened module?** See [INTERFACE-DESIGN.md](INTERFACE-DESIGN.md).
-
-### 4. Route the outcome
-
-A candidate through the grilling loop is no longer an observation — it's *investigated, designed* work. Route it by shape:
-
-- **Chosen + grilled candidate** → offer to hand the design to `/spec` (which turns the conversation context into a PRD, then `/slice` cuts it into tracer-bullet issues). Don't flatten a designed deepening into a lean finding — that throws away the investigation.
-- **Rejected candidate** → offer an ADR, as above, so future reviews don't re-suggest it.
-- **Un-picked candidates** → rejected, not deferred. Leave them in the report as dead. They are not findings and have no onward path — `deepen` does not hand them anywhere.
+Un-picked candidates are rejected, not deferred. Leave them in the report as dead — they are not findings and have no onward path.
 
 ## Handover
 
-Per [../HANDOVER.md](../HANDOVER.md); routing is step 4 above (multi-way, not a single default). End an interactive run by rendering this row as one `AskUserQuestion`.
+Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this row as one `AskUserQuestion`.
 
-- **artifact:** designed candidate (chosen) · ADR (rejected) · nothing (un-picked)
-- **default:** `spec`, for a chosen candidate
-- **alternatives:** ADR · stop
+- **artifact:** architectural candidates + HTML report
+- **default:** `grill` — design the chosen candidate, sharpening `CONTEXT.md`/ADRs inline
+- **alternatives:** stop
 
-**Interactive-only** (per [../HANDOVER.md](../HANDOVER.md)) — the grilling loop needs the user; `auto` never enters it.
+**Interactive-only** (per [../HANDOVER.md](../HANDOVER.md)) — surfacing candidates ends in a pick the user must make; `auto` never enters it.
