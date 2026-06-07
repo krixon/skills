@@ -62,13 +62,13 @@ run() {
 
 # 1. bot set, `pr create`, no GH_TOKEN -> BLOCKED.
 run "blocked: bot set, pr create, no token" \
-    1 "Open the PR as the krixon-bot account" "REAL_GH_CALLED" \
-    GITHUB_BOT_ACCOUNT=krixon-bot -- pr create --fill
+    1 "Open the PR as the example-bot account" "REAL_GH_CALLED" \
+    GITHUB_BOT_ACCOUNT=example-bot -- pr create --fill
 
 # 2. bot set, `pr create`, GH_TOKEN=x -> passthrough.
 run "passthrough: bot set, pr create, token supplied" \
     0 "REAL_GH_CALLED: pr create" "" \
-    GITHUB_BOT_ACCOUNT=krixon-bot GH_TOKEN=x -- pr create --fill
+    GITHUB_BOT_ACCOUNT=example-bot GH_TOKEN=x -- pr create --fill
 
 # 3. bot UNSET, `pr create`, no token -> passthrough (inert).
 run "inert: bot unset, pr create" \
@@ -78,46 +78,46 @@ run "inert: bot unset, pr create" \
 # 4. bot set, `pr list` (non-create) -> passthrough.
 run "passthrough: bot set, pr list" \
     0 "REAL_GH_CALLED: pr list" "" \
-    GITHUB_BOT_ACCOUNT=krixon-bot -- pr list
+    GITHUB_BOT_ACCOUNT=example-bot -- pr list
 
 # 5. create phrase as DATA in an argument -> passthrough.
 run "passthrough: issue comment body mentions gh pr create" \
     0 "REAL_GH_CALLED: issue comment" "" \
-    GITHUB_BOT_ACCOUNT=krixon-bot -- issue comment --body "please run gh pr create --fill"
+    GITHUB_BOT_ACCOUNT=example-bot -- issue comment --body "please run gh pr create --fill"
 
 # 6. create phrase in a title -> passthrough.
 run "passthrough: issue create title mentions gh pr create" \
     0 "REAL_GH_CALLED: issue create" "" \
-    GITHUB_BOT_ACCOUNT=krixon-bot -- issue create --title "gh pr create docs"
+    GITHUB_BOT_ACCOUNT=example-bot -- issue create --title "gh pr create docs"
 
 # 7. global flag before subcommand -> still BLOCKED.
 run "blocked: -R owner/repo pr create, no token" \
-    1 "Open the PR as the krixon-bot account" "REAL_GH_CALLED" \
-    GITHUB_BOT_ACCOUNT=krixon-bot -- -R owner/repo pr create --fill
+    1 "Open the PR as the example-bot account" "REAL_GH_CALLED" \
+    GITHUB_BOT_ACCOUNT=example-bot -- -R owner/repo pr create --fill
 
 run "blocked: --repo owner/repo pr create, no token" \
-    1 "Open the PR as the krixon-bot account" "REAL_GH_CALLED" \
-    GITHUB_BOT_ACCOUNT=krixon-bot -- --repo owner/repo pr create
+    1 "Open the PR as the example-bot account" "REAL_GH_CALLED" \
+    GITHUB_BOT_ACCOUNT=example-bot -- --repo owner/repo pr create
 
 run "blocked: glued -Rowner/repo pr create, no token" \
-    1 "Open the PR as the krixon-bot account" "REAL_GH_CALLED" \
-    GITHUB_BOT_ACCOUNT=krixon-bot -- -Rowner/repo pr create
+    1 "Open the PR as the example-bot account" "REAL_GH_CALLED" \
+    GITHUB_BOT_ACCOUNT=example-bot -- -Rowner/repo pr create
 
 # 8. global flag before subcommand WITH token -> passthrough.
 run "passthrough: --repo owner/repo pr create, token supplied" \
     0 "REAL_GH_CALLED: --repo owner/repo pr create" "" \
-    GITHUB_BOT_ACCOUNT=krixon-bot GH_TOKEN=x -- --repo owner/repo pr create
+    GITHUB_BOT_ACCOUNT=example-bot GH_TOKEN=x -- --repo owner/repo pr create
 
 # 9. non-create with global flag still passes.
 run "passthrough: bot set, -R owner/repo pr list" \
     0 "REAL_GH_CALLED: -R owner/repo pr list" "" \
-    GITHUB_BOT_ACCOUNT=krixon-bot -- -R owner/repo pr list
+    GITHUB_BOT_ACCOUNT=example-bot -- -R owner/repo pr list
 
 # 10. boundary: title is ONE quoted token "pr create", not two
 #     adjacent tokens -> must NOT block.
 run "passthrough: issue create --title \"pr create\" (single token)" \
     0 "REAL_GH_CALLED: issue create --title pr create" "Open the PR as" \
-    GITHUB_BOT_ACCOUNT=krixon-bot -- issue create --title "pr create"
+    GITHUB_BOT_ACCOUNT=example-bot -- issue create --title "pr create"
 
 # 11. GH_REAL_BIN pointed at the shim itself must NOT recurse.
 #     Stage a real-gh stub on PATH; the shim must ignore the self-pointer and

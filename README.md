@@ -4,11 +4,11 @@ A library of [Claude Code](https://claude.com/claude-code) agent skills for engi
 
 ## Install
 
-From the GitHub repo (private — requires access):
+From the GitHub repo:
 
 ```
 /plugin marketplace add krixon/skills
-/plugin install skills@karl
+/plugin install skills@krixon
 ```
 
 Or install from a local checkout:
@@ -21,7 +21,7 @@ Then in Claude Code:
 
 ```
 /plugin marketplace add ~/dev/skills
-/plugin install skills@karl
+/plugin install skills@krixon
 ```
 
 Skills are namespaced once installed: `/skills:diagnose`, `/skills:tdd`, etc.
