@@ -109,7 +109,7 @@ Prefixing `GH_TOKEN` is atomic per command — it never mutates the active `gh` 
 
 **Unconfigured (multi-dev).** With `GITHUB_BOT_ACCOUNT` unset there is no bot dance: skills open PRs under the agent's normal identity (no `GH_TOKEN` prefix), rework and `land` queries drop the `--author` filter and match any open PR, and the `bin/gh` shim is inert. This is the default the plugin ships; setting the two vars opts a solo-dev repo into the bot indirection.
 
-**This repo's values**: `GITHUB_BOT_ACCOUNT=krixon-bot`, with `GITHUB_BOT_TOKEN_CMD` reading a classic PAT (`repo` scope) from the macOS Keychain — both set in `.claude/settings.json`, which holds the keychain incantation.
+**Example (solo-dev opt-in)**: set `GITHUB_BOT_ACCOUNT` to the machine account's login and point `GITHUB_BOT_TOKEN_CMD` at a command that prints a classic PAT (`repo` scope) — both in `.claude/settings.json`, which holds the incantation. This repo reads the PAT from the macOS Keychain.
 
 The shim that enforces this is `bin/gh`, a wrapper the plugin's `bin/` puts ahead of the system `gh` on PATH. It checks the `gh` argv directly rather than parsing the command string, so the create phrase appearing as data — in an issue body, a quoted title, a heredoc — can never trip it.
 
