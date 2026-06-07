@@ -12,10 +12,6 @@ Ask one question at a time, waiting for feedback before continuing.
 
 If a question can be answered by exploring the codebase, explore it instead.
 
-## Claim the target
-
-When the grilling is bound to a specific issue or PR, claim it on entry with the advisory assignee claim ([../CONCURRENCY.md](../CONCURRENCY.md)): self-assign before the interview, and unassign on clean exit. If it's already claimed by another session, don't grab it silently — surface who holds it and since when (the assignee and the assignment timestamp, per [../GITHUB.md](../GITHUB.md)) and let the user proceed anyway, reap the stale claim, or pick other work. A free-standing grill of a plan with no issue or PR target takes no claim — there's nothing to collide on.
-
 ## Domain awareness
 
 Ground in the project's documentation — its established vocabulary and recorded decisions, as the in-context project `CLAUDE.md` points to them. Use the project's terms; respect decisions already recorded. With none present, work from the plan and the code.

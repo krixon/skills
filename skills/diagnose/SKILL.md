@@ -12,7 +12,7 @@ When exploring the codebase, use the project's established vocabulary to get a c
 
 ## Claim the target
 
-When the diagnosis is bound to a specific issue or PR, claim it before Phase 1 with the advisory assignee claim ([../CONCURRENCY.md](../CONCURRENCY.md)): self-assign on entry, and unassign on clean exit. If it's already claimed by another session, don't grab it silently — surface who holds it and since when (the assignee and the assignment timestamp, per [../GITHUB.md](../GITHUB.md)) and let the user proceed anyway, reap the stale claim, or pick other work. A free-standing diagnosis with no issue or PR target takes no claim — there's nothing to collide on. When `pickup` drives the diagnosis, the issue is already claimed under its run; don't re-claim.
+When the diagnosis is bound to a specific issue or PR, claim it before Phase 1 with the advisory assignee claim ([../CONCURRENCY.md](../CONCURRENCY.md)): self-assign on entry, and unassign on clean exit. If it's already claimed by another session, don't grab it silently — surface who holds it and since when (the assignee and the assignment timestamp, per [../GITHUB.md](../GITHUB.md)) and let the user proceed anyway, reap the stale claim, or pick other work. A free-standing diagnosis with no issue or PR target takes no claim — there's nothing to collide on.
 
 ## Phase 1 — Build a feedback loop
 
