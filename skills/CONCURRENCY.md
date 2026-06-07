@@ -27,10 +27,3 @@ The two classes attach at different points in a skill:
 
 - **A selection site** chooses what to work on (the next-ready query, the rework scan). It **must honor claims** — filter out anything already claimed, so two sessions don't pick the same unit.
 - **A commit site** performs the contended write (creating the branch ref, pushing a tag). It **carries CAS or the advisory claim** — either the write is atomic and self-arbitrating, or it's covered by the claim taken at selection.
-
-## Skills that self-arbitrate
-
-`land` and `release` need no claim — their commit sites are already CAS:
-
-- **`release`** pushes a `v<new>` tag; a second concurrent release loses the tag push (the ref already exists) and is rejected by the push itself.
-- **`land`** re-reads approval-covers-HEAD, ready-to-merge, and an already-merged check immediately before each merge, so a PR another session already merged or moved past is caught at the gate, not double-merged.
