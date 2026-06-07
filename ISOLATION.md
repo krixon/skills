@@ -22,6 +22,12 @@ Create the worktree under `.claude/worktrees/<slug>`:
 git worktree add .claude/worktrees/<slug> -b <kind>/<slug> main
 ```
 
+When the branch already exists — a resumed PR, or a claim that created the ref before the worktree (`pickup`) — check it out instead of creating it: drop `-b` and name the existing branch, fetching it first if it's only on the remote.
+
+```
+git worktree add .claude/worktrees/<slug> <kind>/<slug>
+```
+
 ## Rebasing a branch onto a moved base
 
 When the base branch advances under an open PR and the branch no longer replays cleanly, rebase it onto the base from its worktree — without squashing, so the commits stay individual deltas:

@@ -32,7 +32,7 @@ Open PRs as the configured bot account, never as the maintainer — identity com
 
 ### Issue tracker
 
-Issues and PRs live in GitHub `krixon/skills`. Skills express the workflow in tracker-neutral concepts; `skills/GITHUB.md` is the single file that names GitHub — the concepts, commands, and literal label list (ADR 0004).
+Issues and PRs live in GitHub `krixon/skills`. Skills express the workflow in tracker-neutral concepts; `skills/GITHUB.md` is the single file that names GitHub — the concepts, commands, and literal label list (ADR 0004). **Before you type `gh` in a `SKILL.md`, stop** — that command belongs in `skills/GITHUB.md`; the skill names the concept and links there. The literal invocation lives in one file, and everywhere else points to it. (Point-of-action form of the ADR 0004 rule: it fires at the token where the violation happens, not as a principle to recall.)
 
 ### Domain docs
 
