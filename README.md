@@ -4,7 +4,7 @@ A library of [Claude Code](https://claude.com/claude-code) agent skills for engi
 
 ## Install
 
-From the GitHub repo (private — requires access):
+From the GitHub repo:
 
 ```
 /plugin marketplace add krixon/skills
