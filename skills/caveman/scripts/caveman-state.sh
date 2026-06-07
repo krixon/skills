@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Portable across macOS (bash 3.2, BSD coreutils) and Linux (bash 4+, GNU): only
+# mkdir/rm and parameter defaults, no GNU-only flags, no bash 4 features.
+#
 # Toggle caveman mode's activation marker. The model runs this when it enters or
 # leaves caveman mode; the UserPromptSubmit hook (hooks/caveman-reminder.sh) reads
 # the marker each turn and reinjects the rules, so the mode survives context growth

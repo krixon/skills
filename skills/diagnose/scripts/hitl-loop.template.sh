@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Portable across macOS (bash 3.2, BSD coreutils) and Linux (bash 4+, GNU): printf
+# -v and read are bash 3.2 builtins, no GNU-only coreutils flags.
+#
 # Human-in-the-loop reproduction loop.
 # Copy this file, edit the steps below, and run it.
 # The agent runs the script; the user follows prompts in their terminal.
