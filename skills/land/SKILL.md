@@ -14,7 +14,13 @@ Merge the PRs a human has **approved**, then clean up after them. `land` is the 
 
 `land` merges a PR only when it clears every one of these — anything that fails a check is skipped with the reason, never forced:
 
-- **Approved** — `reviewDecision` is `APPROVED`. Never on `CHANGES_REQUESTED`, `REVIEW_REQUIRED`, or no review.
+- **Approved** — `reviewDecision` is `APPROVED` **and the approval covers the current HEAD**. Never on `CHANGES_REQUESTED`, `REVIEW_REQUIRED`, or no review. `reviewDecision` alone is not enough: a force-push after approval — a rework round, a rebase to clear a conflict — leaves `APPROVED` standing against the commit the reviewer saw, not the one you would merge, unless the repo dismisses stale reviews on push (a branch-protection setting `land` does not verify, so it cannot assume). Like `pickup`'s rework rule (the thread-less `CHANGES_REQUESTED` case in [../pickup/SKILL.md](../pickup/SKILL.md)), this turns on the approval postdating HEAD — but match on the **reviewed commit's oid**, not a `submittedAt`-vs-HEAD timestamp: an oid match survives a rebase or squash that moves the commit's date, where a timestamp comparison breaks. Read the approving review's commit and the PR's head from the PR in one query:
+
+  ```
+  gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){headRefOid latestReviews(first:20){nodes{state author{login} commit{oid}}}}}}' -F owner=<owner> -F repo=<repo> -F pr=<n>
+  ```
+
+  The approval covers HEAD when a `latestReviews` node has `state == "APPROVED"` with `commit.oid == headRefOid`; when none does, HEAD has moved past the reviewed commit and the approval is stale — skip with that reason, never force. `latestReviews` carries each reviewer's most recent review, so a fresh re-review after the push supersedes the stale one and clears the gate.
 - **Mergeable** — `mergeable` is `MERGEABLE` and `mergeStateStatus` is `CLEAN`: no conflicts, required checks green. Skip `CONFLICTING` / `BLOCKED` / `UNKNOWN`.
 - **Bot-owned** — authored by `$GITHUB_BOT_ACCOUNT`, the agent's identity (see *PR identity* in [../GITHUB.md](../GITHUB.md)). `land` does not merge a human's PR. When `GITHUB_BOT_ACCOUNT` is unset (multi-dev), there is no separate bot identity — drop this check and merge any approved, mergeable PR.
 
@@ -25,6 +31,8 @@ Merge the PRs a human has **approved**, then clean up after them. `land` is the 
 - **Sweep (no argument)** — every approved, mergeable, bot-owned PR:
   `gh pr list --state open --author "$GITHUB_BOT_ACCOUNT" --json number,title,reviewDecision,mergeable,headRefName --jq '[.[] | select(.reviewDecision == "APPROVED")]'` — drop `--author` when `GITHUB_BOT_ACCOUNT` is unset, to sweep every approved PR regardless of author.
 - **One PR (number passed)** — that PR alone; verify it clears the guardrails before going on.
+
+The sweep's `reviewDecision == "APPROVED"` filter is a first cut, not the full Approved guardrail — it does not catch a stale approval (`reviewDecision` stays `APPROVED` against an earlier commit). Apply the approval-covers-HEAD check per PR at the guardrail, alongside the merge-time re-checks below.
 
 Re-check mergeability per PR at merge time (`gh pr view <n> --json mergeable,mergeStateStatus`) — a swept list goes stale the moment `main` moves.
 
