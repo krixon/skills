@@ -40,7 +40,7 @@ Each entry names its default handover hop — the recommended next skill — on 
 
 ### triage
 
-**What it does.** Drives issues through a triage state machine by label, routing each to `ready-for-agent`, `ready-for-human`, `needs-info`, or `wontfix`. It's the human gate at the end of the findings chain — promotion to a `ready-*` label is the maintainer's call.
+**What it does.** Drives issues through a triage state machine by label, routing each to `ready-for-agent`, `ready-for-human`, `needs-info`, or `wontfix`. It's the human gate at the end of the findings chain — promotion to a `ready-*` label is the maintainer's call. Claims the issue it works (advisory assignee claim) and honors another session's claim, surfacing it in a separate "claimed / active elsewhere" bucket rather than offering it.
 
 **When to reach for it.** You have incoming issues — bugs, feature requests, or `needs-triage` findings — to sort, or you want to prepare issues for an AFK agent to pick up.
 
