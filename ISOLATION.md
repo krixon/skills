@@ -1,6 +1,6 @@
 # Isolation
 
-One invariant, binding on **every** edit to this repo — through a skill, a direct request, or an ad-hoc change alike: the repo-root checkout is read-only; every change is made in a worktree on its own branch. The work-producing skills (`pickup`, `tdd`, `diagnose`, `write-skill`, `release`) and the `auto` loop build on this but don't own it — it precedes them, and nothing is exempt by skipping them.
+One invariant, binding on **every** edit to this repo — through a skill, a direct request, or an ad-hoc change alike: the repo-root checkout is read-only; every change is made in a worktree on its own branch. The work-producing skills (`pickup`, `patch`, `tdd`, `diagnose`, `write-skill`, `release`) and the `auto` loop build on this but don't own it — it precedes them, and nothing is exempt by skipping them.
 
 ## The repo-root checkout is read-only
 
