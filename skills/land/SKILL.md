@@ -1,6 +1,6 @@
 ---
 name: land
-description: Land approved pull requests — merge each approved, mergeable, bot-owned PR, strip its issue's in-progress label, then tear down the local worktree and branch. Human-invoked only. Use when the maintainer has approved a PR and wants it merged and cleaned up, says "land it" / "land the approved PRs" / "merge and clean up", or just approved a PR review.
+description: Land approved pull requests — merge each approved, bot-owned PR that is ready to merge, strip its issue's in-progress label, then tear down the local worktree and branch. Human-invoked only. Use when the maintainer has approved a PR and wants it merged and cleaned up, says "land it" / "land the approved PRs" / "merge and clean up", or just approved a PR review.
 argument-hint: "[PR number to land just that one, or leave blank to sweep every approved PR]"
 ---
 
@@ -14,43 +14,36 @@ Merge the PRs a human has **approved**, then clean up after them. `land` is the 
 
 `land` merges a PR only when it clears every one of these — anything that fails a check is skipped with the reason, never forced:
 
-- **Approved** — `reviewDecision` is `APPROVED` **and the approval covers the current HEAD**. Never on `CHANGES_REQUESTED`, `REVIEW_REQUIRED`, or no review. `reviewDecision` alone is not enough: a force-push after approval — a rework round, a rebase to clear a conflict — leaves `APPROVED` standing against the commit the reviewer saw, not the one you would merge. Match the latest approving review's **commit oid** against the PR head (the *Check an approval covers HEAD* query in [../GITHUB.md](../GITHUB.md)); the oid match survives a rebase or squash that moves the commit's date. When no approving review's `commit.oid` equals `headRefOid`, the approval is stale — skip with that reason, never force. A fresh re-review after the push supersedes the stale one and clears the gate.
-- **Mergeable** — `mergeable` is `MERGEABLE` and `mergeStateStatus` is `CLEAN`: no conflicts, required checks green. Skip `CONFLICTING` / `BLOCKED` / `UNKNOWN`.
-- **Bot-owned** — authored by `$GITHUB_BOT_ACCOUNT`, the agent's identity (see *PR identity* in [../GITHUB.md](../GITHUB.md)). `land` does not merge a human's PR. When `GITHUB_BOT_ACCOUNT` is unset (multi-dev), there is no separate bot identity — drop this check and merge any approved, mergeable PR.
+- **Approved** — the PR is approved **and the approval covers HEAD**. Never on changes requested, or when the required review is still missing. Approval alone is not enough: a force-push after approval — a rework round, a rebase to clear a conflict — leaves the approval standing against the commit the reviewer saw, not the one you would merge. Confirm the approval covers HEAD (the *Check an approval covers HEAD* query in [../GITHUB.md](../GITHUB.md)); the oid match survives a rebase or squash that moves the commit's date. When no approving review covers HEAD, the approval is stale — skip with that reason, never force. A fresh re-review after the push supersedes the stale one and clears the gate.
+- **Ready to merge** — no conflicts, required checks green. Skip a PR that is conflicting, blocked, or in an unknown merge state.
+- **Bot-owned** — authored by `$GITHUB_BOT_ACCOUNT`, the agent's identity (see *PR identity* in [../GITHUB.md](../GITHUB.md)). `land` does not merge a human's PR. When `GITHUB_BOT_ACCOUNT` is unset (multi-dev), there is no separate bot identity — drop this check and merge any approved PR that is ready to merge.
 
 ## Process
 
 ### 1. Select the PRs
 
-- **Sweep (no argument)** — every approved, mergeable, bot-owned PR:
-  `gh pr list --state open --author "$GITHUB_BOT_ACCOUNT" --json number,title,reviewDecision,mergeable,headRefName --jq '[.[] | select(.reviewDecision == "APPROVED")]'` — drop `--author` when `GITHUB_BOT_ACCOUNT` is unset, to sweep every approved PR regardless of author.
+- **Sweep (no argument)** — every approved, bot-owned PR that is ready to merge; find the approved PRs (see [../GITHUB.md](../GITHUB.md) → *Find approved PRs to land*).
 - **One PR (number passed)** — that PR alone; verify it clears the guardrails before going on.
 
-The sweep's `reviewDecision == "APPROVED"` filter is a first cut, not the full Approved guardrail — it does not catch a stale approval (`reviewDecision` stays `APPROVED` against an earlier commit). Apply the approval-covers-HEAD check per PR at the guardrail, alongside the merge-time re-checks below.
+The sweep's approved filter is a first cut, not the full Approved guardrail — it does not catch a stale approval (the approval stays standing against an earlier commit). Apply the approval-covers-HEAD check per PR at the guardrail, alongside the merge-time re-checks below.
 
-Re-check mergeability per PR at merge time (`gh pr view <n> --json mergeable,mergeStateStatus`) — a swept list goes stale the moment `main` moves.
+Re-check that each PR is ready to merge at merge time (see [../GITHUB.md](../GITHUB.md) → *Re-check a PR is ready to merge*) — a swept list goes stale the moment `main` moves.
 
 ### 2. Confirm only when something is unusual
 
-Default to proceeding: a single approved, mergeable, bot-owned PR lands without a prompt — the guardrails already cleared it. Pause to confirm — listing the PRs about to land, number, title, and the issue each closes — only when one of these holds:
+Default to proceeding: a single approved, bot-owned PR that is ready to merge lands without a prompt — the guardrails already cleared it. Pause to confirm — listing the PRs about to land, number, title, and the issue each closes — only when one of these holds:
 
 - **Multi-PR sweep** — more than one PR will land in this invocation.
-- **Stale against a moved `main`** — `main` advanced between selecting the PR and merging it (the swept list went stale, per step 1's re-check), so the approved diff now lands on a moved base. A PR that no longer re-checks `CLEAN` is skipped at the guardrail, not prompted.
-- **No issue and none declared** — the PR carries neither a `Closes #` reference nor a `No-issue:` marker, so the cleanup in step 5 can't strip `in-progress` with confidence. A PR whose body leads with `No-issue:` declares the absence as intentional — that is **not** unusual; land it without a prompt.
+- **Stale against a moved `main`** — `main` advanced between selecting the PR and merging it (the swept list went stale, per step 1's re-check), so the approved diff now lands on a moved base. A PR that is no longer ready to merge is skipped at the guardrail, not prompted.
+- **No issue and none declared** — the PR carries neither a closing reference nor a `No-issue:` marker, so the cleanup in step 5 can't strip `in-progress` with confidence. A PR whose body leads with `No-issue:` declares the absence as intentional — that is **not** unusual; land it without a prompt.
 
 A user who already said to land without asking waives even these.
 
 ### 3. Merge
 
-A PR may already be **merged** — a human clicked merge in the UI. Check first (`gh pr view <n> --json state,mergedAt`); if it's merged, skip straight to cleanup. The rest of this step is for the PRs `land` itself merges.
+A PR may already be **merged** — a human clicked merge in the UI. Check first (see [../GITHUB.md](../GITHUB.md) → *Check whether a PR is already merged*); if it's merged, skip straight to cleanup. The rest of this step is for the PRs `land` itself merges.
 
-Reduce the branch to its **logical set of commits — usually one** before it lands. Review-feedback rounds ("address review") are not logical seams; fold them in. Squash is the default:
-
-```
-gh pr merge <n> --squash --delete-branch
-```
-
-The PR title becomes the squashed commit's subject — already Conventional-Commit shaped. Only when the branch has genuinely separable logical seams — rare — keep them: reduce to just those commits and merge with `--rebase` instead. `--delete-branch` removes the remote branch — the repo does **not** auto-delete on merge. The local branch is checked out in the worktree, so git refuses to delete it at merge time; it persists until step 4 removes it after tearing the worktree down. The PR body's `Closes #<issue>` closes the linked issue as the merge lands.
+Reduce the branch to its **logical set of commits — usually one** before it lands. Review-feedback rounds ("address review") are not logical seams; fold them in. Squash is the default; the PR title becomes the squashed commit's subject — already Conventional-Commit shaped. Only when the branch has genuinely separable logical seams — rare — keep them: reduce to just those commits and rebase-merge instead. Merge the PR (see [../GITHUB.md](../GITHUB.md) → *Merge a PR*, which also covers deleting the branch and the closing reference firing on merge). The local branch is checked out in the worktree, so it persists until step 4 removes it after tearing the worktree down.
 
 Run `land` from the repo-root checkout, which stays on `main` — not from inside the worktree you're landing. You can't remove a worktree you're standing in, nor delete a branch checked out in one; operating from the repo root keeps the cleanup in step 4 unobstructed.
 
@@ -61,11 +54,7 @@ Run `land` from the repo-root checkout, which stays on `main` — not from insid
 
 ### 5. Close out the issue
 
-The `Closes #<n>` reference auto-closes the issue on merge; confirm it (`gh pr view <n> --json closingIssuesReferences`), then strip the now-spent execution label `pickup` set:
-
-```
-gh issue edit <n> --remove-label in-progress
-```
+The closing reference auto-closes the issue on merge; confirm it (see [../GITHUB.md](../GITHUB.md) → *Confirm the closing reference*), then strip the now-spent execution label `pickup` set — remove the `in-progress` label (see [../GITHUB.md](../GITHUB.md) → *Issues*).
 
 If the PR's body leads with a `No-issue:` marker, it's an issue-less `patch` by design — there's no issue to close or de-label. Land it and move on; don't report it as an anomaly.
 
@@ -75,14 +64,9 @@ If the PR carries neither a closing reference nor a `No-issue:` marker, don't to
 
 A sliced child is a native sub-issue of its parent epic; nothing closes that parent automatically. After closing the child, check whether it was the parent's last open child.
 
-Read the closed child's parent, then the parent's sub-issues:
+Read the closed child's parent epic, then the epic's sub-issues (commands in [../GITHUB.md](../GITHUB.md) → *Issue relations*; an absent parent means no parent, not an error).
 
-```
-gh api repos/{owner}/{repo}/issues/<child-n>/parent --jq .number
-gh api repos/{owner}/{repo}/issues/<parent-n>/sub_issues --jq '.[] | {number, state}'
-```
-
-The parent read 404s (non-zero exit) when the child has no parent — treat that as no parent, not an error. No parent, or the parent is already closed → nothing to do, move on. Otherwise, when **every** sub-issue is now closed and the parent is still open, prompt the maintainer to close it — `land` is human-invoked, so the prompt always faces a person. Show the sub-issue list you checked (number and state of each) and **recommend closing**: the work it tracked is complete. Close on confirmation (`gh issue close <parent-n> --comment "..."`); leave it open if declined. If any sub-issue is still open, don't prompt — the epic has children left to land.
+No parent epic, or the epic already closed → nothing to do, move on. Otherwise, when **every** sub-issue is now closed and the epic is still open, prompt the maintainer to close it — `land` is human-invoked, so the prompt always faces a person. Show the sub-issue list you checked (number and state of each) and **recommend closing**: the work it tracked is complete. Close on confirmation (see [../GITHUB.md](../GITHUB.md) → *Issues*); leave it open if declined. If any sub-issue is still open, don't prompt — the epic has children left to land.
 
 ### 7. Report
 

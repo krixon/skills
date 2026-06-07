@@ -31,7 +31,7 @@ Open PRs as the configured bot account, never as the maintainer — identity com
 
 ### Issue tracker
 
-Issues and PRs live in GitHub `krixon/skills` via the `gh` CLI. GitHub-only, no tracker abstraction. Commands and the literal label list are in `skills/GITHUB.md`.
+Issues and PRs live in GitHub `krixon/skills`. Skills express the workflow in tracker-neutral concepts; `skills/GITHUB.md` is the single file that names GitHub — the concepts, commands, and literal label list (ADR 0004).
 
 ### Domain docs
 
