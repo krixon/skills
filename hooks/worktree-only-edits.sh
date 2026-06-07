@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Portable across macOS (bash 3.2, BSD coreutils) and Linux (bash 4+, GNU): no
+# assoc arrays/mapfile/case-modification, no GNU-only coreutils flags.
+#
 # PreToolUse(Edit|MultiEdit|Write|NotebookEdit) guard: keep edits off the live
 # repo-root checkout. This repo's isolation invariant (ISOLATION.md) is that the
 # main working tree is read-only — every change is made in a worktree under

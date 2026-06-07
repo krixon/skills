@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Portable across macOS (bash 3.2, BSD coreutils) and Linux (bash 4+, GNU): sed -E
+# and grep -E with POSIX classes, no GNU-only flags, no bash 4 features.
+#
 # PreToolUse(Bash) guard: when a repo opens PRs as a dedicated bot account — so a
 # human can approve them, since GitHub forbids approving your own PR — an agent
 # must not open a PR as the logged-in (approver) account.

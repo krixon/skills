@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Portable across macOS (bash 3.2, BSD coreutils) and Linux (bash 4+, GNU): no
+# assoc arrays/mapfile/case-modification, no GNU-only coreutils flags.
+#
 # UserPromptSubmit hook: while caveman mode is active, reinject its rules on every
 # turn. caveman ships as a single SKILL.md whose instruction enters context once at
 # invocation and is never re-presented, so as the conversation grows it loses
