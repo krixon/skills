@@ -75,6 +75,7 @@ The shim that enforces this is `bin/gh`, a wrapper the plugin's `bin/` puts ahea
 - **Read the review** — the comments that form the rework brief:
   `gh pr view <n> --comments` (or `--json reviews,comments`).
 - **Update a PR**: push more commits to its branch; the open PR tracks the branch, no re-create needed.
+- **Check an approval covers HEAD** — read the head oid and each reviewer's latest review with the commit it covered, in one query: `gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){headRefOid latestReviews(first:20){nodes{state author{login} commit{oid}}}}}}' -F owner=<owner> -F repo=<repo> -F pr=<n>`. The approval is current when a node has `state == "APPROVED"` and `commit.oid == headRefOid`; otherwise HEAD moved past the reviewed commit and the approval is stale. `land` gates on this.
 
 ## Review threads (questions)
 

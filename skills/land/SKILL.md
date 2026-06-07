@@ -14,7 +14,7 @@ Merge the PRs a human has **approved**, then clean up after them. `land` is the 
 
 `land` merges a PR only when it clears every one of these — anything that fails a check is skipped with the reason, never forced:
 
-- **Approved** — `reviewDecision` is `APPROVED`. Never on `CHANGES_REQUESTED`, `REVIEW_REQUIRED`, or no review.
+- **Approved** — `reviewDecision` is `APPROVED` **and the approval covers the current HEAD**. Never on `CHANGES_REQUESTED`, `REVIEW_REQUIRED`, or no review. `reviewDecision` alone is not enough: a force-push after approval — a rework round, a rebase to clear a conflict — leaves `APPROVED` standing against the commit the reviewer saw, not the one you would merge. Match the latest approving review's **commit oid** against the PR head (the *Check an approval covers HEAD* query in [../GITHUB.md](../GITHUB.md)); the oid match survives a rebase or squash that moves the commit's date. When no approving review's `commit.oid` equals `headRefOid`, the approval is stale — skip with that reason, never force. A fresh re-review after the push supersedes the stale one and clears the gate.
 - **Mergeable** — `mergeable` is `MERGEABLE` and `mergeStateStatus` is `CLEAN`: no conflicts, required checks green. Skip `CONFLICTING` / `BLOCKED` / `UNKNOWN`.
 - **Bot-owned** — authored by `$GITHUB_BOT_ACCOUNT`, the agent's identity (see *PR identity* in [../GITHUB.md](../GITHUB.md)). `land` does not merge a human's PR. When `GITHUB_BOT_ACCOUNT` is unset (multi-dev), there is no separate bot identity — drop this check and merge any approved, mergeable PR.
 
@@ -25,6 +25,8 @@ Merge the PRs a human has **approved**, then clean up after them. `land` is the 
 - **Sweep (no argument)** — every approved, mergeable, bot-owned PR:
   `gh pr list --state open --author "$GITHUB_BOT_ACCOUNT" --json number,title,reviewDecision,mergeable,headRefName --jq '[.[] | select(.reviewDecision == "APPROVED")]'` — drop `--author` when `GITHUB_BOT_ACCOUNT` is unset, to sweep every approved PR regardless of author.
 - **One PR (number passed)** — that PR alone; verify it clears the guardrails before going on.
+
+The sweep's `reviewDecision == "APPROVED"` filter is a first cut, not the full Approved guardrail — it does not catch a stale approval (`reviewDecision` stays `APPROVED` against an earlier commit). Apply the approval-covers-HEAD check per PR at the guardrail, alongside the merge-time re-checks below.
 
 Re-check mergeability per PR at merge time (`gh pr view <n> --json mergeable,mergeStateStatus`) — a swept list goes stale the moment `main` moves.
 
