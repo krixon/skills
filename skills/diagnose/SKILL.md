@@ -10,6 +10,10 @@ A discipline for hard bugs. Skip phases only when explicitly justified.
 
 When exploring the codebase, use the project's established vocabulary to get a clear mental model of the relevant modules, and check its recorded decisions in the area you're touching.
 
+## Claim the target
+
+When the diagnosis is bound to a specific issue or PR, claim it before Phase 1 with the advisory assignee claim ([../CONCURRENCY.md](../CONCURRENCY.md)): self-assign on entry, and unassign on clean exit. If it's already claimed by another session, don't grab it silently — surface who holds it and since when (the assignee and the assignment timestamp, per [../GITHUB.md](../GITHUB.md)) and let the user proceed anyway, reap the stale claim, or pick other work. A free-standing diagnosis with no issue or PR target takes no claim — there's nothing to collide on.
+
 ## Phase 1 — Build a feedback loop
 
 **This is the skill.** Everything else is mechanical. If you have a fast, deterministic, agent-runnable pass/fail signal for the bug, you will find the cause — bisection, hypothesis-testing, and instrumentation all consume that signal. Without one, no amount of staring at code will save you.
