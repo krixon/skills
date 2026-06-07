@@ -23,7 +23,7 @@ Issues and PRs live in GitHub; [../GITHUB.md](../GITHUB.md) is the binding and t
 
 `auto` has exactly **two stop conditions** (defined once in *Autonomy* in [../HANDOVER.md](../HANDOVER.md)):
 
-1. **Interactive-only skill** — a skill that contains a human loop: `grill`, `deepen`, `triage`, `slice`, `field`, `release`, `land`. `auto` never enters one.
+1. **Interactive-only skill** — a skill that contains a human loop with no safe unattended default; *Autonomy* in [../HANDOVER.md](../HANDOVER.md) names the set. `auto` never enters one.
 2. **Gate label** — an artifact sitting at `needs-triage` or `ready-for-human`. `auto` never acts on one; it leaves the work staged there.
 
 The walk, for each skill in turn:
