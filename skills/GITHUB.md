@@ -61,7 +61,7 @@ GH_TOKEN=$(eval "$GITHUB_BOT_TOKEN_CMD") gh pr create …
 
 Prefixing `GH_TOKEN` is atomic per command — it never mutates the active `gh` account, so the maintainer's session is untouched. Because the bot is the author, rework queries filter on `--author "$GITHUB_BOT_ACCOUNT"`, **not** `@me` (which resolves to the maintainer and would never match the bot's PRs).
 
-**Unconfigured (multi-dev).** With `GITHUB_BOT_ACCOUNT` unset there is no bot dance: skills open PRs under the agent's normal identity (no `GH_TOKEN` prefix), rework and `land` queries drop the `--author` filter and match any open PR, and the `require-bot-pr.sh` hook is inert. This is the default the plugin ships; setting the two vars opts a solo-dev repo into the bot indirection.
+**Unconfigured (multi-dev).** With `GITHUB_BOT_ACCOUNT` unset there is no bot dance: skills open PRs under the agent's normal identity (no `GH_TOKEN` prefix), rework and `land` queries drop the `--author` filter and match any open PR, and the `bin/gh` shim is inert. This is the default the plugin ships; setting the two vars opts a solo-dev repo into the bot indirection.
 
 **This repo's values**: `GITHUB_BOT_ACCOUNT=krixon-bot`, with `GITHUB_BOT_TOKEN_CMD` reading a classic PAT (`repo` scope) from the macOS Keychain — both set in `.claude/settings.json`, which holds the keychain incantation.
 

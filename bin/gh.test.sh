@@ -40,7 +40,7 @@ run() {
   done
 
   local out rc
-  out="$(env -u GH_PR_BOT_ACCOUNT -u GH_TOKEN \
+  out="$(env -u GITHUB_BOT_ACCOUNT -u GH_TOKEN \
          GH_REAL_BIN="$stub" ${envs[@]+"${envs[@]}"} \
          "$shim" ${argv[@]+"${argv[@]}"} 2>&1)"
   rc=$?
@@ -63,12 +63,12 @@ run() {
 # 1. bot set, `pr create`, no GH_TOKEN -> BLOCKED.
 run "blocked: bot set, pr create, no token" \
     1 "Open the PR as the krixon-bot account" "REAL_GH_CALLED" \
-    GH_PR_BOT_ACCOUNT=krixon-bot -- pr create --fill
+    GITHUB_BOT_ACCOUNT=krixon-bot -- pr create --fill
 
 # 2. bot set, `pr create`, GH_TOKEN=x -> passthrough.
 run "passthrough: bot set, pr create, token supplied" \
     0 "REAL_GH_CALLED: pr create" "" \
-    GH_PR_BOT_ACCOUNT=krixon-bot GH_TOKEN=x -- pr create --fill
+    GITHUB_BOT_ACCOUNT=krixon-bot GH_TOKEN=x -- pr create --fill
 
 # 3. bot UNSET, `pr create`, no token -> passthrough (inert).
 run "inert: bot unset, pr create" \
@@ -78,46 +78,46 @@ run "inert: bot unset, pr create" \
 # 4. bot set, `pr list` (non-create) -> passthrough.
 run "passthrough: bot set, pr list" \
     0 "REAL_GH_CALLED: pr list" "" \
-    GH_PR_BOT_ACCOUNT=krixon-bot -- pr list
+    GITHUB_BOT_ACCOUNT=krixon-bot -- pr list
 
 # 5. create phrase as DATA in an argument -> passthrough.
 run "passthrough: issue comment body mentions gh pr create" \
     0 "REAL_GH_CALLED: issue comment" "" \
-    GH_PR_BOT_ACCOUNT=krixon-bot -- issue comment --body "please run gh pr create --fill"
+    GITHUB_BOT_ACCOUNT=krixon-bot -- issue comment --body "please run gh pr create --fill"
 
 # 6. create phrase in a title -> passthrough.
 run "passthrough: issue create title mentions gh pr create" \
     0 "REAL_GH_CALLED: issue create" "" \
-    GH_PR_BOT_ACCOUNT=krixon-bot -- issue create --title "gh pr create docs"
+    GITHUB_BOT_ACCOUNT=krixon-bot -- issue create --title "gh pr create docs"
 
 # 7. global flag before subcommand -> still BLOCKED.
 run "blocked: -R owner/repo pr create, no token" \
     1 "Open the PR as the krixon-bot account" "REAL_GH_CALLED" \
-    GH_PR_BOT_ACCOUNT=krixon-bot -- -R owner/repo pr create --fill
+    GITHUB_BOT_ACCOUNT=krixon-bot -- -R owner/repo pr create --fill
 
 run "blocked: --repo owner/repo pr create, no token" \
     1 "Open the PR as the krixon-bot account" "REAL_GH_CALLED" \
-    GH_PR_BOT_ACCOUNT=krixon-bot -- --repo owner/repo pr create
+    GITHUB_BOT_ACCOUNT=krixon-bot -- --repo owner/repo pr create
 
 run "blocked: glued -Rowner/repo pr create, no token" \
     1 "Open the PR as the krixon-bot account" "REAL_GH_CALLED" \
-    GH_PR_BOT_ACCOUNT=krixon-bot -- -Rowner/repo pr create
+    GITHUB_BOT_ACCOUNT=krixon-bot -- -Rowner/repo pr create
 
 # 8. global flag before subcommand WITH token -> passthrough.
 run "passthrough: --repo owner/repo pr create, token supplied" \
     0 "REAL_GH_CALLED: --repo owner/repo pr create" "" \
-    GH_PR_BOT_ACCOUNT=krixon-bot GH_TOKEN=x -- --repo owner/repo pr create
+    GITHUB_BOT_ACCOUNT=krixon-bot GH_TOKEN=x -- --repo owner/repo pr create
 
 # 9. non-create with global flag still passes.
 run "passthrough: bot set, -R owner/repo pr list" \
     0 "REAL_GH_CALLED: -R owner/repo pr list" "" \
-    GH_PR_BOT_ACCOUNT=krixon-bot -- -R owner/repo pr list
+    GITHUB_BOT_ACCOUNT=krixon-bot -- -R owner/repo pr list
 
 # 10. boundary: title is ONE quoted token "pr create", not two
 #     adjacent tokens -> must NOT block.
 run "passthrough: issue create --title \"pr create\" (single token)" \
     0 "REAL_GH_CALLED: issue create --title pr create" "Open the PR as" \
-    GH_PR_BOT_ACCOUNT=krixon-bot -- issue create --title "pr create"
+    GITHUB_BOT_ACCOUNT=krixon-bot -- issue create --title "pr create"
 
 # 11. GH_REAL_BIN pointed at the shim itself must NOT recurse.
 #     Stage a real-gh stub on PATH; the shim must ignore the self-pointer and
@@ -135,7 +135,7 @@ chmod +x "$ghdir/gh"
 # Portable watchdog (macOS has no `timeout`): run in background, poll for exit up
 # to a deadline, kill the process group if it overruns (the fork-bomb regression).
 d2_outfile="$tmp/d2.out"
-env -u GH_PR_BOT_ACCOUNT -u GH_TOKEN \
+env -u GITHUB_BOT_ACCOUNT -u GH_TOKEN \
     GH_REAL_BIN="$shim" PATH="$ghdir:$PATH" \
     "$shim" version >"$d2_outfile" 2>&1 &
 d2_pid=$!

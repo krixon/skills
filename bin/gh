@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # gh wrapper shim. A plugin's bin/ is prepended to the Bash tool's PATH, so this
 # shadows the system gh. It is a transparent passthrough for every gh call except
-# one: when a bot account is configured (GH_PR_BOT_ACCOUNT) and the invocation is
+# one: when a bot account is configured (GITHUB_BOT_ACCOUNT) and the invocation is
 # `gh pr create` without a GH_TOKEN override, it blocks. Opening a PR chooses an
 # author; doing so as the logged-in (approver) account makes self-approval
 # impossible (GitHub forbids it), so the PR must be created with the bot's token.
@@ -49,7 +49,7 @@ gh_bin="$(real_gh)" || {
   exit 127
 }
 
-bot="${GH_PR_BOT_ACCOUNT:-}"
+bot="${GITHUB_BOT_ACCOUNT:-}"
 
 # No bot account configured — fully inert.
 if [ -z "$bot" ]; then
@@ -78,7 +78,7 @@ if is_pr_create "$@" && [ -z "${GH_TOKEN:-}" ]; then
 
   GH_TOKEN=<token for ${bot}> gh pr create …
 
-(This check is active because GH_PR_BOT_ACCOUNT=${bot}.)" >&2
+(This check is active because GITHUB_BOT_ACCOUNT=${bot}.)" >&2
   exit 1
 fi
 
