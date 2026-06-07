@@ -8,7 +8,7 @@ From the GitHub repo (private — requires access):
 
 ```
 /plugin marketplace add krixon/skills
-/plugin install skills@karl
+/plugin install skills@krixon
 ```
 
 Or install from a local checkout:
@@ -21,7 +21,7 @@ Then in Claude Code:
 
 ```
 /plugin marketplace add ~/dev/skills
-/plugin install skills@karl
+/plugin install skills@krixon
 ```
 
 Skills are namespaced once installed: `/skills:diagnose`, `/skills:tdd`, etc.
