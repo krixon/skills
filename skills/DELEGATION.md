@@ -4,6 +4,8 @@ How skills keep the working window bounded by pushing interior work into subagen
 
 The window is a budget: keep a working session under ~100k tokens, never past ~200k. The bloat is never a skill's *output* — every handover artifact is already compact (findings, an epic, issues, a PR). The *interior work* — broad reads, test/log output, debug iteration — rots the window. So: **the handover artifact is the context boundary; push the interior across it into a subagent.** The main session stays a thread of artifacts + decisions.
 
+What crosses the boundary is bounded by default, not as a per-run optimization noticed once the window climbs. **Every delegated hop returns the smallest sufficient artifact reference** — a PR number/URL, a one-line per-item verdict, the next-unit decision — never the diff, file dump, scan output, or log it worked through. **The orchestrating loop keeps its own narration terse** to match: a line per unit, not a recap of the interior. Window hygiene is a standing contract on the return shape and the narration, enforced up front; it must not depend on the model noticing the climb.
+
 Visibility and delegation pull against each other, and the need for each is inverted — you watch when you're driving one skill; the window balloons when nobody's watching a long unattended run. Delegate where visibility is already zero; use hygiene (not delegation) where you're watching:
 
 - **Interactive, one skill** — stay in the main session. Bound the window with hygiene: run noisy feedback loops (`diagnose` Phase 1, `tdd` test runs) in the background and pull only the signal; reserve subagents for mechanical sub-tasks (a `git bisect run`, a fuzz loop) that return a one-line verdict.
