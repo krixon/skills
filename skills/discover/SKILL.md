@@ -6,7 +6,7 @@ argument-hint: "[the problem or idea to validate]"
 
 # Discover
 
-Grill the user about a problem before any solution is designed, until you both agree it is worth solving and for whom. The interview mechanism is shared — ask one question at a time, recommend an answer to each, explore the docs rather than asking, and offer an ADR only on the three-criteria gate — and lives in [../GRILL-METHOD.md](../GRILL-METHOD.md). This skill carries the product lens: it interrogates the problem, not the implementation.
+Grill the user about a problem before any solution is designed, until you both agree it is worth solving and for whom. The interview mechanism is shared and lives in [../GRILL-METHOD.md](../GRILL-METHOD.md); this skill carries the product lens — it interrogates the problem, not the implementation.
 
 ## Grounding
 
