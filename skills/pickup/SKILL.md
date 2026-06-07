@@ -36,12 +36,12 @@ The readiness label is the autonomy contract:
 
 ### 3. Claim it
 
-Claim by **creating the issue's branch ref first** — before the labels, before any code. The branch name is the deterministic one `pickup` derives per [../../ISOLATION.md](../../ISOLATION.md), and the create is the claim of record because it is atomic: creating a ref that already exists is rejected (`422 Reference already exists` — the branch-ref-CAS binding in [../GITHUB.md](../GITHUB.md) → *Concurrency claims*), and that rejection *is* the coordination. The label carries no such compare-and-swap, so a label-only claim leaves a read-then-write window two racing sessions both pass through — two branches, two PRs, two wasted runs.
+Claim by **creating the issue's branch ref first** — before the labels, before any code. The branch name is the deterministic one `pickup` derives per [../../ISOLATION.md](../../ISOLATION.md), and the create is the claim of record because it is atomic: creating a ref that already exists is rejected (see [../GITHUB.md](../GITHUB.md) → *Concurrency claims*), and that rejection *is* the coordination.
 
-- **Ref created** → the claim is held. Only now set `in-progress` and self-assign (`gh issue edit <n> --add-assignee "@me"`, the human-visible signal per [../../CONCURRENCY.md](../../CONCURRENCY.md)). The label and assignee follow the ref; they don't arbitrate.
-- **`422` (ref exists)** → a lost claim. Another session got there first. **Yield silently** — skip this issue and take the next ready one (step 1). A lost claim is clean: no labels were touched, nothing to roll back, no thrash, no wall.
+- **Ref created** → the claim is held. Only now set `in-progress` and self-assign — the human-visible signal per [../../CONCURRENCY.md](../../CONCURRENCY.md), bound in [../GITHUB.md](../GITHUB.md). The label and assignee follow the ref; they don't arbitrate.
+- **`422` (ref exists)** → a lost claim. **Yield silently** — skip this issue and take the next ready one (step 1). A lost claim is clean: no labels were touched, nothing to roll back, no thrash, no wall.
 
-**Keep the `ready-for-agent`/`ready-for-human` label** once you've claimed: it's the durable autonomy decision, and a later rework round (a PR sent back for changes) reads it to know whether the rework is AFK-safe. The `in-progress` label still gates the "next ready" query — it excludes anything already `in-progress` — but it records a claim the ref already won, rather than being the claim itself.
+**Keep the `ready-for-agent`/`ready-for-human` label** once you've claimed: it's the durable autonomy decision, and a later rework round (a PR sent back for changes) reads it to know whether the rework is AFK-safe.
 
 ### 4. Load the brief
 
@@ -51,7 +51,7 @@ No brief and a thin body → wall (step 6). The issue isn't ready; return it to 
 
 ### 5. Implement — in a worktree
 
-Work in a worktree on its own branch — never the repo-root checkout (see [../../ISOLATION.md](../../ISOLATION.md)). The branch ref already exists — step 3 created it as the claim — so check it out into the worktree rather than re-creating it: fetch the ref, then `git worktree add <path> <branch>` (no `-b`, which would collide with the ref you just made). Route by **artifact kind** — what the brief targets — then, for code, by category role. `tdd` and `diagnose` are *code* loops; non-code work routes elsewhere:
+Work in a worktree on its own branch — never the repo-root checkout (see [../../ISOLATION.md](../../ISOLATION.md)). The branch ref already exists — step 3 created it as the claim — so check it out rather than re-creating it (mechanic in [../../ISOLATION.md](../../ISOLATION.md)). Route by **artifact kind** — what the brief targets — then, for code, by category role. `tdd` and `diagnose` are *code* loops; non-code work routes elsewhere:
 
 - **code · `bug`** → `diagnose` — build the feedback loop, fix, regression-test.
 - **code · `enhancement`** → `tdd` — red→green per behavior in the brief's acceptance criteria.
@@ -88,7 +88,7 @@ If a conflict can't be resolved without a design call, don't wall to `needs-tria
 
 Then open a PR referencing the issue (`Closes #N`) **as the bot, not your active account** ([../GITHUB.md](../GITHUB.md) → *PR identity*) — a maintainer-authored PR can't be self-approved. On a rework round, push to the existing branch instead (no new PR, your normal identity). Then hand to `verify` (run the app, confirm behavior). The issue stays `in-progress`; the open PR *is* the review state, and there's no review-state label to set. Leave the merge — and closing the issue — to a human. Do **not** merge or close the issue yourself; report what you built and where the PR is. A human requesting changes on the PR sends it back into this loop for another round (step 1).
 
-**If you wall** — no test seam, ambiguous brief, broken build, or any blocker you can't clear — don't thrash. Move the issue to `needs-triage` (remove `in-progress` and the readiness label), **delete the branch ref you created at claim time** so the next attempt can re-claim it (an orphan ref would reject every future claim as a phantom collision), and post an attempt report. This lands back at the human gate, the loop's circuit-breaker against infinite retry. Do **not** use `needs-info` (that's for reporter-info gaps).
+**If you wall** — no test seam, ambiguous brief, broken build, or any blocker you can't clear — don't thrash. Move the issue to `needs-triage` (remove `in-progress` and the readiness label), **delete the branch ref you created at claim time**, and post an attempt report. This lands back at the human gate, the loop's circuit-breaker against infinite retry. Do **not** use `needs-info` (that's for reporter-info gaps).
 
 <attempt-report-template>
 
