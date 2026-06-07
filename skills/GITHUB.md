@@ -84,6 +84,19 @@ Parent/child and blocked-by links live in GitHub's native data model, not in iss
   - **List blockers**: `gh api repos/{owner}/{repo}/issues/<number>/dependencies/blocked_by --jq '.[] | {number, state}'`.
   - **List blocking** (the inverse): `gh api repos/{owner}/{repo}/issues/<number>/dependencies/blocking`.
 
+## Concurrency claims
+
+The two coordination mechanics in [CONCURRENCY.md](CONCURRENCY.md), bound to GitHub. Assignee writes are idempotent — adding an assignee already present, or removing an absent one, succeeds silently — so there is **no** assignee CAS: the claim is advisory and holds only because selection sites honor it. Branch-ref and tag-push writes **are** CAS — the create is rejected when the ref already exists.
+
+**Advisory assignee claim** — the unit-of-work claim (`pickup` taking an issue):
+
+- **Claim**: `gh issue edit <n> --add-assignee "@me"`.
+- **Release**: `gh issue edit <n> --remove-assignee "@me"`.
+- **Read who holds it** — the assignees field: `gh issue view <n> --json assignees --jq '.assignees[].login'`; empty means unclaimed.
+- **Read since when** — the most recent timeline `assigned` event's `created_at`: `gh api repos/{owner}/{repo}/issues/<n>/timeline --jq '[.[] | select(.event == "assigned")][-1].created_at'`. The event also carries `actor` (who assigned) and `assignee` (who was claimed).
+
+**Branch-ref create as CAS** — the natural compare-and-swap at a commit site: `gh api -X POST repos/{owner}/{repo}/git/refs -f ref=refs/heads/<branch> -f sha=<sha>` creates the branch ref, and returns `422 Reference already exists` when another session created it first. The lost-claim signal is delivered by the write itself — no read-then-write window to race. Tag pushes arbitrate the same way; `release` relies on it.
+
 ## PR identity
 
 Identity is configured by two env vars. When `GITHUB_BOT_ACCOUNT` is set, the agent opens PRs as that machine account, never as the maintainer. Commits and branch pushes stay under the maintainer's identity (SSH `origin`); the writes that must appear *as the PR author* — opening the PR, and replying to or resolving its review threads — switch identity by prefixing a bot token. `GITHUB_BOT_TOKEN_CMD` is a shell command that prints that token; evaluate it inline per call so the token never persists:
