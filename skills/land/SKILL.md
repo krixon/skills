@@ -48,7 +48,7 @@ Reduce the branch to its **logical set of commits — usually one** before it la
 gh pr merge <n> --squash --delete-branch
 ```
 
-The PR title becomes the squashed commit's subject — already Conventional-Commit shaped. Only when the branch has genuinely separable logical seams — rare — keep them: reduce to just those commits and merge with `--rebase` instead. `--delete-branch` removes the remote branch — the repo does **not** auto-delete on merge — and the local branch. The PR body's `Closes #<issue>` closes the linked issue as the merge lands.
+The PR title becomes the squashed commit's subject — already Conventional-Commit shaped. Only when the branch has genuinely separable logical seams — rare — keep them: reduce to just those commits and merge with `--rebase` instead. `--delete-branch` removes the remote branch — the repo does **not** auto-delete on merge. The local branch is checked out in the worktree, so git refuses to delete it at merge time; it persists until step 4 removes it after tearing the worktree down. The PR body's `Closes #<issue>` closes the linked issue as the merge lands.
 
 Run `land` from the repo-root checkout, which stays on `main` — not from inside the worktree you're landing. You can't remove a worktree you're standing in, nor delete a branch checked out in one; operating from the repo root keeps the cleanup in step 4 unobstructed.
 
