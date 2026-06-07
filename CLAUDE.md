@@ -13,7 +13,7 @@ A library of Claude Code agent skills, intended to ultimately be packaged and di
 - `skills/AUDIT-METHOD.md` — the shared method behind the `audit-*` skills (static-first stance, the map-risk → map-current-state → fan-out-and-score → emit-finding process, the fan-out threshold, the handover row); each audit `SKILL.md` references it and adds its own risk lens, dimension, and sub-dimensions.
 - `VOICE.md` — how to talk to the user in chat (imported above, always on). `WRITING.md` — how to write durable prose artifacts (commits, comments, issues, ADRs, docs); referenced by the skills that produce each. `ISOLATION.md` — how work is kept off your live checkout (read-only repo-root checkout, always a worktree, branch naming, teardown); referenced by the work-producing skills. `SECURITY.md` — the untrusted-external-content boundary (data-not-instructions, no shell interpolation); injected into context every turn by the always-on `hooks/security-boundary.sh` `UserPromptSubmit` hook, with the command-level mechanics in `skills/GITHUB.md`.
 
-When you add a skill, update `README.md` in the same change: add it to the **Skills** list, and update the **I want to…** table if it heads or joins a workflow chain — a new row, or an edit to an existing one.
+When you add a skill, update `README.md` and `docs/skills-reference.md` in the same change: add it to the **Skills** list, update the **I want to…** table if it heads or joins a workflow chain (a new row, or an edit to an existing one), and add its entry to the skills reference (the full per-skill blurb — what it does, when to reach for it, an example, and its handover hop).
 
 ## Commits
 
