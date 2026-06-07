@@ -1,12 +1,12 @@
 ---
 name: field
-description: Field one or more questions put to the agent — form a reasoned answer to each and converge with the user on a shared understanding, one question at a time. The dual of design. Use when the user directs questions at you ("field these questions", "work through these review questions with me"), or when `pickup` hands over questions raised on a PR review.
+description: Field one or more questions put to the agent — form a reasoned answer to each and converge with the user on a shared understanding, one question at a time. Use when the user directs questions at you ("field these questions", "work through these review questions with me"), or when `pickup` hands over questions raised on a PR review.
 argument-hint: "[one or more questions to field]"
 ---
 
 Field each question put to you until we reach a shared understanding. Work the questions one at a time, in order — your input *is* the questions; there's nothing to fetch or classify.
 
-For each question: explore the code or context as needed, then lead with your reasoned answer and the rationale behind it — field is design inverted, so you answer first and I react. You owe a position — don't turn the question back on me, I asked it. Then pressure-test that answer the way design pressure-tests a plan: surface the assumptions it rests on, mark what you verified versus what you're inferring, flag where you're uncertain and say what would resolve it, and invite me to push back. Converge before moving to the next question.
+For each question: explore the code or context as needed, then lead with your reasoned answer and the rationale behind it — you answer first and I react. You owe a position — don't turn the question back on me, I asked it. Then pressure-test that answer the way design pressure-tests a plan: surface the assumptions it rests on, mark what you verified versus what you're inferring, flag where you're uncertain and say what would resolve it, and invite me to push back. Converge before moving to the next question.
 
 ## Handover
 
