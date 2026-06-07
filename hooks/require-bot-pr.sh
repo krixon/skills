@@ -6,15 +6,15 @@
 # human can approve them, since GitHub forbids approving your own PR — an agent
 # must not open a PR as the logged-in (approver) account.
 #
-# Generic and inert by default. It activates only when GH_PR_BOT_ACCOUNT names the
+# Generic and inert by default. It activates only when GITHUB_BOT_ACCOUNT names the
 # bot account, so the plugin ships without assuming any particular account. Enable
 # it per repo, e.g. in that repo's .claude/settings.json:
-#   { "env": { "GH_PR_BOT_ACCOUNT": "your-bot-login" } }
+#   { "env": { "GITHUB_BOT_ACCOUNT": "your-bot-login" } }
 # then open PRs with that account's token:
 #   GH_TOKEN=<token for the bot> gh pr create …
 set -euo pipefail
 
-bot="${GH_PR_BOT_ACCOUNT:-}"
+bot="${GITHUB_BOT_ACCOUNT:-}"
 [ -n "$bot" ] || exit 0   # no bot account configured — nothing to enforce
 
 cmd=$(jq -r '.tool_input.command // ""')
@@ -36,7 +36,7 @@ reason="Open the PR as the ${bot} account, not the logged-in account — GitHub 
 
   GH_TOKEN=<token for ${bot}> gh pr create …
 
-(This check is active because GH_PR_BOT_ACCOUNT=${bot}.)"
+(This check is active because GITHUB_BOT_ACCOUNT=${bot}.)"
 
 jq -n --arg r "$reason" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
 exit 0

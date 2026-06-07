@@ -21,7 +21,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org): `<type>[scope]:
 
 ## Pull requests
 
-Open PRs as the configured bot account, never as the maintainer — identity comes from `GH_PR_BOT_ACCOUNT` / `GH_PR_BOT_TOKEN_CMD` (this repo: `krixon-bot`); command and rationale in `skills/GITHUB.md` → "PR identity".
+Open PRs as the configured bot account, never as the maintainer — identity comes from `GITHUB_BOT_ACCOUNT` / `GITHUB_BOT_TOKEN_CMD` (this repo: `krixon-bot`); command and rationale in `skills/GITHUB.md` → "PR identity".
 
 ## Goal
 
