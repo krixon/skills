@@ -38,6 +38,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 | Find what's not tested | `/audit-coverage` | findings → `capture` → `needs-triage` |
 | Run a security audit | `/audit-security` | findings → `capture` → `needs-triage` |
 | Check the docs haven't drifted | `/audit-docs` | findings → `capture` → `needs-triage` |
+| Find swallowed errors / check error handling | `/audit-error-handling` | findings → `capture` → `needs-triage` |
 | File findings or observations as issues | `/capture` | deduped `needs-triage` issues for a human to `triage` |
 | Triage incoming issues | `/triage` | each routed to `ready-for-agent`, `ready-for-human`, `needs-info`, or `wontfix` |
 | Start implementing a ready issue | `/pickup` | claims it → routes by kind to `tdd` / `diagnose` / `write-skill` / docs / config → review gate → opens a PR |
@@ -72,6 +73,7 @@ When the queue runs dry the loop doesn't stop — it polls on a widening backoff
 - **audit-coverage** — audit for high-risk untested paths; static-first, surfaces findings to `capture`.
 - **audit-security** — sweep for security exposure (authz, injection, secrets); static-first, surfaces findings to `capture`.
 - **audit-docs** — find documentation that has drifted from the code (stale vocabulary, violated decisions, README/behavior claims); static-first, surfaces findings to `capture`.
+- **audit-error-handling** — sweep for error-handling defects (swallowed errors, bare catch-alls, critical calls with no failure path); judges handling quality, not test presence; static-first, surfaces findings to `capture`.
 - **deepen** — find architecture/refactoring opportunities informed by the project's domain language and recorded decisions.
 
 ### Build & fix
