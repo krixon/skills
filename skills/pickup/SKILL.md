@@ -8,7 +8,7 @@ argument-hint: "[issue # to pick up, or blank for the next ready issue]"
 
 Take a triaged, ready issue and turn it into working code. `pickup` is the bridge from tracker to branch: read the agent brief as the contract, route to the right implementation skill, work on a branch, open a PR. It does not triage, design, or merge.
 
-Issues and PRs live in GitHub; use the `gh` CLI ([../GITHUB.md](../GITHUB.md) for commands and the label list).
+Issues and PRs live in GitHub; [../GITHUB.md](../GITHUB.md) is the binding — the concepts, commands, and label list.
 
 ## Process
 
@@ -16,12 +16,12 @@ Issues and PRs live in GitHub; use the `gh` CLI ([../GITHUB.md](../GITHUB.md) fo
 
 - **By reference** — the user passes an issue number/URL. Fetch it.
 - **Next ready** — no argument, take **rework before new work**:
-  1. **Rework** — an open PR you own with changes requested *or any unresolved review thread* (`gh pr list … CHANGES_REQUESTED`, plus the unresolved-thread query, see [../GITHUB.md](../GITHUB.md)). The unresolved-thread half catches a review that carries only questions — a `COMMENT`-state review never sets `CHANGES_REQUESTED`, but its open thread still needs you. **Actionable when a thread is still unresolved, or — for a thread-less `CHANGES_REQUESTED` review — when the review postdates HEAD.** A thread-less review you have pushed past is delivered and awaiting re-review; a threaded one stays actionable until you resolve each thread as you address it (step 5) — resolution, not a HEAD-vs-review timestamp, is what clears a threaded review from the queue (a commit can postdate a review without addressing it). Resume the oldest actionable one via *Resuming a PR sent back for changes* (step 5).
+  1. **Rework** — an open PR you own with changes requested *or any unresolved review thread* (the rework and unresolved-thread queries — see [../GITHUB.md](../GITHUB.md)). The unresolved-thread half catches a review that carries only questions — a comment-only review never registers as changes requested, but its open thread still needs you. **Actionable when a thread is still unresolved, or — for a review with changes requested and no thread — when the review postdates HEAD.** A thread-less review you have pushed past is delivered and awaiting re-review; a threaded one stays actionable until you resolve each thread as you address it (step 5) — resolution, not a HEAD-vs-review timestamp, is what clears a threaded review from the queue (a commit can postdate a review without addressing it). Resume the oldest actionable one via *Resuming a PR sent back for changes* (step 5).
   2. **New work** — otherwise query issues labelled `ready-for-agent` and not `in-progress`, then `ready-for-human` and not `in-progress`, oldest first.
 
   Confirm which you're taking unless running unattended.
 
-**Skip anything blocked.** Read the issue's native dependencies — `gh api repos/{owner}/{repo}/issues/<n>/dependencies/blocked_by` ([../GITHUB.md](../GITHUB.md) → *Issue relations*). If any blocker is still open, the slice isn't grabbable — skip it and take the next. Skip `in-progress` issues too: already claimed by another run. Refuse anything in `needs-triage` / `needs-info` — not specified yet; send it back to `/triage`.
+**Skip anything blocked.** Read the issue's blocked by dependencies (see [../GITHUB.md](../GITHUB.md) → *Issue relations*). If any blocker is still open, the slice isn't grabbable — skip it and take the next. Skip `in-progress` issues too: already claimed by another run. Refuse anything in `needs-triage` / `needs-info` — not specified yet; send it back to `/triage`.
 
 ### 2. Gate on HITL / AFK
 
@@ -54,7 +54,7 @@ Infer the kind from the brief's target when it isn't stated. Drive the implement
 
 **Delegation (window hygiene — see [../DELEGATION.md](../DELEGATION.md)).** On the **AFK** path, run the implementation skill as a subagent and keep only its result; nobody's watching, and this keeps `pickup`'s window bounded across the whole loop. On the **HITL** path, run it inline so you can drive it, and background its noisy test/log output rather than letting it accumulate.
 
-**Resuming a PR sent back for changes.** If you arrived here from a PR with review activity (step 1), don't start fresh: check out its existing branch, and read the review (`gh pr view <n> --comments`) as an **addendum** to the original brief — the brief's acceptance criteria still hold, the review is the delta.
+**Resuming a PR sent back for changes.** If you arrived here from a PR with review activity (step 1), don't start fresh: check out its existing branch, and read the review (see [../GITHUB.md](../GITHUB.md) → *Read the review*) as an **addendum** to the original brief — the brief's acceptance criteria still hold, the review is the delta.
 
 **Classify each review comment by what an answer would produce.** A **change request** is satisfied by a diff — even when phrased as a question ("why are you swallowing this error?" wants it *fixed*). A **question** is aimed at you, the agent, and resolving it changes a shared *understanding*, not necessarily the code ("why this approach?", "did you consider Y?"). When a comment is genuinely both, treat it as a question first — the agreed answer may *then* spawn a change. When you can't tell, default to question: erring toward surfacing it to the maintainer is the safe direction.
 

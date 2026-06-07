@@ -1,6 +1,6 @@
 # GitHub
 
-Issues and PRs for this repo live in GitHub `krixon/skills`. The skills use the `gh` CLI directly — there is no tracker abstraction; skills name `gh` and the literal labels below. `gh` infers the repo from the `origin` remote when run inside this clone. This file is the command reference for the verbose incantations; short commands are spelled out inline where used.
+Issues and PRs for this repo live in GitHub `krixon/skills`. This file is the single place that names GitHub (ADR 0004): every `gh` command, API object, and review enum the workflow needs lives here, and the skills express the workflow in the tracker-neutral concepts defined in the *Glossary* below rather than naming `gh` themselves. The one exception is the workflow label strings (`ready-for-agent`, `in-progress`, and the rest below) — they are the workflow's own state machine, so skills name them directly; this file only records that they are GitHub labels, set via the label-edit command. `gh` infers the repo from the `origin` remote when run inside this clone.
 
 ## Body formatting
 
@@ -41,6 +41,25 @@ One execution **state** label (`pickup` owns it):
 - `in-progress` — claimed by `pickup`, implementation underway
 
 There is **no** review-state label. A claimed issue (`in-progress`) with an open PR *is* "in review"; once a human requests changes the PR carries that signal (see *Rework* below).
+
+## Glossary — workflow concepts
+
+Skills express the workflow in the tracker-neutral concepts below (ADR 0004); this table is the single place each binds to its GitHub mechanic. A skill uses a concept's **prose wording** verbatim, in plain prose — backticks stay reserved for literals (commands, enums, labels), so a concept never appears backticked or hyphenated. The workflow label strings are not concepts: they stay named in skills (see *Labels* above).
+
+| Concept | GitHub binding |
+| --- | --- |
+| **approved** | a review whose decision is `APPROVED` |
+| **approval covers HEAD** | the latest approving review's `commit.oid` equals the PR's `headRefOid`; a force-push after approval leaves the approval standing against the commit the reviewer saw, not the one that would merge (*Check an approval covers HEAD* below) |
+| **changes requested** | a review whose decision is `CHANGES_REQUESTED` |
+| **no review** | review decision `REVIEW_REQUIRED` — a required review is absent |
+| **ready to merge** | `mergeable` is `MERGEABLE` and `mergeStateStatus` is `CLEAN`: no conflicts, required checks green. Not `CONFLICTING` / `BLOCKED` / `UNKNOWN`. (The skill-facing wording for the GitHub `mergeable` concept; skills say "ready to merge".) |
+| **merged** | `state` is `MERGED`, `mergedAt` set — a human may have clicked merge in the UI |
+| **unresolved review thread** | a review thread whose `isResolved` is `false` (*Review threads* below) |
+| **closing reference** | a `Closes #n` line in the PR body; it auto-closes the linked issue on merge and surfaces as `closingIssuesReferences` |
+| **claimed** | the issue carries the `in-progress` label — `pickup` set it |
+| **parent epic** | the issue's parent, read from the `/parent` endpoint (*Issue relations* below); an absent parent reads as no parent, not an error |
+| **sub-issue** | a child in the parent's `sub_issues` list (*Issue relations* below) |
+| **blocked by** | a dependency recorded under `dependencies/blocked_by` (*Issue relations* below) |
 
 ## Issues
 
@@ -90,6 +109,15 @@ The shim that enforces this is `bin/gh`, a wrapper the plugin's `bin/` puts ahea
   `gh pr view <n> --comments` (or `--json reviews,comments`).
 - **Update a PR**: push more commits to its branch; the open PR tracks the branch, no re-create needed.
 - **Check an approval covers HEAD** — read the head oid and each reviewer's latest review with the commit it covered, in one query: `gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){headRefOid latestReviews(first:20){nodes{state author{login} commit{oid}}}}}}' -F owner=<owner> -F repo=<repo> -F pr=<n>`. The approval is current when a node has `state == "APPROVED"` and `commit.oid == headRefOid`; otherwise HEAD moved past the reviewed commit and the approval is stale. `land` gates on this.
+
+These cover landing an approved PR:
+
+- **Find approved PRs to land** — bot-owned PRs a human has approved:
+  `gh pr list --state open --author "$GITHUB_BOT_ACCOUNT" --json number,title,reviewDecision,mergeable,headRefName --jq '[.[] | select(.reviewDecision == "APPROVED")]'` — drop `--author` when `GITHUB_BOT_ACCOUNT` is unset, to match any open PR. The `reviewDecision == "APPROVED"` filter is a first cut: it does not catch a stale approval (the decision stays `APPROVED` against an earlier commit), so apply *Check an approval covers HEAD* per PR.
+- **Check whether a PR is already merged** (a human may have merged in the UI): `gh pr view <n> --json state,mergedAt`.
+- **Re-check a PR is ready to merge** (a swept list goes stale the moment `main` moves): `gh pr view <n> --json mergeable,mergeStateStatus`.
+- **Merge a PR**: `gh pr merge <n> --squash --delete-branch`. Squash is the default; use `--rebase` only when the branch has genuinely separable logical seams, after reducing to just those commits. The repo does **not** auto-delete the remote branch on merge, so `--delete-branch` removes it; git refuses to delete a branch checked out in a worktree at merge time, so the local branch persists until the worktree is torn down. The PR's closing reference closes the linked issue as the merge lands.
+- **Confirm the closing reference** resolved to the issue: `gh pr view <n> --json closingIssuesReferences`.
 
 ## Review threads (questions)
 

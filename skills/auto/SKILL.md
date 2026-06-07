@@ -17,7 +17,7 @@ Run a workflow unattended. A workflow is a chain of skills linked by handovers (
 - **start** — the skill to begin from. Name it directly: `audit-coverage`, `audit-security`, `audit-docs`, or any other chain head. Run one audit per invocation; to sweep several, invoke `auto` once per audit.
 - **target** — scope passed to the start skill (a path, area, or left blank for the whole codebase).
 
-Issues and PRs live in GitHub via `gh` ([../GITHUB.md](../GITHUB.md)); the labels are fixed.
+Issues and PRs live in GitHub; [../GITHUB.md](../GITHUB.md) is the binding and the labels are fixed.
 
 ## How it walks the chain
 

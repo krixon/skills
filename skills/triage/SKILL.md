@@ -6,7 +6,7 @@ argument-hint: "[issue # or what to triage]"
 
 # Triage
 
-Move issues through a small state machine of triage labels, using the `gh` CLI ([../GITHUB.md](../GITHUB.md)).
+Move issues through a small state machine of triage labels. [../GITHUB.md](../GITHUB.md) is the binding — concepts, commands, and the label list.
 
 ## Reference docs
 
@@ -45,7 +45,7 @@ The maintainer invokes `/triage` and describes what they want in natural languag
 
 ## Show what needs attention
 
-Query open issues (`gh issue list`) and present three buckets, oldest first:
+Query open issues (see [../GITHUB.md](../GITHUB.md) → *Issues*) and present three buckets, oldest first:
 
 1. **Unlabeled** — never triaged.
 2. **`needs-triage`** — evaluation in progress.
@@ -55,7 +55,7 @@ Show counts and a one-line summary per issue. Let the maintainer pick.
 
 ## Triage a specific issue
 
-1. **Gather context.** Read the full issue (body, comments, labels, reporter, dates). Parse any prior triage notes — or a `pickup` attempt report, if the issue returned here walled — so you don't re-ask resolved questions and you address the recorded blocker. Explore the codebase using the project's established vocabulary, respecting recorded decisions in the area. Query prior rejections (`gh issue list --label wontfix --state closed`, see [../GITHUB.md](../GITHUB.md)) and surface any whose close comment resembles this issue.
+1. **Gather context.** Read the full issue (body, comments, labels, reporter, dates). Parse any prior triage notes — or a `pickup` attempt report, if the issue returned here walled — so you don't re-ask resolved questions and you address the recorded blocker. Explore the codebase using the project's established vocabulary, respecting recorded decisions in the area. Query prior rejections (closed issues labelled `wontfix` — see [../GITHUB.md](../GITHUB.md) → *Issues*) and surface any whose close comment resembles this issue.
 
 2. **Recommend.** Tell the maintainer your category and state recommendation with reasoning, plus a brief codebase summary relevant to the issue. Wait for direction.
 
@@ -68,7 +68,7 @@ Show counts and a one-line summary per issue. Let the maintainer pick.
    - `ready-for-human` — same structure as an agent brief, but note why it can't be delegated (judgment calls, external access, design decisions, manual testing).
    - `needs-info` — post triage notes (template below).
    - `wontfix` (bug) — polite explanation, then close.
-   - `wontfix` (enhancement) — add the `wontfix` label, then close with the reason in the close comment (`gh issue close <n> --comment "..."`). The label plus the reason on the closed issue *is* the rejection record — a later triage finds it via `gh issue list --label wontfix --state closed`. If a closed `wontfix` issue already covers this request, link to it from the comment rather than re-deciding.
+   - `wontfix` (enhancement) — add the `wontfix` label, then close with the reason in the close comment (see [../GITHUB.md](../GITHUB.md) → *Issues*). The label plus the reason on the closed issue *is* the rejection record — a later triage finds it by querying closed issues labelled `wontfix`. If a closed `wontfix` issue already covers this request, link to it from the comment rather than re-deciding.
    - `needs-triage` — apply the role. Optional comment if there's partial progress.
 
 ## Quick state override

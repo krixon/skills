@@ -8,13 +8,13 @@ argument-hint: "[plan, conversation, or issue to slice]"
 
 Turn a plan, the current conversation context, or an existing issue into independently-grabbable agent-brief issues using vertical slices (tracer bullets). Synthesize from what you already know — do NOT interview the user.
 
-Issues live in GitHub; use the `gh` CLI ([../GITHUB.md](../GITHUB.md) for commands and the label list).
+Issues live in GitHub; [../GITHUB.md](../GITHUB.md) is the binding — the concepts, commands, and label list.
 
 ## Process
 
 ### 1. Gather context
 
-Work from whatever is already in the conversation context. If the user passes an issue reference (issue number, URL, or path) as an argument, fetch it (`gh issue view <n> --comments`) and read its full body and comments. Synthesize the change from this context and your codebase understanding; don't interview the user for it.
+Work from whatever is already in the conversation context. If the user passes an issue reference (issue number, URL, or path) as an argument, fetch it (see [../GITHUB.md](../GITHUB.md) → *Issues*) and read its full body and comments. Synthesize the change from this context and your codebase understanding; don't interview the user for it.
 
 ### 2. Explore the codebase (optional)
 
@@ -55,13 +55,13 @@ Branch on the breakdown shape.
 
 **Single slice, source was an existing issue.** Slicing was a no-op — it didn't decompose anything, and a lone new issue would only duplicate the source. Create nothing. Carry the original source issue forward as the result and hand it to the next hop as if it were the slice output, telling the user the run was a no-op.
 
-**Single slice, source was conversation context or a plan.** There is nothing to duplicate — emit one agent-brief issue (`gh issue create`) using the body template below, with no parent and no blockers. Label by the AFK/HITL decision in [../contracts/agent-brief.md](../contracts/agent-brief.md). Carry it forward to the next hop.
+**Single slice, source was conversation context or a plan.** There is nothing to duplicate — emit one agent-brief issue (create it — see [../GITHUB.md](../GITHUB.md) → *Issues*) using the body template below, with no parent and no blockers. Label by the AFK/HITL decision in [../contracts/agent-brief.md](../contracts/agent-brief.md). Carry it forward to the next hop.
 
 **Two or more slices.** Publish a lean **epic** parent plus a child agent-brief issue per slice.
 
-For each child slice, create an issue (`gh issue create`). Use the issue body template below. Label by the AFK/HITL decision in [../contracts/agent-brief.md](../contracts/agent-brief.md). Publish children in dependency order (blockers first) so a blocked slice's blockers already exist when you record the dependency.
+For each child slice, create an issue (see [../GITHUB.md](../GITHUB.md) → *Issues*). Use the issue body template below. Label by the AFK/HITL decision in [../contracts/agent-brief.md](../contracts/agent-brief.md). Publish children in dependency order (blockers first) so a blocked slice's blockers already exist when you record the dependency.
 
-The child's body is the **agent brief** alone — `pickup` reads it origin-blind, the same shape it gets from a triage-promoted issue. Follow the brief in [../contracts/agent-brief.md](../contracts/agent-brief.md) (behavioral, durable, no file paths). Parent and blocked-by links are native GitHub relations, not body prose; record them after creating the issue (below).
+The child's body is the **agent brief** alone — `pickup` reads it origin-blind, the same shape it gets from a triage-promoted issue. Follow the brief in [../contracts/agent-brief.md](../contracts/agent-brief.md) (behavioral, durable, no file paths). Parent and blocked by links are native relations, not body prose; record them after creating the issue (below).
 
 <issue-template>
 ## Agent Brief
@@ -82,7 +82,7 @@ If a prototype produced a snippet that encodes a decision more precisely than pr
 
 #### The epic parent
 
-A multi-part parent is a lean **epic**, not a heavyweight document: goal, out-of-scope, and the child list, nothing more. Create it (`gh issue create`) with the body template below and the **`epic`** label plus the category label (`enhancement` / `bug`). The epic carries **no readiness label** — it isn't actionable as-is; its children carry the `ready-for-agent` / `ready-for-human` labels. Write its prose per [../../WRITING.md](../../WRITING.md) → *Docs*: task-first, declarative, no marketing tone. The child list is realized as native GitHub sub-issues (below), so the body's child list is a plain summary, not the source of truth for the relation.
+A multi-part parent is a lean **epic**, not a heavyweight document: goal, out-of-scope, and the child list, nothing more. Create it (see [../GITHUB.md](../GITHUB.md) → *Issues*) with the body template below and the **`epic`** label plus the category label (`enhancement` / `bug`). The epic carries **no readiness label** — it isn't actionable as-is; its children carry the `ready-for-agent` / `ready-for-human` labels. Write its prose per [../../WRITING.md](../../WRITING.md) → *Docs*: task-first, declarative, no marketing tone. The child list is realized as native sub-issues (below), so the body's child list is a plain summary, not the source of truth for the relation.
 
 <epic-template>
 ## Epic
@@ -95,10 +95,10 @@ A multi-part parent is a lean **epic**, not a heavyweight document: goal, out-of
 
 #### Link the slices
 
-**Link each child with native relations** (commands in [../GITHUB.md](../GITHUB.md) → *Issue relations*). Both relation APIs key writes on an issue's internal **id**, not its number, so resolve each id with `gh api repos/{owner}/{repo}/issues/<number> --jq .id` after `gh issue create` returns the number, and pass it as a typed integer (`-F`, not `-f` — a string returns HTTP 422):
+**Link each child with native relations** (commands in [../GITHUB.md](../GITHUB.md) → *Issue relations*):
 
-- **Parent** — make each child a sub-issue of the epic: resolve the child's id, then `gh api repos/{owner}/{repo}/issues/<epic-number>/sub_issues -F sub_issue_id=<child-id>`.
-- **Blocked by** — for each blocking slice, resolve the blocker's id and record the dependency on the blocked child: `gh api repos/{owner}/{repo}/issues/<child-number>/dependencies/blocked_by -F issue_id=<blocker-id>`. Publishing blockers first guarantees the blocker exists when you write the dependency.
+- **Parent** — make each child a sub-issue of the parent epic.
+- **Blocked by** — record each blocking slice as a blocked by dependency on the blocked child. Publishing blockers first guarantees the blocker exists when you write the dependency.
 
 Seam choice is not slice's job — `pickup`/`tdd` pick seams downstream, the same for every child.
 
