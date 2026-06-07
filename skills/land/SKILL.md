@@ -16,14 +16,14 @@ Merge the PRs a human has **approved**, then clean up after them. `land` is the 
 
 - **Approved** — `reviewDecision` is `APPROVED`. Never on `CHANGES_REQUESTED`, `REVIEW_REQUIRED`, or no review.
 - **Mergeable** — `mergeable` is `MERGEABLE` and `mergeStateStatus` is `CLEAN`: no conflicts, required checks green. Skip `CONFLICTING` / `BLOCKED` / `UNKNOWN`.
-- **Bot-owned** — authored by `$GH_PR_BOT_ACCOUNT`, the agent's identity (see *PR identity* in [../GITHUB.md](../GITHUB.md)). `land` does not merge a human's PR. When `GH_PR_BOT_ACCOUNT` is unset (multi-dev), there is no separate bot identity — drop this check and merge any approved, mergeable PR.
+- **Bot-owned** — authored by `$GITHUB_BOT_ACCOUNT`, the agent's identity (see *PR identity* in [../GITHUB.md](../GITHUB.md)). `land` does not merge a human's PR. When `GITHUB_BOT_ACCOUNT` is unset (multi-dev), there is no separate bot identity — drop this check and merge any approved, mergeable PR.
 
 ## Process
 
 ### 1. Select the PRs
 
 - **Sweep (no argument)** — every approved, mergeable, bot-owned PR:
-  `gh pr list --state open --author "$GH_PR_BOT_ACCOUNT" --json number,title,reviewDecision,mergeable,headRefName --jq '[.[] | select(.reviewDecision == "APPROVED")]'` — drop `--author` when `GH_PR_BOT_ACCOUNT` is unset, to sweep every approved PR regardless of author.
+  `gh pr list --state open --author "$GITHUB_BOT_ACCOUNT" --json number,title,reviewDecision,mergeable,headRefName --jq '[.[] | select(.reviewDecision == "APPROVED")]'` — drop `--author` when `GITHUB_BOT_ACCOUNT` is unset, to sweep every approved PR regardless of author.
 - **One PR (number passed)** — that PR alone; verify it clears the guardrails before going on.
 
 Re-check mergeability per PR at merge time (`gh pr view <n> --json mergeable,mergeStateStatus`) — a swept list goes stale the moment `main` moves.

@@ -53,23 +53,23 @@ Parent/child and blocked-by links live in GitHub's native data model, not in iss
 
 ## PR identity
 
-Identity is configured by two env vars, so the plugin ships bot-neutral and the bot dance is a solo-dev opt-in. When `GH_PR_BOT_ACCOUNT` is set, the agent opens PRs as that machine account, never as the maintainer — GitHub forbids approving your own PR, so a separate author keeps the maintainer free to approve. Commits and branch pushes stay under the maintainer's identity (SSH `origin`); the writes that must appear *as the PR author* switch identity by prefixing a bot token — opening the PR, and replying to or resolving its review threads. (A thread reply or resolution under the maintainer's identity reads as the maintainer answering their own review of the bot's PR.) `GH_PR_BOT_TOKEN_CMD` is a shell command that prints that token; evaluate it inline per call so the token never persists:
+Identity is configured by two env vars. When `GITHUB_BOT_ACCOUNT` is set, the agent opens PRs as that machine account, never as the maintainer. Commits and branch pushes stay under the maintainer's identity (SSH `origin`); the writes that must appear *as the PR author* — opening the PR, and replying to or resolving its review threads — switch identity by prefixing a bot token. `GITHUB_BOT_TOKEN_CMD` is a shell command that prints that token; evaluate it inline per call so the token never persists:
 
 ```
-GH_TOKEN=$(eval "$GH_PR_BOT_TOKEN_CMD") gh pr create …
+GH_TOKEN=$(eval "$GITHUB_BOT_TOKEN_CMD") gh pr create …
 ```
 
-Prefixing `GH_TOKEN` is atomic per command — it never mutates the active `gh` account, so the maintainer's session is untouched. Because the bot is the author, rework queries filter on `--author "$GH_PR_BOT_ACCOUNT"`, **not** `@me` (which resolves to the maintainer and would never match the bot's PRs).
+Prefixing `GH_TOKEN` is atomic per command — it never mutates the active `gh` account, so the maintainer's session is untouched. Because the bot is the author, rework queries filter on `--author "$GITHUB_BOT_ACCOUNT"`, **not** `@me` (which resolves to the maintainer and would never match the bot's PRs).
 
-**Unconfigured (multi-dev).** With `GH_PR_BOT_ACCOUNT` unset there is no bot dance: skills open PRs under the agent's normal identity (no `GH_TOKEN` prefix), rework and `land` queries drop the `--author` filter and match any open PR, and the `require-bot-pr.sh` hook is inert. This is the default the plugin ships; setting the two vars opts a solo-dev repo into the bot indirection.
+**Unconfigured (multi-dev).** With `GITHUB_BOT_ACCOUNT` unset there is no bot dance: skills open PRs under the agent's normal identity (no `GH_TOKEN` prefix), rework and `land` queries drop the `--author` filter and match any open PR, and the `require-bot-pr.sh` hook is inert. This is the default the plugin ships; setting the two vars opts a solo-dev repo into the bot indirection.
 
-**This repo's values**: `GH_PR_BOT_ACCOUNT=krixon-bot`, with `GH_PR_BOT_TOKEN_CMD` reading a classic PAT (`repo` scope) from the macOS Keychain — both set in `.claude/settings.json`, which holds the keychain incantation.
+**This repo's values**: `GITHUB_BOT_ACCOUNT=krixon-bot`, with `GITHUB_BOT_TOKEN_CMD` reading a classic PAT (`repo` scope) from the macOS Keychain — both set in `.claude/settings.json`, which holds the keychain incantation.
 
 ## PRs and rework
 
-- **Open a PR**: `GH_TOKEN=$(eval "$GH_PR_BOT_TOKEN_CMD") gh pr create --title "..." --body "Closes #<n>"` — drop the `GH_TOKEN` prefix when `GH_PR_BOT_ACCOUNT` is unset. Opens as the bot (or normal identity); the issue stays `in-progress`; the open PR is the review state.
+- **Open a PR**: `GH_TOKEN=$(eval "$GITHUB_BOT_TOKEN_CMD") gh pr create --title "..." --body "Closes #<n>"` — drop the `GH_TOKEN` prefix when `GITHUB_BOT_ACCOUNT` is unset. Opens as the bot (or normal identity); the issue stays `in-progress`; the open PR is the review state.
 - **Find rework** — bot-owned PRs the maintainer has sent back with changes requested:
-  `gh pr list --state open --author "$GH_PR_BOT_ACCOUNT" --json number,title,reviewDecision,headRefName,body --jq '[.[] | select(.reviewDecision == "CHANGES_REQUESTED")]'` — drop `--author` when `GH_PR_BOT_ACCOUNT` is unset, to match any open PR.
+  `gh pr list --state open --author "$GITHUB_BOT_ACCOUNT" --json number,title,reviewDecision,headRefName,body --jq '[.[] | select(.reviewDecision == "CHANGES_REQUESTED")]'` — drop `--author` when `GITHUB_BOT_ACCOUNT` is unset, to match any open PR.
 - **Read the review** — the comments that form the rework brief:
   `gh pr view <n> --comments` (or `--json reviews,comments`).
 - **Update a PR**: push more commits to its branch; the open PR tracks the branch, no re-create needed.
@@ -80,5 +80,5 @@ A review can carry *questions* aimed at the agent, not change requests — usual
 
 - **Find unresolved threads** on a PR (run per open bot-owned PR to decide whether it needs resume):
   `gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){reviewThreads(first:100){nodes{id isResolved comments(first:1){nodes{databaseId body path author{login}}}}}}}}' -F owner=<owner> -F repo=<repo> -F pr=<n> --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)'`
-- **Reply to a thread** — post the converged answer onto the question's thread, as the bot so it reads as the PR author replying (`<comment-id>` is the `databaseId` of the thread's first comment from the query above): `GH_TOKEN=$(eval "$GH_PR_BOT_TOKEN_CMD") gh api repos/{owner}/{repo}/pulls/<n>/comments/<comment-id>/replies -f body="..."` (`{owner}/{repo}` resolve to the current repo) — drop the `GH_TOKEN` prefix when `GH_PR_BOT_ACCOUNT` is unset.
-- **Resolve a thread** after answering, as the bot (`<thread-id>` is the node `id` from the query above): `GH_TOKEN=$(eval "$GH_PR_BOT_TOKEN_CMD") gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=<thread-id>` — drop the `GH_TOKEN` prefix when `GH_PR_BOT_ACCOUNT` is unset.
+- **Reply to a thread** — post the converged answer onto the question's thread, as the bot (`<comment-id>` is the `databaseId` of the thread's first comment from the query above): `GH_TOKEN=$(eval "$GITHUB_BOT_TOKEN_CMD") gh api repos/{owner}/{repo}/pulls/<n>/comments/<comment-id>/replies -f body="..."` (`{owner}/{repo}` resolve to the current repo) — drop the `GH_TOKEN` prefix when `GITHUB_BOT_ACCOUNT` is unset.
+- **Resolve a thread** after answering, as the bot (`<thread-id>` is the node `id` from the query above): `GH_TOKEN=$(eval "$GITHUB_BOT_TOKEN_CMD") gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=<thread-id>` — drop the `GH_TOKEN` prefix when `GITHUB_BOT_ACCOUNT` is unset.
