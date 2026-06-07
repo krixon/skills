@@ -69,7 +69,7 @@ Prefixing `GH_TOKEN` is atomic per command — it never mutates the active `gh` 
 
 - **Open a PR**: `GH_TOKEN=$(eval "$GH_PR_BOT_TOKEN_CMD") gh pr create --title "..." --body "Closes #<n>"` — drop the `GH_TOKEN` prefix when `GH_PR_BOT_ACCOUNT` is unset. Opens as the bot (or normal identity); the issue stays `in-progress`; the open PR is the review state.
 - **Find rework** — bot-owned PRs the maintainer has sent back with changes requested:
-  `gh pr list --state open --author "$GH_PR_BOT_ACCOUNT" --json number,title,reviewDecision,headRefName,body --jq '[.[] | select(.reviewDecision == "CHANGES_REQUESTED")]'` — drop `--author` when `GH_PR_BOT_ACCOUNT` is unset, to match any open PR. `CHANGES_REQUESTED` persists until the maintainer re-reviews, so a PR already reworked-and-pushed still matches; apply `pickup` step 1's freshness guard (skip when HEAD postdates the newest review activity) before treating a match as actionable.
+  `gh pr list --state open --author "$GH_PR_BOT_ACCOUNT" --json number,title,reviewDecision,headRefName,body --jq '[.[] | select(.reviewDecision == "CHANGES_REQUESTED")]'` — drop `--author` when `GH_PR_BOT_ACCOUNT` is unset, to match any open PR.
 - **Read the review** — the comments that form the rework brief:
   `gh pr view <n> --comments` (or `--json reviews,comments`).
 - **Update a PR**: push more commits to its branch; the open PR tracks the branch, no re-create needed.
