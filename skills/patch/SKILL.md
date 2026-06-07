@@ -1,6 +1,6 @@
 ---
 name: patch
-description: Ship a small fix straight from a conversation — no tracked issue — through a worktree branch to a no-issue PR a human lands. Use when the maintainer wants a quick, obvious fix shipped now and filing an issue would be ceremony: a typo, a doc correction, a one-line config tweak, a comment cleanup. Human-invoked only. For anything needing a decision, use `grill`; for work worth tracking, use `slice`; for an issue already on the tracker, use `pickup`.
+description: Ship a small fix straight from a conversation — no tracked issue — through a worktree branch to a no-issue PR a human lands. Use when the maintainer wants a quick, obvious fix shipped now and filing an issue would be ceremony: a typo, a doc correction, a one-line config tweak, a comment cleanup. Human-invoked only. For anything needing a decision, use `design`; for work worth tracking, use `slice`; for an issue already on the tracker, use `pickup`.
 argument-hint: "[short description of the fix, or describe it in the conversation]"
 ---
 
@@ -17,7 +17,7 @@ PRs live in GitHub (see [../GITHUB.md](../GITHUB.md)).
 A patch is for a change small and obvious enough that a tracked issue would be ceremony, carrying **no decision worth recording**. The gate, before touching anything:
 
 - **Trivial and obvious** → patch: a typo, a stale doc line, a comment cleanup, a one-line config tweak the maintainer described.
-- **Needs a decision or design** → not a patch. Stop and route to `grill`.
+- **Needs a decision or design** → not a patch. Stop and route to `design`.
 - **Worth tracking** → not a patch. File it: `/capture` for an observation, `/triage` for an incoming report. `patch` leaves no tracker trail by design, so anything that should be findable later doesn't belong here.
 
 When in doubt, it isn't a patch.

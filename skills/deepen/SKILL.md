@@ -69,11 +69,11 @@ See [HTML-REPORT.md](HTML-REPORT.md) for the full HTML scaffold, diagram pattern
 
 Do NOT propose interfaces yet. After the file is written, ask the user: "Which of these would you like to explore?"
 
-### 3. Hand the chosen candidate to `grill`
+### 3. Hand the chosen candidate to `design`
 
-`deepen` is a finder: it surfaces candidates and stops. The report is its standalone artifact — steps 1–2 produce it without `grill` in the loop.
+`deepen` is a finder: it surfaces candidates and stops. The report is its standalone artifact — steps 1–2 produce it without `design` in the loop.
 
-Once the user picks a candidate, invoke `/grill` on it for the design conversation. `grill` walks the design tree — constraints, dependencies, the shape of the deepened module, what sits behind the seam, what tests survive — sharpening fuzzy terminology as it goes and offering a load-bearing decision as an ADR inline (see [../contracts/adr.md](../contracts/adr.md)). Pass the candidate's files, problem, and proposed solution so `grill` opens on the deepening rather than rediscovering it.
+Once the user picks a candidate, invoke `/design` on it for the design conversation. `design` walks the design tree — constraints, dependencies, the shape of the deepened module, what sits behind the seam, what tests survive — sharpening fuzzy terminology as it goes and offering a load-bearing decision as an ADR inline (see [../contracts/adr.md](../contracts/adr.md)). Pass the candidate's files, problem, and proposed solution so `design` opens on the deepening rather than rediscovering it.
 
 Un-picked candidates are rejected, not deferred. Leave them in the report as dead — they are not findings and have no onward path.
 
@@ -82,7 +82,7 @@ Un-picked candidates are rejected, not deferred. Leave them in the report as dea
 Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this row as one `AskUserQuestion`.
 
 - **artifact:** architectural candidates + HTML report
-- **default:** `grill` — design the chosen candidate, sharpening terminology and offering an ADR inline
+- **default:** `design` — design the chosen candidate, sharpening terminology and offering an ADR inline
 - **alternatives:** stop
 
 **Interactive-only** (per [../HANDOVER.md](../HANDOVER.md)) — surfacing candidates ends in a pick the user must make; `auto` never enters it.
