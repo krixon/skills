@@ -20,7 +20,7 @@ Each entry names its default handover hop — the recommended next skill — on 
 
 **What it does.** The dual of `grill`: instead of questioning you, it answers questions put *to* the agent. It forms a reasoned answer to each question, one at a time, and converges with you on a shared understanding. Where an agreed answer implies a code change, it returns the change deltas.
 
-**When to reach for it.** Someone has aimed questions at you — most often unresolved threads on a PR review — and you want each worked to a converged answer rather than answered off the cuff.
+**When to reach for it.** You have questions you want the agent to resolve — most often the unresolved threads on a PR review — and you want each worked to a converged answer rather than answered off the cuff.
 
 **Example.** `/field` the open questions on a PR review, agreeing each answer before it posts back to the thread.
 
