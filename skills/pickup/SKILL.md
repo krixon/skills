@@ -16,7 +16,11 @@ Issues and PRs live in GitHub; [../GITHUB.md](../GITHUB.md) is the binding — t
 
 - **By reference** — the user passes an issue number/URL. Fetch it.
 - **Next ready** — no argument, take **rework before new work**:
-  1. **Rework** — an open PR you own with changes requested *or any unresolved review thread* (the rework and unresolved-thread queries — see [../GITHUB.md](../GITHUB.md)). The unresolved-thread half catches a review that carries only questions — a comment-only review never registers as changes requested, but its open thread still needs you. **Actionable when a thread is still unresolved, or — for a review with changes requested and no thread — when the review postdates HEAD.** A thread-less review you have pushed past is delivered and awaiting re-review; a threaded one stays actionable until you resolve each thread as you address it (step 5) — resolution, not a HEAD-vs-review timestamp, is what clears a threaded review from the queue (a commit can postdate a review without addressing it). Resume the oldest actionable one via *Resuming a PR sent back for changes* (step 5).
+  1. **Rework** — an open PR you own, by either check, in priority order:
+     - **Changes requested or unresolved thread** (the rework and unresolved-thread queries — see [../GITHUB.md](../GITHUB.md)). The unresolved-thread half catches a review that carries only questions — a comment-only review never registers as changes requested, but its open thread still needs you. **Actionable when a thread is still unresolved, or — for a review with changes requested and no thread — when the review postdates HEAD.** A thread-less review you have pushed past is delivered and awaiting re-review; a threaded one stays actionable until you resolve each thread as you address it (step 5).
+     - **Conflicting against the base** (the conflicting query — see [../GITHUB.md](../GITHUB.md)), evaluated **last**. The base moved and the branch no longer replays cleanly. **Always actionable** while it reports conflicting — no thread or timestamp to clear; the rebase-and-resolve flow (step 5) clears it.
+
+     Resume the oldest actionable one via *Resuming a PR sent back for changes* (step 5).
   2. **New work** — otherwise query issues labelled `ready-for-agent` and not `in-progress`, then `ready-for-human` and not `in-progress`, oldest first.
 
   Confirm which you're taking unless running unattended.
@@ -55,6 +59,10 @@ Infer the kind from the brief's target when it isn't stated. Drive the implement
 **Delegation (window hygiene — see [../DELEGATION.md](../DELEGATION.md)).** On the **AFK** path, run the implementation skill as a subagent; per the contract's standing terse-return rule it returns the smallest sufficient reference — the PR number/URL, not its diff — which is what keeps `pickup`'s window bounded across the whole loop. On the **HITL** path, run it inline so you can drive it, and background its noisy test/log output rather than letting it accumulate.
 
 **Resuming a PR sent back for changes.** If you arrived here from a PR with review activity (step 1), don't start fresh: check out its existing branch, and read the review (see [../GITHUB.md](../GITHUB.md) → *Read the review*) as an **addendum** to the original brief — the brief's acceptance criteria still hold, the review is the delta.
+
+**Resuming a conflicting PR (rebase).** Check out the branch in your worktree, rebase it onto the base without squashing (mechanic in [../../ISOLATION.md](../../ISOLATION.md) → *Rebasing a branch onto a moved base*), resolve **every** conflict the replay raises, and force-push. Comment naming the paths you resolved (per [../GITHUB.md](../GITHUB.md) → *Body formatting*), then stop — the force-push sends the PR back for re-review, the human gate that keeps the trigger AFK-safe. The issue stays `in-progress`.
+
+If a conflict can't be resolved without a design call, don't wall to `needs-triage` (step 6) — the work is done, only the rebase is stuck. Leave the PR open and the issue `in-progress`, comment naming the unresolvable hunks, and report for a human.
 
 **Classify each review comment by what an answer would produce.** A **change request** is satisfied by a diff — even when phrased as a question ("why are you swallowing this error?" wants it *fixed*). A **question** is aimed at you, the agent, and resolving it changes a shared *understanding*, not necessarily the code ("why this approach?", "did you consider Y?"). When a comment is genuinely both, treat it as a question first — the agreed answer may *then* spawn a change. When you can't tell, default to question: erring toward surfacing it to the maintainer is the safe direction.
 

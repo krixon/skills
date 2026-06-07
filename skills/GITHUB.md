@@ -105,6 +105,8 @@ The shim that enforces this is `bin/gh`, a wrapper the plugin's `bin/` puts ahea
 - **Open a PR**: `GH_TOKEN=$(eval "$GITHUB_BOT_TOKEN_CMD") gh pr create --title "..." --body "Closes #<n>"` — drop the `GH_TOKEN` prefix when `GITHUB_BOT_ACCOUNT` is unset. Opens as the bot (or normal identity); the issue stays `in-progress`; the open PR is the review state.
 - **Find rework** — bot-owned PRs the maintainer has sent back with changes requested:
   `gh pr list --state open --author "$GITHUB_BOT_ACCOUNT" --json number,title,reviewDecision,headRefName,body --jq '[.[] | select(.reviewDecision == "CHANGES_REQUESTED")]'` — drop `--author` when `GITHUB_BOT_ACCOUNT` is unset, to match any open PR.
+- **Find conflicting** — bot-owned open PRs whose branch no longer merges cleanly onto the base, the lowest-priority rework trigger (`pickup` rebases and resolves them):
+  `gh pr list --state open --author "$GITHUB_BOT_ACCOUNT" --json number,title,mergeable,mergeStateStatus,headRefName,baseRefName --jq '[.[] | select(.mergeable == "CONFLICTING" or .mergeStateStatus == "DIRTY")]'` — drop `--author` when `GITHUB_BOT_ACCOUNT` is unset, to match any open PR. `mergeable` is computed asynchronously after a push, so a fresh PR can report `UNKNOWN`; re-query until it settles to `MERGEABLE` or `CONFLICTING`.
 - **Read the review** — the comments that form the rework brief:
   `gh pr view <n> --comments` (or `--json reviews,comments`).
 - **Update a PR**: push more commits to its branch; the open PR tracks the branch, no re-create needed.
