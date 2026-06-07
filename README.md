@@ -65,6 +65,8 @@ When the queue runs dry the loop doesn't stop — it polls on a widening backoff
 
 ## Skills
 
+Each entry below is a one-line tagline. For a fuller, human-friendly explanation of each skill — what it does, when to reach for it, and an example — see [docs/skills-reference.md](docs/skills-reference.md).
+
 ### Planning & specs
 - **grill** — interview you relentlessly about a plan until shared understanding, resolving each decision branch while challenging it against the domain model, sharpening terminology, and offering an ADR where a decision warrants it.
 - **field** — field questions put to the agent and converge on shared understanding; the dual of grill, run on PR-review rework.

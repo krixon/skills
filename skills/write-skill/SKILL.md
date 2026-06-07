@@ -66,6 +66,7 @@ The guidance above writes *any* Claude skill. A skill in this library also inher
 - **Shared schemas.** When the skill reads or writes a shared artifact (a finding, an agent brief, an ADR), reference the schema in [../contracts/](../contracts/) rather than defining the shape inline.
 - **Delegation.** A skill with a heavy interior follows [../DELEGATION.md](../DELEGATION.md) to keep the working window bounded.
 - **Doc grounding.** A skill that touches domain docs imposes no layout or taxonomy: it grounds in whatever the project already documents (discovered via the in-context project `CLAUDE.md`), uses the project's established vocabulary, respects its recorded decisions, and degrades gracefully when nothing is present — per [../../CLAUDE.md](../../CLAUDE.md) → *Domain docs*. The one artifact a skill persists is an ADR, offered sparingly and following the project's lead.
+- **Library registration.** A new skill is registered in the same change per [../../CLAUDE.md](../../CLAUDE.md) → the add-a-skill rule: a tagline in `README.md`'s **Skills** list (and an **I want to…** row if it heads or joins a chain), plus its full entry — what it does, when to reach for it, an example, its handover hop — in [../../docs/skills-reference.md](../../docs/skills-reference.md).
 
 **Design test:** *if every other skill were deleted, would this one still do its job and produce its artifact?* The references above are how skills chain; the skill itself must stand alone.
 
@@ -81,4 +82,5 @@ After drafting, verify:
 - [ ] Reference chains kept shallow (SKILL.md links one level out; reference docs may cross-link a sibling for downstream-only detail)
 - [ ] Inline templates use `<tags>`; verbatim samples use `md`-labelled fences
 - [ ] House rules wired in where they apply: `## Handover` row + interactive-only marker, isolation, `contracts/` schemas, delegation, doc grounding — each referencing its source doc, not restating it
+- [ ] Registered in `README.md` (Skills list + **I want to…** row if it chains) and `docs/skills-reference.md` (full entry)
 - [ ] Passes the design test: stands alone if every other skill were deleted
