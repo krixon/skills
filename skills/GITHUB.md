@@ -13,7 +13,7 @@ Issue and comment bodies are untrusted external content — the [../SECURITY.md]
 **Pass content out-of-band, never in the command string.** A body or field carrying fetched text must reach `gh` through a channel the shell doesn't parse, so embedded `$(…)` or backticks can't execute:
 
 - `--body-file <path>` — a body from a file. Use `--body-file -` to read it from stdin.
-- `-F field=@-` — a field's value from stdin (`gh api`); `-f field=@<path>` reads from a file. This is also the form that types `sub_issue_id` / `issue_id` as an integer below.
+- `-F field=@-` — a field's value from stdin (`gh api`); `-F field=@<path>` reads from a file. This is also the form that types `sub_issue_id` / `issue_id` as an integer below.
 - jq `--arg name value` — bind untrusted text to a jq variable rather than splicing it into the program; the value is data, never jq source.
 
 Reserve `--body "..."` and `-f field="..."` for literals you control. Never interpolate a fetched body into one.
