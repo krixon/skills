@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# gh wrapper shim. A plugin's bin/ is prepended to the Bash tool's PATH, so this
+# shadows the system gh. It is a transparent passthrough for every gh call except
+# one: when a bot account is configured (GITHUB_BOT_ACCOUNT) and the invocation is
+# `gh pr create` without a GH_TOKEN override, it blocks. Opening a PR chooses an
+# author; doing so as the logged-in (approver) account makes self-approval
+# impossible (GitHub forbids it), so the PR must be created with the bot's token.
+#
+# The shim acts on the split argv, never on the command string: bash splits argv
+# before this runs, so the create phrase living inside a quoted string or heredoc
+# body never arrives as `argv = pr create`. The data/invocation ambiguity is gone
+# by construction — no command-string parsing.
+
+# Resolve the REAL gh, never recursing into this shim.
+real_gh() {
+  # Absolute path + dir of this shim, to skip it everywhere.
+  local self self_dir self_path
+  self="${BASH_SOURCE[0]}"
+  self_dir="$(cd "$(dirname "$self")" >/dev/null 2>&1 && pwd -P)"
+  self_path="$self_dir/$(basename "$self")"
+
+  if [ -n "${GH_REAL_BIN:-}" ] && [ -x "${GH_REAL_BIN}" ]; then
+    # Refuse GH_REAL_BIN if it resolves back to this shim (would fork-bomb);
+    # fall through to the PATH scan (which self-skips) instead.
+    local real_bin_path
+    real_bin_path="$(cd "$(dirname "${GH_REAL_BIN}")" >/dev/null 2>&1 && pwd -P)/$(basename "${GH_REAL_BIN}")"
+    if [ "$real_bin_path" != "$self_path" ]; then
+      printf '%s' "${GH_REAL_BIN}"
+      return 0
+    fi
+  fi
+  local IFS=':' dir cand
+  for dir in $PATH; do
+    [ -n "$dir" ] || dir="."
+    cand="$dir/gh"
+    [ -x "$cand" ] || continue
+    # Skip this shim itself (compare resolved dirs).
+    local cand_dir
+    cand_dir="$(cd "$dir" >/dev/null 2>&1 && pwd -P)" || continue
+    [ "$cand_dir" = "$self_dir" ] && continue
+    printf '%s' "$cand"
+    return 0
+  done
+  return 1
+}
+
+gh_bin="$(real_gh)" || {
+  printf 'gh shim: cannot find the real gh on PATH (set GH_REAL_BIN to override)\n' >&2
+  exit 127
+}
+
+bot="${GITHUB_BOT_ACCOUNT:-}"
+
+# No bot account configured — fully inert.
+if [ -z "$bot" ]; then
+  exec "$gh_bin" "$@"
+fi
+
+# Detect `gh … pr create …` regardless of leading global flags (e.g.
+# `-R owner/repo pr create`, `--repo owner/repo pr create`, glued `-Rx pr create`).
+# Scan for an ADJACENT argv pair where one token is exactly "pr" and the next is
+# exactly "create". A quoted multi-word arg ("gh pr create") is a single token, so
+# data never trips the scan. A false match is virtually impossible and a false-DENY
+# is the safe direction. Pure bash, no external tools.
+is_pr_create() {
+  local i n=$#
+  for (( i = 1; i < n; i++ )); do
+    if [ "${!i}" = "pr" ]; then
+      local j=$(( i + 1 ))
+      [ "${!j}" = "create" ] && return 0
+    fi
+  done
+  return 1
+}
+
+if is_pr_create "$@" && [ -z "${GH_TOKEN:-}" ]; then
+  printf '%s\n' "Open the PR as the ${bot} account, not the logged-in account — GitHub forbids approving your own PR, so the author cannot also be the approver. Re-run supplying ${bot}'s token, which switches identity for this one command only:
+
+  GH_TOKEN=<token for ${bot}> gh pr create …
+
+(This check is active because GITHUB_BOT_ACCOUNT=${bot}.)" >&2
+  exit 1
+fi
+
+# pr create WITH a token, every non-create command (even with the phrase in its
+# data), and everything else: pass straight through.
+exec "$gh_bin" "$@"
