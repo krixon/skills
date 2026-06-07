@@ -14,18 +14,35 @@ input=$(cat)
 path=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' <<<"$input")
 [ -n "$path" ] || exit 0   # no path on this tool call — not our concern
 
-# Absolute, lexical path. A textual prefix check is enough — symlinks and `..` are
-# left unresolved, and erring toward a bare-path match is the safe direction here.
+# Canonical absolute path. The prefix check that follows is purely textual, so the
+# target MUST be canonicalized first — collapse `.`/`..` and resolve symlinks — or
+# the verdict tracks how the path is spelled, not where the write lands. A path like
+# .claude/worktrees/../README.md would otherwise prefix-match the worktrees
+# allow-glob yet resolve into the main checkout, slipping the guard (#110).
+#
+# canon() resolves WITHOUT requiring the target to exist: Write creates new files,
+# so an existence-required resolver (BSD `realpath`, which also lacks `-m`) would
+# fail on the common case and the hook would fall back to the raw path. Python's
+# os.path.realpath ships on macOS and Linux, resolves existing symlinks, and
+# collapses `..` lexically when the tail does not yet exist — the needed semantics.
+# The path is passed as an argv element (never interpolated into code), so an
+# attacker-chosen path is inert data here: no command substitution or glob over it.
+canon() {
+  python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$1"
+}
+
 case "$path" in
   /*) abs="$path" ;;
   *)  abs="$PWD/$path" ;;
 esac
+abs=$(canon "$abs") || exit 0   # can't canonicalize — fail open, same stance as below
 
 # The MAIN checkout root, resolvable even from inside a worktree: --git-common-dir
 # is the shared .git of the main checkout, and its parent is that checkout's root.
 # So a worktree session can't edit main either. Fail open if git can't resolve it.
+# Canonicalize the root too so its symlinks match the canonicalized target above.
 common=$(git -C "$PWD" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
-main_root=$(dirname "$common")
+main_root=$(canon "$(dirname "$common")") || exit 0
 worktrees="$main_root/.claude/worktrees"
 
 case "$abs" in
