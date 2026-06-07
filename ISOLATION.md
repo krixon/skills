@@ -22,6 +22,20 @@ Create the worktree under `.claude/worktrees/<slug>`:
 git worktree add .claude/worktrees/<slug> -b <kind>/<slug> main
 ```
 
+## Rebasing a branch onto a moved base
+
+When the base branch advances under an open PR and the branch no longer replays cleanly, rebase it onto the base from its worktree — without squashing, so the commits stay individual deltas:
+
+```
+git rebase main
+```
+
+Resolve every conflict the replay raises, then force-push. A rebase rewrites the commits, so a plain push is rejected as non-fast-forward; `--force-with-lease` pushes the rewrite but refuses if the remote moved under you:
+
+```
+git push --force-with-lease
+```
+
 ## Reaching main, then teardown
 
 A branch reaches `main` one of two ways, both from its worktree, neither touching the repo-root checkout:
