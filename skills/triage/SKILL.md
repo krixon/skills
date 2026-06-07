@@ -64,7 +64,7 @@ A **claimed** issue — one assigned to another session — is **never** offered
 
 4. **Reproduce (bugs only).** Before any grilling, attempt reproduction: read the reporter's steps, trace the relevant code, run tests or commands. Report what happened — successful repro with code path, failed repro, or insufficient detail (a strong `needs-info` signal). A confirmed repro makes a stronger agent brief.
 
-5. **Grill (if needed).** If the issue needs fleshing out, run a `/grill` session.
+5. **Grill (if needed).** If the issue needs fleshing out, run a `/design` session.
 
 6. **Apply the outcome:**
    - `ready-for-agent` — post an agent brief comment ([../contracts/agent-brief.md](../contracts/agent-brief.md)).

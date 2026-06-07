@@ -6,19 +6,19 @@ Each entry names its default handover hop — the recommended next skill — on 
 
 ## Planning & specs
 
-### grill
+### design
 
-**What it does.** Interviews you about a plan or design, one decision branch at a time, until you both reach shared understanding. It challenges the plan against the project's existing domain model, sharpens loose terminology into the project's vocabulary, and offers an ADR when a load-bearing decision crystallises.
+**What it does.** Grills you about a plan or technical design, one decision branch at a time, until you both reach shared understanding. It challenges the plan against the project's existing domain model, sharpens loose terminology into the project's vocabulary, and offers an ADR when a load-bearing decision crystallises.
 
 **When to reach for it.** You have a plan or design you want stress-tested before committing to it — somewhere the cost of a wrong assumption is high and you'd rather surface it now than in review.
 
-**Example.** `/grill` — then work through "should the cache invalidate on write or on read?" until the tradeoff is settled and recorded.
+**Example.** `/design` — then work through "should the cache invalidate on write or on read?" until the tradeoff is settled and recorded.
 
 **Chains to.** `slice` — synthesise the resolved plan into agent-brief issues.
 
 ### field
 
-**What it does.** The dual of `grill`: instead of questioning you, it answers questions put *to* the agent. It forms a reasoned answer to each question, one at a time, and converges with you on a shared understanding. Where an agreed answer implies a code change, it returns the change deltas.
+**What it does.** Answers questions put *to* the agent. It forms a reasoned answer to each question, one at a time, and converges with you on a shared understanding. Where an agreed answer implies a code change, it returns the change deltas.
 
 **When to reach for it.** You have questions you want the agent to resolve — most often the unresolved threads on a PR review — and you want each worked to a converged answer rather than answered off the cuff.
 
@@ -87,7 +87,7 @@ They differ only by what they look for:
 
 **Example.** `/deepen` to surface refactoring candidates, then design the chosen one.
 
-**Chains to.** `grill` — design the chosen candidate, sharpening terminology and offering an ADR inline.
+**Chains to.** `design` — design the chosen candidate, sharpening terminology and offering an ADR inline.
 
 ## Build & fix
 
@@ -105,7 +105,7 @@ They differ only by what they look for:
 
 **What it does.** Ships a small, obvious fix straight from the conversation with no tracked issue: a worktree branch through the review gate to a no-issue PR (body led by `No-issue:`) that a human lands. Human-invoked only.
 
-**When to reach for it.** The fix is too small to be worth filing an issue — a typo, a doc correction, a one-line config tweak, a comment cleanup. For anything needing a decision use `grill`; for work worth tracking use `slice`; for an issue already on the tracker use `pickup`.
+**When to reach for it.** The fix is too small to be worth filing an issue — a typo, a doc correction, a one-line config tweak, a comment cleanup. For anything needing a decision use `design`; for work worth tracking use `slice`; for an issue already on the tracker use `pickup`.
 
 **Example.** `/patch fix the typo in the install command in README.md`.
 
