@@ -52,7 +52,7 @@ Work in a worktree on its own branch — never the repo-root checkout (see [../.
 
 Infer the kind from the brief's target when it isn't stated. Drive the implementation skill with the brief: its acceptance criteria are the behaviors to satisfy, its interfaces are the seams.
 
-**Delegation (window hygiene — see [../DELEGATION.md](../DELEGATION.md)).** On the **AFK** path, run the implementation skill as a subagent and keep only its result; nobody's watching, and this keeps `pickup`'s window bounded across the whole loop. On the **HITL** path, run it inline so you can drive it, and background its noisy test/log output rather than letting it accumulate.
+**Delegation (window hygiene — see [../DELEGATION.md](../DELEGATION.md)).** On the **AFK** path, run the implementation skill as a subagent; per the contract's standing terse-return rule it returns the smallest sufficient reference — the PR number/URL, not its diff — which is what keeps `pickup`'s window bounded across the whole loop. On the **HITL** path, run it inline so you can drive it, and background its noisy test/log output rather than letting it accumulate.
 
 **Resuming a PR sent back for changes.** If you arrived here from a PR with review activity (step 1), don't start fresh: check out its existing branch, and read the review (`gh pr view <n> --comments`) as an **addendum** to the original brief — the brief's acceptance criteria still hold, the review is the delta.
 
