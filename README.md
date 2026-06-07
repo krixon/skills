@@ -32,6 +32,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 
 | I want to… | Run | …and the path from there |
 |---|---|---|
+| Validate a problem before designing a solution | `/discover` — grills the problem itself: who it serves, its value vs cost-of-inaction, its non-goals, how success is known | discover → `design` → `slice` → ready issues on the tracker |
 | Stress-test a plan or design | `/design` — challenges it against the project's domain model, sharpens terminology, offers an ADR where one is warranted | design → `slice` → ready issues on the tracker |
 | Turn a plan or this conversation into issues | `/slice` | one agent-brief issue, or N independently-grabbable issues under a lean epic, each marked `ready-for-agent` (AFK) or `ready-for-human` (HITL) |
 | Find architecture / refactoring opportunities | `/deepen` | candidates + report surfaced → `design` to design the chosen one |
@@ -68,6 +69,7 @@ When the queue runs dry the loop doesn't stop — it polls on a widening backoff
 Each entry below is a one-line tagline. For a fuller, human-friendly explanation of each skill — what it does, when to reach for it, and an example — see [docs/skills-reference.md](docs/skills-reference.md).
 
 ### Planning & specs
+- **discover** — grill you about a problem before any solution is designed: challenge that it's real, sharpen who it serves, weigh value against the cost of inaction, force the non-goals, and define how success is known; the head of the planning chain, upstream of `design`.
 - **design** — grill you relentlessly about a plan or technical design until shared understanding, resolving each decision branch while challenging it against the domain model, sharpening terminology, and offering an ADR where a decision warrants it.
 - **field** — field questions put to the agent and converge on shared understanding; the dual of design, run on PR-review rework.
 - **slice** — turn a plan, the current conversation, or an existing issue into one agent-brief issue or N tracer-bullet issues under a lean epic.

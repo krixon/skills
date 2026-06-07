@@ -6,6 +6,16 @@ Each entry names its default handover hop — the recommended next skill — on 
 
 ## Planning & specs
 
+### discover
+
+**What it does.** Grills you about a *problem*, one question at a time, before any solution is designed — the product phase upstream of `design`. It challenges that the problem is real, sharpens the user or segment it serves, weighs its value against the cost of inaction (and the build/buy/workaround alternatives), forces the non-goals, and defines the signal that says it's solved. It grounds against the project's product and project docs, not the code internals, and persists nothing — it ends by emitting a compact framing block in the conversation.
+
+**When to reach for it.** You have a problem or idea and want to validate it's worth solving, and for whom, before committing to a design. The head of the planning chain: `discover → design → slice → pickup`.
+
+**Example.** `/discover` — work through "is this a real problem, and who actually hits it?" until you have a framing block to hand to `design`.
+
+**Chains to.** `design` — the framing block seeds the technical design and is passed as its input.
+
 ### design
 
 **What it does.** Grills you about a plan or technical design, one decision branch at a time, until you both reach shared understanding. It challenges the plan against the project's existing domain model, sharpens loose terminology into the project's vocabulary, and offers an ADR when a load-bearing decision crystallises.
