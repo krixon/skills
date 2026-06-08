@@ -1,7 +1,7 @@
 {
   "$schema": "https://code.claude.com/schemas/plugin.json",
   "name": "skills",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Engineering workflow skills: planning, issue triage, audits, TDD, diagnosis, and skill authoring.",
   "author": {
     "name": "Karl Rixon",
