@@ -66,43 +66,43 @@ When the queue runs dry the loop doesn't stop — it polls on a widening backoff
 
 ## Skills
 
-Each entry below is a one-line tagline. For a fuller, human-friendly explanation of each skill — what it does, when to reach for it, and an example — see [docs/skills-reference.md](docs/skills-reference.md).
+Each skill below links to its fuller entry in the [skills reference](docs/skills-reference.md) — what it does, when to reach for it, and an example.
 
 ### Planning & specs
-- **discover** — grill you about a problem before any solution is designed: challenge that it's real, sharpen who it serves, weigh value against the cost of inaction, force the non-goals, and define how success is known; the head of the planning chain, upstream of `design`.
-- **design** — grill you relentlessly about a plan or technical design until shared understanding, resolving each decision branch while challenging it against the domain model, sharpening terminology, and offering an ADR where a decision warrants it.
-- **field** — field questions put to the agent and converge on shared understanding; the dual of design, run on PR-review rework.
-- **slice** — turn a plan, the current conversation, or an existing issue into one agent-brief issue or N tracer-bullet issues under a lean epic.
+- **[discover](docs/skills-reference.md#discover)** — grill you about a problem before any solution is designed: challenge that it's real, sharpen who it serves, weigh value against the cost of inaction, force the non-goals, and define how success is known; the head of the planning chain, upstream of `design`.
+- **[design](docs/skills-reference.md#design)** — grill you relentlessly about a plan or technical design until shared understanding, resolving each decision branch while challenging it against the domain model, sharpening terminology, and offering an ADR where a decision warrants it.
+- **[field](docs/skills-reference.md#field)** — field questions put to the agent and converge on shared understanding; the dual of design, run on PR-review rework.
+- **[slice](docs/skills-reference.md#slice)** — turn a plan, the current conversation, or an existing issue into one agent-brief issue or N tracer-bullet issues under a lean epic.
 
 ### Issue tracking
-- **triage** — drive issues through a triage state machine by label.
-- **capture** — turn audit findings or ad-hoc observations into needs-triage issues, deduped and culled.
+- **[triage](docs/skills-reference.md#triage)** — drive issues through a triage state machine by label.
+- **[capture](docs/skills-reference.md#capture)** — turn audit findings or ad-hoc observations into needs-triage issues, deduped and culled.
 
 ### Audits
-- **audit-coverage** — audit for high-risk untested paths; static-first, surfaces findings to `capture`.
-- **audit-security** — sweep for security exposure (authz, injection, secrets); static-first, surfaces findings to `capture`.
-- **audit-docs** — find documentation that has drifted from the code (stale vocabulary, violated decisions, README/behavior claims); static-first, surfaces findings to `capture`.
-- **audit-error-handling** — sweep for error-handling defects (swallowed errors, bare catch-alls, critical calls with no failure path); judges handling quality, not test presence; static-first, surfaces findings to `capture`.
-- **audit-dead-code** — sweep for dead code (unreachable branches, never-called functions, orphaned modules); static-first, surfaces findings to `capture`.
-- **audit-resource-leak** — sweep for acquire sites (handles, connections, contexts, locks) with no guaranteed release on every path; static-first, surfaces findings to `capture`.
-- **audit-debt** — harvest in-code debt markers (TODO/FIXME/HACK/XXX and known shortcuts) clustered by area; static-first, surfaces findings to `capture`.
-- **audit-observability** — find critical paths (money, auth, data mutation, external calls) running blind with no log, metric, or trace; static-first, surfaces findings to `capture`.
-- **deepen** — find architecture/refactoring opportunities informed by the project's domain language and recorded decisions.
+- **[audit-coverage](docs/skills-reference.md#audits)** — audit for high-risk untested paths; static-first, surfaces findings to `capture`.
+- **[audit-security](docs/skills-reference.md#audits)** — sweep for security exposure (authz, injection, secrets); static-first, surfaces findings to `capture`.
+- **[audit-docs](docs/skills-reference.md#audits)** — find documentation that has drifted from the code (stale vocabulary, violated decisions, README/behavior claims); static-first, surfaces findings to `capture`.
+- **[audit-error-handling](docs/skills-reference.md#audits)** — sweep for error-handling defects (swallowed errors, bare catch-alls, critical calls with no failure path); judges handling quality, not test presence; static-first, surfaces findings to `capture`.
+- **[audit-dead-code](docs/skills-reference.md#audits)** — sweep for dead code (unreachable branches, never-called functions, orphaned modules); static-first, surfaces findings to `capture`.
+- **[audit-resource-leak](docs/skills-reference.md#audits)** — sweep for acquire sites (handles, connections, contexts, locks) with no guaranteed release on every path; static-first, surfaces findings to `capture`.
+- **[audit-debt](docs/skills-reference.md#audits)** — harvest in-code debt markers (TODO/FIXME/HACK/XXX and known shortcuts) clustered by area; static-first, surfaces findings to `capture`.
+- **[audit-observability](docs/skills-reference.md#audits)** — find critical paths (money, auth, data mutation, external calls) running blind with no log, metric, or trace; static-first, surfaces findings to `capture`.
+- **[deepen](docs/skills-reference.md#deepen)** — find architecture/refactoring opportunities informed by the project's domain language and recorded decisions.
 
 ### Build & fix
-- **pickup** — claim a ready issue and implement it, routing by artifact kind through the review gate to an open PR.
-- **patch** — ship a small fix straight from a conversation, no tracked issue: worktree branch → review gate → a no-issue PR (`No-issue:` marker) a human lands; human-invoked.
-- **tdd** — red-green-refactor loop, integration-test first.
-- **diagnose** — disciplined loop for hard bugs and perf regressions: reproduce → minimise → hypothesise → instrument → fix → regression-test.
-- **land** — merge an approved PR, strip `in-progress`, and tear down the branch/worktree; human-invoked only.
-- **release** — cut a batched plugin version release: derive the bump from Conventional-Commit types, then bump `plugin.json` and push the bump + `v<new>` tag to `main` from a worktree; human-invoked only.
+- **[pickup](docs/skills-reference.md#pickup)** — claim a ready issue and implement it, routing by artifact kind through the review gate to an open PR.
+- **[patch](docs/skills-reference.md#patch)** — ship a small fix straight from a conversation, no tracked issue: worktree branch → review gate → a no-issue PR (`No-issue:` marker) a human lands; human-invoked.
+- **[tdd](docs/skills-reference.md#tdd)** — red-green-refactor loop, integration-test first.
+- **[diagnose](docs/skills-reference.md#diagnose)** — disciplined loop for hard bugs and perf regressions: reproduce → minimise → hypothesise → instrument → fix → regression-test.
+- **[land](docs/skills-reference.md#land)** — merge an approved PR, strip `in-progress`, and tear down the branch/worktree; human-invoked only.
+- **[release](docs/skills-reference.md#release)** — cut a batched plugin version release: derive the bump from Conventional-Commit types, then bump `plugin.json` and push the bump + `v<new>` tag to `main` from a worktree; human-invoked only.
 
 ### Meta & session
-- **auto** — run a skill workflow unattended, walking the handover chain until the first human gate.
-- **write-skill** — author new skills with proper structure and progressive disclosure.
-- **zoom-out** — map the relevant modules and callers a layer up, in the project's established vocabulary.
-- **handoff** — compact the conversation into a handoff doc for a fresh agent.
-- **caveman** — ultra-compressed output mode; drops filler, keeps technical accuracy.
+- **[auto](docs/skills-reference.md#auto)** — run a skill workflow unattended, walking the handover chain until the first human gate.
+- **[write-skill](docs/skills-reference.md#write-skill)** — author new skills with proper structure and progressive disclosure.
+- **[zoom-out](docs/skills-reference.md#zoom-out)** — map the relevant modules and callers a layer up, in the project's established vocabulary.
+- **[handoff](docs/skills-reference.md#handoff)** — compact the conversation into a handoff doc for a fresh agent.
+- **[caveman](docs/skills-reference.md#caveman)** — ultra-compressed output mode; drops filler, keeps technical accuracy.
 
 ## Layout
 
