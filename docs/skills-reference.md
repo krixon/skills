@@ -211,4 +211,18 @@ They differ only by what they look for:
 
 **Example.** `/caveman` — or "talk like caveman" / "be brief".
 
+**Persist across sessions.** Caveman's active marker is session-scoped, so it ends with the session. To start every session in caveman, add a `SessionStart` hook that arms it — in `.claude/settings.local.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "\"${CLAUDE_PROJECT_DIR}/skills/caveman/scripts/caveman-state.sh\" on" } ] }
+    ]
+  }
+}
+```
+
+Each session re-arms its own marker; say "stop caveman" to drop it for the current session, or remove the hook to stop arming new ones.
+
 **Chains to.** Terminal — a persistent output mode, not a workflow step.
