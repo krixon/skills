@@ -61,7 +61,7 @@ Work in a worktree on its own branch — never the repo-root checkout (see [../.
 
 Infer the kind from the brief's target when it isn't stated. Drive the implementation skill with the brief: its acceptance criteria are the behaviors to satisfy, its interfaces are the seams.
 
-**Delegation (window hygiene — see [../DELEGATION.md](../DELEGATION.md)).** On the **AFK** path, run the implementation skill as a subagent; per the contract's standing terse-return rule it returns the smallest sufficient reference — the PR number/URL, not its diff — which is what keeps `pickup`'s window bounded across the whole loop. On the **HITL** path, run it inline so you can drive it, and background its noisy test/log output rather than letting it accumulate.
+**Delegation (window hygiene).** On the **AFK** path, run the implementation skill as a subagent; per the contract's standing terse-return rule it returns the smallest sufficient reference — the PR number/URL, not its diff — which keeps `pickup`'s window bounded across the loop. On the **HITL** path, delegate by *where* the judgment step sits, not by the label: front-loaded and end-of-run judgment delegate the mechanical implementation, continuous pairing stays inline (background its noisy output). [../DELEGATION.md](../DELEGATION.md) → `pickup` carries the three cases and why the cut falls there.
 
 **Resuming a PR sent back for changes.** If you arrived here from a PR with review activity (step 1), don't start fresh: check out its existing branch, and read the review (see [../GITHUB.md](../GITHUB.md) → *Read the review*) as an **addendum** to the original brief — the brief's acceptance criteria still hold, the review is the delta.
 
