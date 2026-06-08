@@ -18,10 +18,10 @@ Issues and PRs live in GitHub; [../GITHUB.md](../GITHUB.md) is the binding — t
 - **Next ready** — no argument, take **rework before new work**:
   1. **Rework** — an open PR you own, by either check, in priority order:
      - **Changes requested or unresolved thread** (the rework and unresolved-thread queries — see [../GITHUB.md](../GITHUB.md)). The unresolved-thread half catches a review that carries only questions — a comment-only review never registers as changes requested, but its open thread still needs you. **Actionable when a thread is still unresolved, or — for a review with changes requested and no thread — when the review postdates HEAD.** A thread-less review you have pushed past is delivered and awaiting re-review; a threaded one stays actionable until you resolve each thread as you address it (step 5).
-     - **Conflicting against the base** (the conflicting query — see [../GITHUB.md](../GITHUB.md)), evaluated **last**. The base moved and the branch no longer replays cleanly. **Always actionable** while it reports conflicting — no thread or timestamp to clear; the rebase-and-resolve flow (step 5) clears it.
+     - **Conflicting against the base** (the conflicting query — see [../GITHUB.md](../GITHUB.md)), evaluated **last**. The base moved and the branch no longer replays cleanly. **Always actionable** while it reports conflicting — no thread or timestamp to clear; the rebase-and-resolve flow (step 5) clears it. Judge it from a **current** mergeability check, not a stale one: a since-landed sibling PR can leave an earlier reading showing the branch clean when it now conflicts ([../GITHUB.md](../GITHUB.md) → *Find conflicting* carries how to get a settled reading).
 
      Resume the oldest actionable one via *Resuming a PR sent back for changes* (step 5).
-  2. **New work** — otherwise query issues labelled `ready-for-agent` and not `in-progress`, then `ready-for-human` and not `in-progress`, oldest first.
+  2. **New work** — only once **no** open owned PR is in rework, the conflicting check made against a current mergeability per the trigger above: a stale reading hides a PR that needs rebasing and sends you straight past it. Then query issues labelled `ready-for-agent` and not `in-progress`, then `ready-for-human` and not `in-progress`, oldest first.
 
   Confirm which you're taking unless running unattended.
 
