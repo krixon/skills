@@ -1,6 +1,6 @@
 # 2. Release policy
 
-Status: Accepted
+Status: Accepted — the release *policy* below stands; its delivery is refined by [0005](0005-dogfood-symlink-farm.md). `release` is now a repo-local skill under `.claude/skills/`, not the distributable `skills/`, and `land` offers the project's `CLAUDE.md`-documented release process rather than naming `/release` directly. Read the "`land` surfaces `/release`" mechanism below through that lens.
 
 ## Context
 

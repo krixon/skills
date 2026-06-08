@@ -1,0 +1,1 @@
+../../skills/GRILL-METHOD.md

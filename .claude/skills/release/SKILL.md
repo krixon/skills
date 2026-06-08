@@ -34,7 +34,7 @@ Present the derived version and the material changes it covers, then wait for co
 
 ### 4. Apply the bump
 
-On confirmation, do the whole thing in a worktree — the repo-root checkout is never touched (see [../../ISOLATION.md](../../ISOLATION.md)):
+On confirmation, do the whole thing in a worktree — the repo-root checkout is never touched (see [../../../ISOLATION.md](../../../ISOLATION.md)):
 
 1. **Sync.** `git fetch origin`. The bump must build on the current tip; if `main` moved since you derived the range, re-derive (step 1) rather than tagging a stale tip.
 2. **Worktree.** `git worktree add .claude/worktrees/release-v<new> -b chore/release-v<new> origin/main`.
@@ -42,7 +42,7 @@ On confirmation, do the whole thing in a worktree — the repo-root checkout is 
 4. Commit: `chore(release): v<new>`.
 5. Annotated tag on that commit: `git tag -a v<new> -m "v<new>"`.
 6. Push the bump and tag to `main` in one step: `git push origin HEAD:main --follow-tags` (a fast-forward, since the branch is based on `origin/main`). **If the push is rejected** — branch protection, or `main` moved under you — do **not** force it: tear the worktree down (step 7) and tell the maintainer. A `main` that rejects a direct push can't take a release this way.
-7. **Tear down** per [../../ISOLATION.md](../../ISOLATION.md): `git worktree remove .claude/worktrees/release-v<new>`, then `git branch -D chore/release-v<new>`. No remote branch was created, so there's nothing to prune.
+7. **Tear down** per [../../../ISOLATION.md](../../../ISOLATION.md): `git worktree remove .claude/worktrees/release-v<new>`, then `git branch -D chore/release-v<new>`. No remote branch was created, so there's nothing to prune.
 
 `.claude-plugin/marketplace.json` has no version field and is **not** touched.
 

@@ -149,17 +149,7 @@ They differ only by what they look for:
 
 **Example.** `/land` — or "land the approved PRs".
 
-**Chains to.** Terminal — the work is merged and the trail is clean. After a merge it offers `release` when material changes have accrued.
-
-### release
-
-**What it does.** Cuts a batched plugin version release: derives the bump from the Conventional-Commit types landed since the last `v*` tag, bumps `plugin.json`, and pushes the bump plus an annotated `v<new>` tag to `main` from a worktree. Human-invoked only.
-
-**When to reach for it.** Material changes have accumulated on `main` and you want to publish a version. `land` offers this after a merge once enough has landed.
-
-**Example.** `/release` — or accept the offer `land` surfaces ("3 material changes since v0.1.0 — cut a release?").
-
-**Chains to.** Terminal — the release is cut.
+**Chains to.** Terminal — the work is merged and the trail is clean. After a merge it offers the project's release process, when the project's `CLAUDE.md` documents one.
 
 ## Meta & session
 
