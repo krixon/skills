@@ -39,7 +39,7 @@ The readiness label is the autonomy contract:
 Claim by **creating the issue's branch ref first** — before the labels, before any code. The branch name is the deterministic one `pickup` derives per [../../ISOLATION.md](../../ISOLATION.md), and the create is the claim of record because it is atomic: creating a ref that already exists is rejected (see [../GITHUB.md](../GITHUB.md) → *Concurrency claims*), and that rejection *is* the coordination.
 
 - **Ref created** → the claim is held. Only now set `in-progress` and self-assign — the human-visible signal per [../../CONCURRENCY.md](../../CONCURRENCY.md), bound in [../GITHUB.md](../GITHUB.md). The label and assignee follow the ref; they don't arbitrate.
-- **`422` (ref exists)** → a lost claim. **Yield silently** — skip this issue and take the next ready one (step 1). A lost claim is clean: no labels were touched, nothing to roll back, no thrash, no wall.
+- **Ref already exists** (the create is rejected) → a lost claim. **Yield silently** — skip this issue and take the next ready one (step 1). A lost claim is clean: no labels were touched, nothing to roll back, no thrash, no wall.
 
 **Keep the `ready-for-agent`/`ready-for-human` label** once you've claimed: it's the durable autonomy decision, and a later rework round (a PR sent back for changes) reads it to know whether the rework is AFK-safe.
 
