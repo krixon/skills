@@ -95,7 +95,7 @@ The two coordination mechanics in [CONCURRENCY.md](CONCURRENCY.md), bound to Git
 - **Read who holds it** — the assignees field: `gh issue view <n> --json assignees --jq '.assignees[].login'`; empty means unclaimed.
 - **Read since when** — the most recent timeline `assigned` event's `created_at`: `gh api repos/{owner}/{repo}/issues/<n>/timeline --jq '[.[] | select(.event == "assigned")][-1].created_at'`. The event also carries `actor` (who assigned) and `assignee` (who was claimed).
 
-**Branch-ref create as CAS** — the natural compare-and-swap at a commit site: `gh api -X POST repos/{owner}/{repo}/git/refs -f ref=refs/heads/<branch> -f sha=<sha>` creates the branch ref, and returns `422 Reference already exists` when another session created it first. The lost-claim signal is delivered by the write itself — no read-then-write window to race. Tag pushes arbitrate the same way; `release` relies on it.
+**Branch-ref create as CAS** — the natural compare-and-swap at a commit site: `gh api -X POST repos/{owner}/{repo}/git/refs -f ref=refs/heads/<branch> -f sha=<sha>` creates the branch ref, and returns `422 Reference already exists` when another session created it first. The lost-claim signal is delivered by the write itself — no read-then-write window to race. Tag pushes arbitrate the same way.
 
 ## PR identity
 

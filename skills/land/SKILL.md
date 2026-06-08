@@ -78,6 +78,6 @@ Hand off per [../HANDOVER.md](../HANDOVER.md). End an interactive run by renderi
 
 - **artifact:** merged PRs — issues closed and de-labelled, branches and worktrees cleaned
 - **default:** — (terminal; the work is merged and the trail is clean)
-- **alternatives:** `release`, surfaced only when material commits (`feat fix refactor perf`, or a breaking change) have landed since the last `v*` tag — shown with a count (e.g. *"3 material changes since v0.1.0 — cut a release?"*); otherwise just `stop`
+- **alternatives:** the project's **release process**, surfaced only when the project's `CLAUDE.md` documents one — offered after a land so accumulated changes can be versioned. Discover it from the in-context `CLAUDE.md`; never hunt the tree for a release command or infer one (`make release`, `npm publish`, …), since triggering the wrong publish is destructive. The documented process owns whether anything is worth releasing. Otherwise just `stop`
 
-**Interactive-only** (per [../HANDOVER.md](../HANDOVER.md)) — merging is the human-authorised act `auto` must not take, and the implement loop halts before it. The conditional `release` alternative does not change this: cutting a release is its own human-invoked act, never reached unattended.
+**Interactive-only** (per [../HANDOVER.md](../HANDOVER.md)) — merging is the human-authorised act `auto` must not take, and the implement loop halts before it. The conditional release-process alternative does not change this: cutting a release is its own human-invoked act, never reached unattended.
