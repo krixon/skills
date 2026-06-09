@@ -73,13 +73,26 @@ is_pr_create() {
   return 1
 }
 
-if is_pr_create "$@" && [ -z "${GH_TOKEN:-}" ]; then
-  printf '%s\n' "Open the PR as the ${bot} account, not the logged-in account — GitHub forbids approving your own PR, so the author cannot also be the approver. Re-run supplying ${bot}'s token, which switches identity for this one command only:
+if is_pr_create "$@"; then
+  # Distinguish unset from set-but-empty: the latter means $GITHUB_BOT_TOKEN_CMD
+  # likely produced no output (a keychain miss exits 0 with empty stdout, so the
+  # documented `GH_TOKEN=$(eval "$GITHUB_BOT_TOKEN_CMD")` pattern silently sets
+  # GH_TOKEN="" and would otherwise fall back to the maintainer's gh auth).
+  if [ -z "${GH_TOKEN+x}" ]; then
+    printf '%s\n' "Open the PR as the ${bot} account, not the logged-in account — GitHub forbids approving your own PR, so the author cannot also be the approver. Re-run supplying ${bot}'s token, which switches identity for this one command only:
 
   GH_TOKEN=<token for ${bot}> gh pr create …
 
 (This check is active because GITHUB_BOT_ACCOUNT=${bot}.)" >&2
-  exit 1
+    exit 1
+  elif [ -z "$GH_TOKEN" ]; then
+    printf '%s\n' "GH_TOKEN is set but empty — \$GITHUB_BOT_TOKEN_CMD produced no token, so the call would fall back to the logged-in account's auth. Run the token command directly and check why it returned nothing:
+
+  $GITHUB_BOT_TOKEN_CMD
+
+A common cause is a missing or unreadable keychain entry for ${bot}; add it (or fix its permissions) and retry. This check is active because GITHUB_BOT_ACCOUNT=${bot}." >&2
+    exit 1
+  fi
 fi
 
 # pr create WITH a token, every non-create command (even with the phrase in its
