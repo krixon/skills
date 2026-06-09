@@ -185,7 +185,7 @@ They differ only by what they look for:
 
 ### handoff
 
-**What it does.** Compacts the current conversation into a handoff document a fresh agent can pick up, saved to the OS temp directory. It references existing artifacts (epics, plans, ADRs, issues, diffs) by path rather than duplicating them, and lists the skills the next agent should invoke.
+**What it does.** Compacts the current conversation into a handoff document a fresh agent can pick up, saved to the OS temp directory. It references existing artifacts (epics, plans, ADRs, issues, diffs) by path rather than duplicating them, and lists the skills the next agent should invoke. After writing the doc it offers to persist the session's durable learnings — standing facts about the user, the project, or how to work — to the harness memory mechanism, deduped against existing memories and saved only on the user's pick; with no memory mechanism the step is skipped.
 
 **When to reach for it.** You're wrapping up a session and want continuity for whoever — or whatever — picks the work up next.
 
