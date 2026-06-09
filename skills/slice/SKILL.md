@@ -84,12 +84,20 @@ If a prototype produced a snippet that encodes a decision more precisely than pr
 
 A multi-part parent is a lean **epic**, not a heavyweight document: goal, out-of-scope, and the child list, nothing more. Create it (see [../GITHUB.md](../GITHUB.md) → *Issues*) with the body template below and the **`epic`** label plus the category label (`enhancement` / `bug`). The epic carries **no readiness label** — it isn't actionable as-is; its children carry the `ready-for-agent` / `ready-for-human` labels. Write its prose per [../../WRITING.md](../../WRITING.md) → *Docs*: task-first, declarative, no marketing tone. The child list is realized as native sub-issues (below), so the body's child list is a plain summary, not the source of truth for the relation.
 
+When the chain ran through `discover`, its framing block is in the conversation context — `discover` persists nothing itself, so the epic is where the framing's product-intent fields land for the whole change. **Only when that framing block is present**, carry three of its fields into the epic body: success signal, user/segment, and why-over-alternatives. The success signal is the validation criterion for the whole epic, and the epic is its durable home. **When no framing block exists** — `slice` invoked directly, or from a plan with no discovery — omit the three fields entirely; never emit them as empty placeholders.
+
 <epic-template>
 ## Epic
 
 **Goal:** what the whole change delivers, from the user's perspective — one or two sentences
 **Out of scope:** what this epic does NOT cover
 **Children:** a short summary line per slice (the authoritative relation is the native sub-issue link)
+
+Include the three fields below only when a `discover` framing block is present upstream; omit them entirely otherwise.
+
+**Success signal:** the observable that says the change worked — the validation criterion for the epic
+**User/segment:** the specific people the change serves
+**Why this over alternatives:** build/buy/workaround, and why this one
 
 </epic-template>
 

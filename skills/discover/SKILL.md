@@ -36,7 +36,7 @@ Name the signal that says this worked — observable, and ideally measurable. "H
 
 ## The framing block
 
-End a converged run by emitting one compact framing block — the baton this skill hands forward. Persist it nowhere; it lives in the conversation and is passed to `design` as its input argument. Keep it tight:
+End a converged run by emitting one compact framing block — the baton this skill hands forward. `discover` persists nothing itself: the block lives in the conversation and is passed to `design` as its input argument. When the chain reaches `slice` and publishes an epic, `slice` is what persists the framing's product-intent fields into the epic body — so the framing does have a durable home downstream, just not one `discover` writes. Keep it tight:
 
 - **Problem** — what's wrong and who hits it.
 - **User/segment** — the specific people it serves.
