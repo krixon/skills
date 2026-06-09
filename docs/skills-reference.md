@@ -70,7 +70,7 @@ Each entry names its default handover hop — the recommended next skill — on 
 
 ## Audits
 
-The eight `audit-*` skills are one method applied through eight risk lenses. Each is a static-first sweep — it reasons from the code, tests, and prose already in the tree, never requiring an instrumented run or a scanner (the shared method is in [skills/AUDIT-METHOD.md](../skills/AUDIT-METHOD.md)). Each maps risk through its lens, scores observations into findings carrying a severity and confidence, and hands them off identically: findings → `capture` → `needs-triage` → `triage`. None files issues itself.
+The nine `audit-*` skills are one method applied through nine risk lenses. Each is a static-first sweep — it reasons from the code, tests, and prose already in the tree, never requiring an instrumented run or a scanner (the shared method is in [skills/AUDIT-METHOD.md](../skills/AUDIT-METHOD.md)). Each maps risk through its lens, scores observations into findings carrying a severity and confidence, and hands them off identically: findings → `capture` → `needs-triage` → `triage`. None files issues itself.
 
 They differ only by what they look for:
 
@@ -84,6 +84,7 @@ They differ only by what they look for:
 | `audit-resource-leak` | resources acquired without a guaranteed release on every path — handles, connections, contexts, locks |
 | `audit-debt` | in-code debt markers — `TODO`/`FIXME`/`HACK`/`XXX` and the project's own known shortcuts, clustered by area |
 | `audit-observability` | critical paths running blind — money, auth, data mutation, or external calls with no log, metric, or trace at any layer |
+| `audit-performance` | performance hazards on hot paths — N+1 data access, per-iteration allocation or IO in loops, unbounded reads, missing caching or indexing, blocking in async contexts |
 
 **Example.** `/audit-coverage src/billing` — sweep the billing module for untested high-risk paths and surface each as a finding.
 
