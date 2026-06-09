@@ -185,13 +185,13 @@ They differ only by what they look for:
 
 ### handoff
 
-**What it does.** Compacts the current conversation into a handoff document a fresh agent can pick up, saved to the OS temp directory. It references existing artifacts (epics, plans, ADRs, issues, diffs) by path rather than duplicating them, and lists the skills the next agent should invoke.
+**What it does.** Carries work across a session boundary in two modes detected from the session, not flagged. Write mode compacts the conversation into a handoff doc and persists it to a well-known per-project location (`.claude/handoffs/`, one timestamped doc per handoff, gitignored by default); it references existing artifacts (epics, plans, ADRs, issues, diffs) by path rather than duplicating them, and lists the skills the next agent should invoke. Resume mode — a fresh session with no prior context — discovers pending docs at that location, offers the latest (or lists all for a choice), loads the chosen one as working context, and marks it consumed so it's never re-offered.
 
-**When to reach for it.** You're wrapping up a session and want continuity for whoever — or whatever — picks the work up next.
+**When to reach for it.** You're wrapping up a session and want continuity for whoever — or whatever — picks the work up next; or you're starting fresh and want to resume where the last session left off, without pasting a path.
 
-**Example.** `/handoff continue wiring the rate-limiter into the upload path`.
+**Example.** `/handoff continue wiring the rate-limiter into the upload path` (write); `/handoff` in a fresh session (resume).
 
-**Chains to.** Terminal — the next agent reads the doc.
+**Chains to.** Terminal — interactive-only, so `auto` never enters it. Write hands to a future session; resume hands to the doc's suggested skills.
 
 ### caveman
 

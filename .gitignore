@@ -1,3 +1,4 @@
 .claude/*.lock
 .claude/settings.local.json
 .claude/worktrees/
+.claude/handoffs/

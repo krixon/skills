@@ -55,7 +55,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 | Write a new skill | `/write-skill` | scaffolds structure + progressive disclosure |
 | Run a whole pipeline unattended | `/auto <skill>` (e.g. `/auto audit-coverage`) | walks the chain head-down, halting at the first human gate |
 | Drain the whole `ready-for-agent` queue unattended | `/loop /auto pickup` (no interval) | picks up each ready issue in turn, then polls on a backoff for more — see [Draining the queue unattended](#draining-the-queue-unattended) |
-| Hand off the session to a fresh agent | `/handoff` | a compact handoff doc the next agent picks up |
+| Hand off the session to a fresh agent | `/handoff` | a compact handoff doc persisted to a well-known location; a fresh session's `/handoff` discovers and resumes it with no pasted path |
 
 ## Draining the queue unattended
 
@@ -99,7 +99,7 @@ Each skill below links to its fuller entry in the [skills reference](docs/skills
 - **[auto](docs/skills-reference.md#auto)** — run a skill workflow unattended, walking the handover chain until the first human gate.
 - **[write-skill](docs/skills-reference.md#write-skill)** — author new skills with proper structure and progressive disclosure.
 - **[zoom-out](docs/skills-reference.md#zoom-out)** — map the relevant modules and callers a layer up, in the project's established vocabulary.
-- **[handoff](docs/skills-reference.md#handoff)** — compact the conversation into a handoff doc for a fresh agent.
+- **[handoff](docs/skills-reference.md#handoff)** — compact the conversation into a handoff doc at a well-known location for a fresh agent; a fresh session's `/handoff` discovers and resumes the latest pending doc.
 - **[caveman](docs/skills-reference.md#caveman)** — ultra-compressed output mode; drops filler, keeps technical accuracy.
 
 ## Layout
