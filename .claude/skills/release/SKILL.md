@@ -32,6 +32,10 @@ Suggest the bump; never apply it silently:
 
 Present the derived version and the material changes it covers, then wait for confirmation. A version passed as the argument overrides the derived bump (still confirmed).
 
+### 3a. Render the release notes
+
+From the **same** parsed commit set — no second scan over the range — render grouped notes. Group by Conventional-Commit type in fixed order: breaking changes first (any `!` / `BREAKING CHANGE`), then `feat`, then `fix`, then `docs`, then the remaining types. One line per commit, the line being its subject with the scope preserved (`fix(pickup): …`); no bodies, no hashes. These notes are the annotated tag's message body, and the body of the GitHub release offered in step 7.
+
 ### 4. Apply the bump
 
 On confirmation, do the whole thing in a worktree — the repo-root checkout is never touched (see [../../../ISOLATION.md](../../../ISOLATION.md)):
@@ -40,9 +44,10 @@ On confirmation, do the whole thing in a worktree — the repo-root checkout is 
 2. **Worktree.** `git worktree add .claude/worktrees/release-v<new> -b chore/release-v<new> origin/main`.
 3. In that worktree, edit `.claude-plugin/plugin.json` `version` to the new value.
 4. Commit: `chore(release): v<new>`.
-5. Annotated tag on that commit: `git tag -a v<new> -m "v<new>"`.
-6. Push the bump and tag to `main` in one step: `git push origin HEAD:main --follow-tags` (a fast-forward, since the branch is based on `origin/main`). **If the push is rejected** — branch protection, or `main` moved under you — do **not** force it: tear the worktree down (step 7) and tell the maintainer. A `main` that rejects a direct push can't take a release this way.
-7. **Tear down** per [../../../ISOLATION.md](../../../ISOLATION.md): `git worktree remove .claude/worktrees/release-v<new>`, then `git branch -D chore/release-v<new>`. No remote branch was created, so there's nothing to prune.
+5. Annotated tag on that commit, its message being the step-3a notes under a `v<new>` heading. Pass the message on a file so the grouped lines survive intact: `git tag -a v<new> -F <notes-file>` (or `-F -` from stdin). The subject line of the message is `v<new>`; the notes follow.
+6. Push the bump and tag to `main` in one step: `git push origin HEAD:main --follow-tags` (a fast-forward, since the branch is based on `origin/main`). **If the push is rejected** — branch protection, or `main` moved under you — do **not** force it: tear the worktree down (step 8) and tell the maintainer. A `main` that rejects a direct push can't take a release this way.
+7. **Offer the GitHub release.** Once the tag is pushed, offer to publish a GitHub release for `v<new>` carrying the step-3a notes (the command is in [../../../skills/GITHUB.md](../../../skills/GITHUB.md) → *Releases*). Offered, not automatic — `release` is human-invoked, so the publish is a separate yes. Declining skips it with no error; the tag and bump already stand on `main`.
+8. **Tear down** per [../../../ISOLATION.md](../../../ISOLATION.md): `git worktree remove .claude/worktrees/release-v<new>`, then `git branch -D chore/release-v<new>`. No remote branch was created, so there's nothing to prune.
 
 `.claude-plugin/marketplace.json` has no version field and is **not** touched.
 
@@ -50,7 +55,7 @@ On confirmation, do the whole thing in a worktree — the repo-root checkout is 
 
 Per [../HANDOVER.md](../HANDOVER.md). End an interactive run by rendering this row as one `AskUserQuestion`.
 
-- **artifact:** a released version — bumped `plugin.json` and an annotated `v<new>` tag on `main`
+- **artifact:** a released version — bumped `plugin.json` and an annotated `v<new>` tag on `main` carrying grouped release notes, optionally with a GitHub release for the tag
 - **default:** — (terminal; the release is cut)
 - **alternatives:** stop
 
