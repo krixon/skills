@@ -44,7 +44,7 @@ A one-line doc or comment fix needs only the writing pass; don't spawn heavyweig
 
 ### 4. Open the PR
 
-Commit (per [../../WRITING.md](../../WRITING.md)), push, open a PR **as the bot, not your active account** ([../GITHUB.md](../GITHUB.md) → *PR identity*). Lead the body with a marker declaring the absence of an issue, where an issue-driven PR would carry a closing reference to its issue:
+Commit (per [../../WRITING.md](../../WRITING.md)), push, open a PR **as the configured bot identity when one is set** ([../GITHUB.md](../GITHUB.md) → *PR identity* — unconfigured, your normal identity applies). Lead the body with a marker declaring the absence of an issue, where an issue-driven PR would carry a closing reference to its issue:
 
 ```
 No-issue: <one-line reason this ships without a tracked issue>
