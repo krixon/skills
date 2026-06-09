@@ -93,8 +93,6 @@ When the chain ran through `discover`, its framing block is in the conversation 
 **Out of scope:** what this epic does NOT cover
 **Children:** a short summary line per slice (the authoritative relation is the native sub-issue link)
 
-Include the three fields below only when a `discover` framing block is present upstream; omit them entirely otherwise.
-
 **Success signal:** the observable that says the change worked — the validation criterion for the epic
 **User/segment:** the specific people the change serves
 **Why this over alternatives:** build/buy/workaround, and why this one
