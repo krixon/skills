@@ -70,6 +70,13 @@ run "passthrough: bot set, pr create, token supplied" \
     0 "REAL_GH_CALLED: pr create" "" \
     GITHUB_BOT_ACCOUNT=example-bot GH_TOKEN=x -- pr create --fill
 
+# 2a. bot set, `pr create`, GH_TOKEN set but EMPTY -> BLOCKED with the
+#     token-cmd-failed message (covers the silent-fallback case where
+#     $GITHUB_BOT_TOKEN_CMD produced no output).
+run "blocked: bot set, pr create, GH_TOKEN empty" \
+    1 "GH_TOKEN is set but empty" "REAL_GH_CALLED" \
+    GITHUB_BOT_ACCOUNT=example-bot GH_TOKEN= -- pr create --fill
+
 # 3. bot UNSET, `pr create`, no token -> passthrough (inert).
 run "inert: bot unset, pr create" \
     0 "REAL_GH_CALLED: pr create" "" \

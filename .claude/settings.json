@@ -1,5 +1,6 @@
 {
   "env": {
+    "PATH": "${CLAUDE_PROJECT_DIR}/bin:${PATH}",
     "GITHUB_BOT_ACCOUNT": "krixon-bot",
     "GITHUB_BOT_TOKEN_CMD": "security find-generic-password -s krixon-bot -w"
   },
