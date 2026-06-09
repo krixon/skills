@@ -139,6 +139,12 @@ These cover landing an approved PR:
 - **Merge a PR**: `gh pr merge <n> --squash --delete-branch`. Squash is the default; use `--rebase` only when the branch has genuinely separable logical seams, after reducing to just those commits. The repo does **not** auto-delete the remote branch on merge, so `--delete-branch` removes it; git refuses to delete a branch checked out in a worktree at merge time, so the local branch persists until the worktree is torn down. The PR's closing reference closes the linked issue as the merge lands.
 - **Confirm the closing reference** resolved to the issue: `gh pr view <n> --json closingIssuesReferences`.
 
+## Releases
+
+`release` pushes an annotated `v<new>` tag, then offers to publish a GitHub release for it. The release is an outward, human-visible write, so it goes under the bot identity like a PR (see *PR identity*); the notes are the same grouped commit summary `release` writes into the tag message.
+
+- **Publish a release for a tag** — pass the notes out-of-band on stdin, never as a literal field (an embedded `$(…)` or backtick in a subject must not execute): `GH_TOKEN=$(eval "$GITHUB_BOT_TOKEN_CMD") gh release create v<new> --title "v<new>" --notes-file -` reading the notes from stdin — drop the `GH_TOKEN` prefix when `GITHUB_BOT_ACCOUNT` is unset. The tag already exists on `main`, so `gh` attaches the release to it rather than creating a new tag.
+
 ## Review threads (questions)
 
 A review can carry *questions* aimed at the agent, not change requests — usually a `COMMENT`-state review, so `reviewDecision` stays null and the **unresolved thread** is the signal. `pickup` triggers rework on "changes requested **or** any unresolved thread", hands questions to `field`, and resolves each thread as it posts the answer (see [pickup/SKILL.md](pickup/SKILL.md)).
