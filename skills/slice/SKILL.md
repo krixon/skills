@@ -8,13 +8,13 @@ argument-hint: "[plan, conversation, or issue to slice]"
 
 Turn a plan, the current conversation context, or an existing issue into independently-grabbable agent-brief issues using vertical slices (tracer bullets). Synthesize from what you already know — do NOT interview the user.
 
-Issues live in GitHub; [../GITHUB.md](../GITHUB.md) is the binding — the concepts, commands, and label list.
+Issue mechanics route through [../ISSUES.md](../ISSUES.md), which selects the tracker binding — the concepts, commands, and label list.
 
 ## Process
 
 ### 1. Gather context
 
-Work from whatever is already in the conversation context. If the user passes an issue reference (issue number, URL, or path) as an argument, fetch it (see [../GITHUB.md](../GITHUB.md) → *Issues*) and read its full body and comments. Synthesize the change from this context and your codebase understanding; don't interview the user for it.
+Work from whatever is already in the conversation context. If the user passes an issue reference (issue id, URL, or path) as an argument, fetch it (see [../ISSUES.md](../ISSUES.md) → *Issues*) and read its full body and comments. Synthesize the change from this context and your codebase understanding; don't interview the user for it.
 
 ### 2. Explore the codebase (optional)
 
@@ -49,17 +49,17 @@ Ask the user:
 
 Iterate until the user approves the breakdown.
 
-### 5. Publish the issues to GitHub
+### 5. Publish the issues
 
 Branch on the breakdown shape.
 
 **Single slice, source was an existing issue.** Slicing was a no-op — it didn't decompose anything, and a lone new issue would only duplicate the source. Create nothing. Carry the original source issue forward as the result and hand it to the next hop as if it were the slice output, telling the user the run was a no-op.
 
-**Single slice, source was conversation context or a plan.** There is nothing to duplicate — emit one agent-brief issue (create it — see [../GITHUB.md](../GITHUB.md) → *Issues*) using the body template below, with no parent and no blockers. Label by the AFK/HITL decision in [../contracts/agent-brief.md](../contracts/agent-brief.md). Carry it forward to the next hop.
+**Single slice, source was conversation context or a plan.** There is nothing to duplicate — emit one agent-brief issue (create it — see [../ISSUES.md](../ISSUES.md) → *Issues*) using the body template below, with no parent and no blockers. Label by the AFK/HITL decision in [../contracts/agent-brief.md](../contracts/agent-brief.md). Carry it forward to the next hop.
 
 **Two or more slices.** Publish a lean **epic** parent plus a child agent-brief issue per slice.
 
-For each child slice, create an issue (see [../GITHUB.md](../GITHUB.md) → *Issues*). Use the issue body template below. Label by the AFK/HITL decision in [../contracts/agent-brief.md](../contracts/agent-brief.md). Publish children in dependency order (blockers first) so a blocked slice's blockers already exist when you record the dependency.
+For each child slice, create an issue (see [../ISSUES.md](../ISSUES.md) → *Issues*). Use the issue body template below. Label by the AFK/HITL decision in [../contracts/agent-brief.md](../contracts/agent-brief.md). Publish children in dependency order (blockers first) so a blocked slice's blockers already exist when you record the dependency.
 
 The child's body is the **agent brief** alone — `pickup` reads it origin-blind, the same shape it gets from a triage-promoted issue. Follow the brief in [../contracts/agent-brief.md](../contracts/agent-brief.md) (behavioral, durable, no file paths). Parent and blocked by links are native relations, not body prose; record them after creating the issue (below).
 
@@ -82,7 +82,7 @@ If a prototype produced a snippet that encodes a decision more precisely than pr
 
 #### The epic parent
 
-A multi-part parent is a lean **epic**, not a heavyweight document: goal, out-of-scope, and the child list, nothing more. Create it (see [../GITHUB.md](../GITHUB.md) → *Issues*) with the body template below and the **`epic`** label plus the category label (`enhancement` / `bug`). The epic carries **no readiness label** — it isn't actionable as-is; its children carry the `ready-for-agent` / `ready-for-human` labels. Write its prose per [../../WRITING.md](../../WRITING.md) → *Docs*: task-first, declarative, no marketing tone. The child list is realized as native sub-issues (below), so the body's child list is a plain summary, not the source of truth for the relation.
+A multi-part parent is a lean **epic**, not a heavyweight document: goal, out-of-scope, and the child list, nothing more. Create it (see [../ISSUES.md](../ISSUES.md) → *Issues*) with the body template below and the **`epic`** label plus the category label (`enhancement` / `bug`). The epic carries **no readiness label** — it isn't actionable as-is; its children carry the `ready-for-agent` / `ready-for-human` labels. Write its prose per [../../WRITING.md](../../WRITING.md) → *Docs*: task-first, declarative, no marketing tone. The child list is realized as native sub-issues (below), so the body's child list is a plain summary, not the source of truth for the relation.
 
 When the chain ran through `discover`, its framing block is in the conversation context — `discover` persists nothing itself, so the epic is where the framing's product-intent fields land for the whole change. **Only when that framing block is present**, carry three of its fields into the epic body: success signal, user/segment, and why-over-alternatives. The success signal is the validation criterion for the whole epic, and the epic is its durable home. **When no framing block exists** — `slice` invoked directly, or from a plan with no discovery — omit the three fields entirely; never emit them as empty placeholders.
 
@@ -101,7 +101,7 @@ When the chain ran through `discover`, its framing block is in the conversation 
 
 #### Link the slices
 
-**Link each child with native relations** (commands in [../GITHUB.md](../GITHUB.md) → *Issue relations*):
+**Link each child with native relations** (commands in [../ISSUES.md](../ISSUES.md) → *Issue relations*):
 
 - **Parent** — make each child a sub-issue of the parent epic.
 - **Blocked by** — record each blocking slice as a blocked by dependency on the blocked child. Publishing blockers first guarantees the blocker exists when you write the dependency.

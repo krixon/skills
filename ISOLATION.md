@@ -12,7 +12,10 @@ One branch per issue or task, in its own worktree. Name it `<kind>/<issue>-<slug
 
 - `fix/142-null-deref-on-empty-cart`
 - `feat/87-csv-export`
+- `feat/PROJ-42-csv-export`
 - `chore/bump-eslint`
+
+`<issue>` is the tracker's opaque issue id, which a selection site reads back out of the branch name. It is not always numeric: a `github` tracker keys on integers (`142`), a project-keyed tracker on a prefixed id (`PROJ-42`). Match both shapes — `\d+` and `[A-Z]+-\d+` — wherever a selection site extracts the id from a branch.
 
 Kinds: `feat fix chore docs refactor`. Pick the kind from the artifact, not the mood — a bug fix is `fix`, a new behavior is `feat`, a pure restructure is `refactor`.
 

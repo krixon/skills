@@ -40,6 +40,8 @@ Cut versioned releases with the repo-local `release` skill (`/release`): it deri
 
 Issues and PRs live in GitHub `krixon/skills`. Skills express the workflow in tracker-neutral concepts; `skills/GITHUB.md` is the single file that names GitHub — the concepts, commands, and literal label list (ADR 0004). **Before you type `gh` in a `SKILL.md`, stop** — that command belongs in `skills/GITHUB.md`; the skill names the concept and links there. The literal invocation lives in one file, and everywhere else points to it. (Point-of-action form of the ADR 0004 rule: it fires at the token where the violation happens, not as a principle to recall.)
 
+Skills reach *issue* mechanics through `skills/ISSUES.md`, the tracker selector — never linking a tracker binding directly for issue work. The `SKILL_TRACKER` env var names the binding (default `github`), routing to the issue sections of `skills/GITHUB.md`. PR, branch, tag, and review-thread mechanics live in `skills/GITHUB.md` regardless of the issue tracker.
+
 ### Domain docs
 
 Skills ground in whatever documentation a project already has, discovered through the in-context project `CLAUDE.md` — they impose no layout, taxonomy, or methodology. They use the project's established vocabulary, respect its recorded decisions, and surface conflicts; with nothing documented, they proceed silently. The one artifact a skill persists to the repo is an ADR, offered sparingly on the three-criteria gate and following the project's lead. This repo records its own decisions under `docs/adr/`.

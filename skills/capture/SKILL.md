@@ -8,7 +8,7 @@ argument-hint: "[findings to capture, or leave blank to use conversation context
 
 Turn **findings** into `needs-triage` issues. A pure sink — it never audits the codebase itself. It consumes findings that already exist (from an audit skill, or flagged by the user in conversation) and feeds them to the **front** of the triage pipeline. It does not write agent briefs, set `ready-for-*`, or decompose work — `triage` promotes from `needs-triage`, and `slice` handles designed work.
 
-Issues live in GitHub; [../GITHUB.md](../GITHUB.md) is the binding — the concepts, commands, and label list.
+Issue mechanics route through [../ISSUES.md](../ISSUES.md), which selects the tracker binding — the concepts, commands, and label list.
 
 ## What a finding is
 
@@ -25,7 +25,7 @@ If invoked cold with nothing to capture, don't start sweeping — ask what to ca
 
 ### 2. Dedup against open issues — before offering anything
 
-Query open issues (see [../GITHUB.md](../GITHUB.md) → *Issues*) and match each finding against **open** issues by title and `Where`. Drop anything already tracked; never offer the user work that already exists. Flag near-matches so the user decides.
+Query open issues (see [../ISSUES.md](../ISSUES.md) → *Issues*) and match each finding against **open** issues by title and `Where`. Drop anything already tracked; never offer the user work that already exists. Flag near-matches so the user decides.
 
 ### 3. Cluster
 
@@ -41,7 +41,7 @@ This is an internal gate. Run unattended (under `auto`), skip the interactive cu
 
 ### 5. File survivors as `needs-triage`
 
-For each approved finding, create an issue using the body template in [finding format](../contracts/finding.md). Apply **two labels**: `needs-triage`, and the suggested category (`bug` / `enhancement`) — front-loading `triage`'s work; `triage` overrides if the guess is wrong.
+For each approved finding, create an issue (see [../ISSUES.md](../ISSUES.md) → *Issues*) using the body template in [finding format](../contracts/finding.md). Apply **two labels**: `needs-triage`, and the suggested category (`bug` / `enhancement`) — front-loading `triage`'s work; `triage` overrides if the guess is wrong.
 
 Report what was filed, with issue references, and note that `triage` will promote them from here.
 

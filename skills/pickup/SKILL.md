@@ -8,7 +8,7 @@ argument-hint: "[issue # to pick up, or blank for the next ready issue]"
 
 Take a triaged, ready issue and turn it into working code. `pickup` is the bridge from tracker to branch: read the agent brief as the contract, route to the right implementation skill, work on a branch, open a PR. It does not triage, design, or merge.
 
-Issues and PRs live in GitHub; [../GITHUB.md](../GITHUB.md) is the binding — the concepts, commands, and label list.
+Issue mechanics route through [../ISSUES.md](../ISSUES.md), which selects the tracker binding; PR, branch, and review mechanics live in [../GITHUB.md](../GITHUB.md) — the concepts, commands, and label list.
 
 ## Process
 
@@ -25,7 +25,7 @@ Issues and PRs live in GitHub; [../GITHUB.md](../GITHUB.md) is the binding — t
 
   Confirm which you're taking unless running unattended.
 
-**Skip anything blocked.** Read the issue's blocked by dependencies (see [../GITHUB.md](../GITHUB.md) → *Issue relations*). If any blocker is still open, the slice isn't grabbable — skip it and take the next. Skip `in-progress` issues too: already claimed by another run. Refuse anything in `needs-triage` / `needs-info` — not specified yet; send it back to `/triage`.
+**Skip anything blocked.** Read the issue's blocked by dependencies (see [../ISSUES.md](../ISSUES.md) → *Issue relations*). If any blocker is still open, the slice isn't grabbable — skip it and take the next. Skip `in-progress` issues too: already claimed by another run. Refuse anything in `needs-triage` / `needs-info` — not specified yet; send it back to `/triage`.
 
 ### 2. Gate on HITL / AFK
 
@@ -38,7 +38,7 @@ The readiness label is the autonomy contract:
 
 Claim by **creating the issue's branch ref first** — before the labels, before any code. The branch name is the deterministic one `pickup` derives per [../../ISOLATION.md](../../ISOLATION.md), and the create is the claim of record because it is atomic: creating a ref that already exists is rejected (see [../GITHUB.md](../GITHUB.md) → *Concurrency claims*), and that rejection *is* the coordination.
 
-- **Ref created** → the claim is held. Only now set `in-progress` and self-assign — the human-visible signal per [../../CONCURRENCY.md](../../CONCURRENCY.md), bound in [../GITHUB.md](../GITHUB.md). The label and assignee follow the ref; they don't arbitrate.
+- **Ref created** → the claim is held. Only now set `in-progress` and self-assign — the human-visible signal per [../../CONCURRENCY.md](../../CONCURRENCY.md), bound in [../ISSUES.md](../ISSUES.md). The label and assignee follow the ref; they don't arbitrate.
 - **Ref already exists** (the create is rejected) → a lost claim. **Yield silently** — skip this issue and take the next ready one (step 1). A lost claim is clean: no labels were touched, nothing to roll back, no thrash, no wall.
 
 **Keep the `ready-for-agent`/`ready-for-human` label** once you've claimed: it's the durable autonomy decision, and a later rework round (a PR sent back for changes) reads it to know whether the rework is AFK-safe.
@@ -86,7 +86,7 @@ If a conflict can't be resolved without a design call, don't wall to `needs-tria
 - **skill / docs** → a writing-rubric review against [../../WRITING.md](../../WRITING.md) plus a structure/accuracy check (`write-skill`'s rubric for a skill). `/code-review` and `/security-review` don't apply to prose.
 - **config** → `verify` — does the setting take effect / the hook fire.
 
-Then open a PR referencing the issue (`Closes #N`) **as the bot, not your active account** ([../GITHUB.md](../GITHUB.md) → *PR identity*) — a maintainer-authored PR can't be self-approved. On a rework round, push to the existing branch instead (no new PR, your normal identity). Then hand to `verify` (run the app, confirm behavior). The issue stays `in-progress`; the open PR *is* the review state, and there's no review-state label to set. Leave the merge — and closing the issue — to a human. Do **not** merge or close the issue yourself; report what you built and where the PR is. A human requesting changes on the PR sends it back into this loop for another round (step 1).
+Then open a PR carrying a closing reference to the issue (the `Closes` line — see [../GITHUB.md](../GITHUB.md) → *PRs and rework*) **as the bot, not your active account** ([../GITHUB.md](../GITHUB.md) → *PR identity*) — a maintainer-authored PR can't be self-approved. On a rework round, push to the existing branch instead (no new PR, your normal identity). Then hand to `verify` (run the app, confirm behavior). The issue stays `in-progress`; the open PR *is* the review state, and there's no review-state label to set. Leave the merge — and closing the issue — to a human. Do **not** merge or close the issue yourself; report what you built and where the PR is. A human requesting changes on the PR sends it back into this loop for another round (step 1).
 
 **If you wall** — no test seam, ambiguous brief, broken build, or any blocker you can't clear — don't thrash. Move the issue to `needs-triage` (remove `in-progress` and the readiness label), **delete the branch ref you created at claim time**, and post an attempt report. This lands back at the human gate, the loop's circuit-breaker against infinite retry. Do **not** use `needs-info` (that's for reporter-info gaps).
 

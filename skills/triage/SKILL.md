@@ -6,7 +6,7 @@ argument-hint: "[issue # or what to triage]"
 
 # Triage
 
-Move issues through a small state machine of triage labels. [../GITHUB.md](../GITHUB.md) is the binding — concepts, commands, and the label list.
+Move issues through a small state machine of triage labels. Issue mechanics route through [../ISSUES.md](../ISSUES.md), which selects the tracker binding — concepts, commands, and the label list.
 
 ## Reference docs
 
@@ -46,7 +46,7 @@ The maintainer invokes `/triage` and describes what they want in natural languag
 
 ## Show what needs attention
 
-Query open issues (see [../GITHUB.md](../GITHUB.md) → *Issues*), reading each issue's assignees (see [../GITHUB.md](../GITHUB.md) → *Concurrency claims*), and present the actionable buckets, oldest first:
+Query open issues (see [../ISSUES.md](../ISSUES.md) → *Issues*), reading each issue's assignees (see [../ISSUES.md](../ISSUES.md) → *Concurrency claims*), and present the actionable buckets, oldest first:
 
 1. **Unlabeled** — never triaged.
 2. **`needs-triage`** — evaluation in progress.
@@ -56,9 +56,9 @@ A **claimed** issue — one assigned to another session — is **never** offered
 
 ## Triage a specific issue
 
-1. **Claim the issue.** Before working it, take the advisory assignee claim (see [../CONCURRENCY.md](../CONCURRENCY.md) → *The assignee claim*, bound to GitHub in [../GITHUB.md](../GITHUB.md) → *Concurrency claims*) — self-assign so a parallel session sees the issue is held and skips it. If it's **already claimed by another session**, don't grab it: surface who holds it and since when, then let the maintainer choose — proceed anyway (they accept the collision), reap the stale claim (clear it and take over — a human's call, since nothing auto-reaps), or pick other work. Your own existing claim is not a collision; just continue.
+1. **Claim the issue.** Before working it, take the advisory assignee claim (see [../CONCURRENCY.md](../CONCURRENCY.md) → *The assignee claim*, bound to the tracker in [../ISSUES.md](../ISSUES.md) → *Concurrency claims*) — self-assign so a parallel session sees the issue is held and skips it. If it's **already claimed by another session**, don't grab it: surface who holds it and since when, then let the maintainer choose — proceed anyway (they accept the collision), reap the stale claim (clear it and take over — a human's call, since nothing auto-reaps), or pick other work. Your own existing claim is not a collision; just continue.
 
-2. **Gather context.** Read the full issue (body, comments, labels, reporter, dates). Parse any prior triage notes — or a `pickup` attempt report, if the issue returned here walled — so you don't re-ask resolved questions and you address the recorded blocker. Explore the codebase using the project's established vocabulary, respecting recorded decisions in the area. Query prior rejections (closed issues labelled `wontfix` — see [../GITHUB.md](../GITHUB.md) → *Issues*) and surface any whose close comment resembles this issue.
+2. **Gather context.** Read the full issue (body, comments, labels, reporter, dates). Parse any prior triage notes — or a `pickup` attempt report, if the issue returned here walled — so you don't re-ask resolved questions and you address the recorded blocker. Explore the codebase using the project's established vocabulary, respecting recorded decisions in the area. Query prior rejections (closed issues labelled `wontfix` — see [../ISSUES.md](../ISSUES.md) → *Issues*) and surface any whose close comment resembles this issue.
 
 3. **Recommend.** Tell the maintainer your category and state recommendation with reasoning, plus a brief codebase summary relevant to the issue. Wait for direction.
 
@@ -71,10 +71,10 @@ A **claimed** issue — one assigned to another session — is **never** offered
    - `ready-for-human` — same structure as an agent brief, but note why it can't be delegated (judgment calls, external access, design decisions, manual testing).
    - `needs-info` — post triage notes (template below).
    - `wontfix` (bug) — polite explanation, then close.
-   - `wontfix` (enhancement) — add the `wontfix` label, then close with the reason in the close comment (see [../GITHUB.md](../GITHUB.md) → *Issues*). The label plus the reason on the closed issue *is* the rejection record — a later triage finds it by querying closed issues labelled `wontfix`. If a closed `wontfix` issue already covers this request, link to it from the comment rather than re-deciding.
+   - `wontfix` (enhancement) — add the `wontfix` label, then close with the reason in the close comment (see [../ISSUES.md](../ISSUES.md) → *Issues*). The label plus the reason on the closed issue *is* the rejection record — a later triage finds it by querying closed issues labelled `wontfix`. If a closed `wontfix` issue already covers this request, link to it from the comment rather than re-deciding.
    - `needs-triage` — apply the role. Optional comment if there's partial progress.
 
-7. **Release the claim.** On clean exit — the issue left in a resting state another session could resume — unassign yourself (see [../GITHUB.md](../GITHUB.md) → *Concurrency claims*), so the issue stops reading as held. This covers a claim you took over by reaping just as much as one you opened the session with: either way it's yours until you exit. Closing a `wontfix` issue is a clean exit — release with it.
+7. **Release the claim.** On clean exit — the issue left in a resting state another session could resume — unassign yourself (see [../ISSUES.md](../ISSUES.md) → *Concurrency claims*), so the issue stops reading as held. This covers a claim you took over by reaping just as much as one you opened the session with: either way it's yours until you exit. Closing a `wontfix` issue is a clean exit — release with it.
 
 ## Quick state override
 

@@ -111,6 +111,7 @@ Each skill below links to its fuller entry in the [skills reference](docs/skills
 ## Layout
 
 - `skills/<name>/SKILL.md` — one directory per skill; `SKILL.md` is the entry point. Optional `REFERENCE.md`, `EXAMPLES.md`, `scripts/`. Real location at the plugin root, where marketplace installs discover them.
+- `skills/ISSUES.md` — the issue-tracker selector. Issue-touching skills link here for issue mechanics rather than to a tracker binding directly; the `SKILL_TRACKER` env var names the binding (default `github`), routing to the issue sections of `skills/GITHUB.md`. A second tracker plugs in by adding a binding, not by editing every skill. PR, branch, tag, and review-thread mechanics stay in `skills/GITHUB.md` regardless of the issue tracker.
 - `.claude/skills/` — symlink to `skills/` so this repo also loads them live as project-local skills during development.
 - `.claude-plugin/plugin.json` — plugin manifest (name `skills`).
 - `.claude-plugin/marketplace.json` — single-plugin marketplace (name `karl`).

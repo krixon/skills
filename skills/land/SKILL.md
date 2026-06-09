@@ -54,7 +54,7 @@ Run `land` from the repo-root checkout, which stays on `main` — not from insid
 
 ### 5. Close out the issue
 
-The closing reference auto-closes the issue on merge; confirm it (see [../GITHUB.md](../GITHUB.md) → *Confirm the closing reference*), then strip the now-spent execution label `pickup` set — remove the `in-progress` label (see [../GITHUB.md](../GITHUB.md) → *Issues*).
+The closing reference auto-closes the issue on merge; confirm it (see [../GITHUB.md](../GITHUB.md) → *Confirm the closing reference*), then strip the now-spent execution label `pickup` set — remove the `in-progress` label (see [../ISSUES.md](../ISSUES.md) → *Issues*).
 
 If the PR's body leads with a `No-issue:` marker, it's an issue-less `patch` by design — there's no issue to close or de-label. Land it and move on; don't report it as an anomaly.
 
@@ -64,9 +64,9 @@ If the PR carries neither a closing reference nor a `No-issue:` marker, don't to
 
 A sliced child is a native sub-issue of its parent epic; nothing closes that parent automatically. After closing the child, check whether it was the parent's last open child.
 
-Read the closed child's parent epic, then the epic's sub-issues (commands in [../GITHUB.md](../GITHUB.md) → *Issue relations*; an absent parent means no parent, not an error).
+Read the closed child's parent epic, then the epic's sub-issues (commands in [../ISSUES.md](../ISSUES.md) → *Issue relations*; an absent parent means no parent, not an error).
 
-No parent epic, or the epic already closed → nothing to do, move on. Otherwise, when **every** sub-issue is now closed and the epic is still open, prompt the maintainer to close it — `land` is human-invoked, so the prompt always faces a person. Show the sub-issue list you checked (number and state of each) and **recommend closing**: the work it tracked is complete. Close on confirmation (see [../GITHUB.md](../GITHUB.md) → *Issues*); leave it open if declined. If any sub-issue is still open, don't prompt — the epic has children left to land.
+No parent epic, or the epic already closed → nothing to do, move on. Otherwise, when **every** sub-issue is now closed and the epic is still open, prompt the maintainer to close it — `land` is human-invoked, so the prompt always faces a person. Show the sub-issue list you checked (number and state of each) and **recommend closing**: the work it tracked is complete. Close on confirmation (see [../ISSUES.md](../ISSUES.md) → *Issues*); leave it open if declined. If any sub-issue is still open, don't prompt — the epic has children left to land.
 
 ### 7. Report
 
