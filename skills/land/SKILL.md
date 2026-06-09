@@ -66,7 +66,7 @@ A sliced child is a native sub-issue of its parent epic; nothing closes that par
 
 Read the closed child's parent epic, then the epic's sub-issues (commands in [../GITHUB.md](../GITHUB.md) → *Issue relations*; an absent parent means no parent, not an error).
 
-No parent epic, or the epic already closed → nothing to do, move on. Otherwise, when **every** sub-issue is now closed and the epic is still open, prompt the maintainer to close it — `land` is human-invoked, so the prompt always faces a person. Show the sub-issue list you checked (number and state of each) and **recommend closing**: the work it tracked is complete. Close on confirmation (see [../GITHUB.md](../GITHUB.md) → *Issues*); leave it open if declined. If any sub-issue is still open, don't prompt — the epic has children left to land.
+No parent epic, or the epic already closed → nothing to do, move on. Otherwise, when **every** sub-issue is now closed and the epic is still open, prompt the maintainer to close it — `land` is human-invoked, so the prompt always faces a person. Show the sub-issue list you checked (number and state of each) and **recommend closing**: the work it tracked is complete. Close on confirmation with a comment naming the final child that completed it (see [../GITHUB.md](../GITHUB.md) → *Issues*); leave it open if declined. If any sub-issue is still open, don't prompt — the epic has children left to land.
 
 ### 7. Report
 
