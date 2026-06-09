@@ -53,6 +53,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 | Debug a hard bug or perf regression | `/diagnose` | reproduce → minimise → fix → regression test (usually reached via `pickup`) |
 | Ask questions on a PR review (not just request changes) | Comment them on the PR, then `/pickup` | `pickup`'s rework query catches the unresolved thread → routes the questions to `field`, where the agent works each to a converged answer with you → the answers post back to the thread |
 | Merge an approved PR | `/land` | merges, strips `in-progress`, deletes the branch/worktree (human-invoked only) |
+| Clean up stale workflow state | `/reap` | sweeps abandoned claims, quiet `needs-info`, orphaned worktrees/branches, and emptied epics → proposes each fix, confirms per item (human-invoked only) |
 | Write a new skill | `/write-skill` | scaffolds structure + progressive disclosure |
 | Run a whole pipeline unattended | `/auto <skill>` (e.g. `/auto audit-coverage`) | walks the chain head-down, halting at the first human gate |
 | Drain the whole `ready-for-agent` queue unattended | `/loop /auto pickup` (no interval) | picks up each ready issue in turn, then polls on a backoff for more — see [Draining the queue unattended](#draining-the-queue-unattended) |
@@ -96,6 +97,7 @@ Each skill below links to its fuller entry in the [skills reference](docs/skills
 - **[tdd](docs/skills-reference.md#tdd)** — red-green-refactor loop, integration-test first.
 - **[diagnose](docs/skills-reference.md#diagnose)** — disciplined loop for hard bugs and perf regressions: reproduce → minimise → hypothesise → instrument → fix → regression-test.
 - **[land](docs/skills-reference.md#land)** — merge an approved PR, strip `in-progress`, and tear down the branch/worktree; human-invoked only.
+- **[reap](docs/skills-reference.md#reap)** — sweep workflow state for staleness — abandoned claims, quiet `needs-info`, orphaned worktrees/branches, emptied epics — and propose each cleanup one human-confirmed action at a time; human-invoked only.
 
 ### Meta & session
 - **[auto](docs/skills-reference.md#auto)** — run a skill workflow unattended, walking the handover chain until the first human gate.

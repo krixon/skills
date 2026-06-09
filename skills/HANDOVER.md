@@ -30,7 +30,7 @@ Same shape in every skill — consistent wording is the point. The user picks th
 
 `auto` (see [auto/SKILL.md](auto/SKILL.md)) walks the default chain without asking. It needs to know only where it must *not* go, and that comes from two things — a property of skills and a pair of tracker labels. These are `auto`'s two stop conditions; nothing else halts it.
 
-**Interactive-only skills.** A skill is **interactive-only** when it contains a human loop — an interview, a judgment quiz, or an approval step — with no safe unattended default. `auto` never enters one. The set is `discover`, `design`, `deepen`, `triage`, `slice`, `field`, `patch`, `land`, and `handoff`. This is the one place that property is defined; the handover row carries no autonomy field.
+**Interactive-only skills.** A skill is **interactive-only** when it contains a human loop — an interview, a judgment quiz, or an approval step — with no safe unattended default. `auto` never enters one. The set is `discover`, `design`, `deepen`, `triage`, `slice`, `field`, `patch`, `land`, `handoff`, and `reap`. This is the one place that property is defined; the handover row carries no autonomy field.
 
 **Gate labels.** Two tracker labels are an autonomous run's only halt points: `needs-triage` (a finding awaiting a human's triage decision) and `ready-for-human` (a slice whose implementation carries a judgment a human must make). `auto` never acts on an artifact sitting at either — it leaves the work staged there and stops. The readiness label likewise carries the work item's autonomy: `ready-for-human` (HITL) gates; its counterpart `ready-for-agent` (AFK) does not, so an AFK issue runs unattended through `pickup` and its implement loop.
 
