@@ -1,0 +1,354 @@
+#!/usr/bin/env python3
+"""Versioning command: derive a release bump from the commit range, or apply it.
+
+Ports the release policy (ADR 0002) and the release skill's prose into code so
+the deterministic mechanics gain unit tests (ADR 0008). Lives with the
+repo-local release skill, outside the distributable (ADR 0005): releasing this
+plugin is specific to this repo, so nothing here ships to plugin consumers. The
+pure core — parsing commit subjects and a current version into an increment, a
+new version, and grouped notes — carries no git or IO and is exercised directly
+by the tests; the git and filesystem calls live in a thin shell around it.
+"""
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+
+_SUBJECT_RE = re.compile(r"^(?P<type>[a-z]+)(?:\((?P<scope>[^)]*)\))?(?P<bang>!)?:")
+# The Conventional Commits spec sanctions both the space and the hyphen form.
+_FOOTER_RE = re.compile(r"^BREAKING[ -]CHANGE:", re.MULTILINE)
+
+
+@dataclass(frozen=True)
+class Commit:
+    type: str
+    scope: str
+    subject: str
+    breaking: bool
+
+
+_MATERIAL_TYPES = frozenset({"feat", "fix", "refactor", "perf"})
+
+
+def is_material(commit):
+    return commit.breaking or commit.type in _MATERIAL_TYPES
+
+
+def parse_commit(subject, body=""):
+    match = _SUBJECT_RE.match(subject)
+    type_ = match.group("type") if match else ""
+    # The scope group is optional, so it reads None even on a successful match.
+    scope = (match.group("scope") or "") if match else ""
+    breaking = bool(match and match.group("bang")) or bool(_FOOTER_RE.search(body))
+    return Commit(type=type_, scope=scope, subject=subject, breaking=breaking)
+
+
+# Fixed group order for the remaining recognised types after breaking/feat/fix/docs.
+_GROUP_ORDER = ("feat", "fix", "docs")
+
+
+def render_notes(commits):
+    """Group commit subjects by type in fixed order, one line each.
+
+    Breaking changes lead (regardless of type), then feat, fix, docs, then the
+    remaining types in first-seen order. The line is the subject verbatim, so the
+    scope is preserved; no bodies, no hashes (ADR 0002, the release skill step 3a).
+    """
+    breaking = [c for c in commits if c.breaking]
+    rest = [c for c in commits if not c.breaking]
+
+    lines = [c.subject for c in breaking]
+    for type_ in _GROUP_ORDER:
+        lines.extend(c.subject for c in rest if c.type == type_)
+
+    # Remaining types, grouped by type in first-seen order.
+    for type_ in dict.fromkeys(c.type for c in rest if c.type not in _GROUP_ORDER):
+        lines.extend(c.subject for c in rest if c.type == type_)
+    return "\n".join(lines)
+
+
+@dataclass(frozen=True)
+class Derivation:
+    no_op: bool
+    increment: str  # "major" | "minor" | "patch", or None on a no-op
+    new_version: str  # the bumped version, or None on a no-op
+    notes: str  # grouped release notes, or "" on a no-op
+
+
+def _parse_version(current):
+    """Split a plain MAJOR.MINOR.PATCH string into ints, with a clear error.
+
+    The adapter handles plain semver only; a pre-release or build-metadata
+    version (e.g. 1.0.0-rc1) fails loudly here rather than mid-apply.
+    """
+    parts = current.split(".")
+    try:
+        if len(parts) != 3:
+            raise ValueError
+        return tuple(int(p) for p in parts)
+    except ValueError:
+        raise ValueError(
+            f"version {current!r} is not MAJOR.MINOR.PATCH; the adapter handles "
+            "plain semver only (no pre-release or build metadata)"
+        )
+
+
+def _bump(current, increment):
+    major, minor, patch = _parse_version(current)
+    if increment == "major":
+        return f"{major + 1}.0.0"
+    if increment == "minor":
+        return f"{major}.{minor + 1}.0"
+    return f"{major}.{minor}.{patch + 1}"
+
+
+def derive(current_version, commits):
+    """Pure core: a current version and parsed commit range -> the proposed release.
+
+    No git, no IO. Returns a Derivation; a range with no material commit is a
+    no-op carrying no bump (ADR 0002).
+    """
+    material = [c for c in commits if is_material(c)]
+    if not material:
+        return Derivation(no_op=True, increment=None, new_version=None, notes="")
+
+    breaking = any(c.breaking for c in material)
+    feat = any(c.type == "feat" for c in material)
+    pre_1 = _parse_version(current_version)[0] == 0
+
+    if breaking:
+        increment = "minor" if pre_1 else "major"
+    elif feat:
+        increment = "minor"
+    else:
+        increment = "patch"
+
+    return Derivation(
+        no_op=False,
+        increment=increment,
+        new_version=_bump(current_version, increment),
+        notes=render_notes(commits),
+    )
+
+
+# --- git / filesystem shell -------------------------------------------------
+# Everything below shells out to git or touches the filesystem. It stays thin:
+# read the inputs, hand them to the pure core above, act on the result.
+
+_NUL = "\x1e"  # record separator between commit subject and body in the git log
+
+# URL userinfo (e.g. an https remote's embedded token) in echoed git output.
+_CRED_RE = re.compile(r"(?<=://)[^/@\s]+@")
+
+
+def _redact(text):
+    """Strip URL userinfo from git output before echoing it to the terminal."""
+    return _CRED_RE.sub("***@", text)
+
+
+def _git(repo, *args):
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+
+def _last_v_tag(repo, rev="HEAD"):
+    """The most recent annotated tag matching v* reachable from rev, or None."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(repo), "describe", "--tags", "--abbrev=0", "--match", "v*", rev],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except subprocess.CalledProcessError:
+        return None
+    return out or None
+
+
+def read_range(repo, rev="HEAD"):
+    """Parse the commit range last-v*-tag..rev on the first-parent line.
+
+    With no v* tag, the range is all history through rev. Matches the release
+    skill: it walks merges on the first-parent line.
+    """
+    tag = _last_v_tag(repo, rev)
+    revs = f"{tag}..{rev}" if tag else rev
+    # %s is the subject, %b the body; separate the two with a control char and
+    # delimit records with NUL so multi-line bodies survive intact.
+    fmt = f"%s{_NUL}%b"
+    out = _git(repo, "log", "--first-parent", f"--format={fmt}%x00", revs)
+    commits = []
+    for record in out.split("\x00"):
+        record = record.strip("\n")
+        if not record:
+            continue
+        subject, _, body = record.partition(_NUL)
+        commits.append(parse_commit(subject, body))
+    return commits
+
+
+def current_version(repo):
+    manifest = Path(repo) / ".claude-plugin" / "plugin.json"
+    return json.loads(manifest.read_text())["version"]
+
+
+def current_version_at(repo, rev):
+    """Read the manifest version from a git ref — the tip apply will release."""
+    blob = _git(repo, "show", f"{rev}:.claude-plugin/plugin.json")
+    return json.loads(blob)["version"]
+
+
+def _derive_from_repo(repo):
+    return derive(current_version(repo), read_range(repo))
+
+
+def cmd_derive(args):
+    """PRESENT: compute the proposed release and emit it. Read-only."""
+    result = _derive_from_repo(args.repo)
+    if args.format == "text":
+        if result.no_op:
+            print("no-op: no material change since the last release")
+        else:
+            print(f"{result.increment} -> {result.new_version}")
+            if result.notes:
+                print()
+                print(result.notes)
+        return 0
+    print(
+        json.dumps(
+            {
+                "no_op": result.no_op,
+                "increment": result.increment,
+                "new_version": result.new_version,
+                "notes": result.notes,
+            }
+        )
+    )
+    return 0
+
+
+def cmd_apply(args):
+    """ACT: bump plugin.json, tag, and push from a throwaway worktree.
+
+    Re-derives internally so the pushed bump reflects the live range rather than
+    a value passed in stale. On a rejected push it does not force: it tears the
+    worktree down and reports (ADR 0002, release skill step 4).
+    """
+    repo = args.repo
+    _git(repo, "fetch", "origin")
+    # Derive over the fetched origin/main tip — the commit that will actually be
+    # released and tagged — not local HEAD, which a concurrent land may have left
+    # behind (release skill step 4.1: re-derive rather than tag a stale tip).
+    result = derive(current_version_at(repo, "origin/main"), read_range(repo, "origin/main"))
+    if result.no_op:
+        print("no-op: no material change since the last release", file=sys.stderr)
+        return 1
+
+    new = result.new_version
+    # A system temp dir, not a path inside the repo: the worktree is throwaway
+    # and lives only for the duration of this command.
+    wt = Path(tempfile.mkdtemp(prefix=f"release-v{new}-"))
+    branch = f"chore/release-v{new}"
+    _git(repo, "worktree", "add", str(wt), "-b", branch, "origin/main")
+    try:
+        manifest = wt / ".claude-plugin" / "plugin.json"
+        data = json.loads(manifest.read_text())
+        data["version"] = new
+        manifest.write_text(json.dumps(data, indent=2) + "\n")
+
+        _git(wt, "add", ".claude-plugin/plugin.json")
+        _git(wt, "commit", "-m", f"chore(release): v{new}")
+
+        # Pass the tag body on a file so the grouped note lines survive intact.
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as fh:
+            fh.write(f"v{new}\n\n{result.notes}\n")
+            notes_file = fh.name
+        try:
+            _git(wt, "tag", "-a", f"v{new}", "-F", notes_file)
+        finally:
+            os.unlink(notes_file)
+
+        try:
+            _git(wt, "push", "origin", "HEAD:main", "--follow-tags")
+        except subprocess.CalledProcessError as exc:
+            print(
+                "push rejected (branch protection or diverged main); "
+                "not forcing. tearing down.",
+                file=sys.stderr,
+            )
+            if exc.stderr:
+                print(_redact(exc.stderr.strip()), file=sys.stderr)
+            return 1
+    finally:
+        # Tear the throwaway worktree and branch down regardless of outcome.
+        subprocess.run(
+            ["git", "-C", str(repo), "worktree", "remove", "--force", str(wt)],
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "branch", "-D", branch],
+            capture_output=True,
+            text=True,
+        )
+        # The temp dir itself outlives a failed `worktree add` (mkdtemp creates
+        # it up front); sweep it whatever happened above.
+        shutil.rmtree(wt, ignore_errors=True)
+
+    print(f"released v{new}")
+    return 0
+
+
+def _repo_from_cwd():
+    """The enclosing repository's root, or None when run outside one."""
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    except subprocess.CalledProcessError:
+        return None
+    return out.strip()
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="version")
+    parser.add_argument(
+        "--repo",
+        default=None,
+        help="repository root (defaults to the repository enclosing the cwd)",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_derive = sub.add_parser("derive", help="compute the proposed release (read-only)")
+    p_derive.add_argument(
+        "--format", choices=("json", "text"), default="json", help="output format"
+    )
+    p_derive.set_defaults(func=cmd_derive)
+
+    p_apply = sub.add_parser("apply", help="bump, tag, and push the release")
+    p_apply.set_defaults(func=cmd_apply)
+
+    args = parser.parse_args(argv)
+    if args.repo is None:
+        args.repo = _repo_from_cwd()
+        if args.repo is None:
+            parser.error("not inside a git repository; pass --repo")
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
