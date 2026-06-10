@@ -45,6 +45,7 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 | Harvest TODOs / find tech debt | `/audit-debt` | findings → `capture` → `needs-triage` |
 | Find critical paths running blind | `/audit-observability` | findings → `capture` → `needs-triage` |
 | Find performance hazards on hot paths | `/audit-performance` | findings → `capture` → `needs-triage` |
+| Audit third-party dependency health | `/audit-deps` | findings → `capture` → `needs-triage` |
 | File findings or observations as issues | `/capture` | deduped `needs-triage` issues for a human to `triage` |
 | Triage incoming issues | `/triage` | each routed to `ready-for-agent`, `ready-for-human`, `needs-info`, or `wontfix` |
 | Start implementing a ready issue | `/pickup` | claims it → routes by kind to `tdd` / `diagnose` / `write-skill` / docs / config → review gate → opens a PR |
@@ -89,6 +90,7 @@ Each skill below links to its fuller entry in the [skills reference](docs/skills
 - **[audit-debt](docs/skills-reference.md#audits)** — harvest in-code debt markers (TODO/FIXME/HACK/XXX and known shortcuts) clustered by area; static-first, surfaces findings to `capture`.
 - **[audit-observability](docs/skills-reference.md#audits)** — find critical paths (money, auth, data mutation, external calls) running blind with no log, metric, or trace; static-first, surfaces findings to `capture`.
 - **[audit-performance](docs/skills-reference.md#audits)** — find performance hazards on hot paths (N+1 data access, per-iteration allocation or IO, unbounded reads, missing caching or indexing, blocking in async); static-first, surfaces findings to `capture`.
+- **[audit-deps](docs/skills-reference.md#audits)** — audit third-party dependency health (outdated majors, known advisories, abandoned upstreams, license drift) from manifests and lockfiles; static-first, surfaces findings to `capture`.
 - **[deepen](docs/skills-reference.md#deepen)** — find architecture/refactoring opportunities informed by the project's domain language and recorded decisions.
 
 ### Build & fix

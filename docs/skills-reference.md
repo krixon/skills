@@ -85,6 +85,7 @@ They differ only by what they look for:
 | `audit-debt` | in-code debt markers — `TODO`/`FIXME`/`HACK`/`XXX` and the project's own known shortcuts, clustered by area |
 | `audit-observability` | critical paths running blind — money, auth, data mutation, or external calls with no log, metric, or trace at any layer |
 | `audit-performance` | performance hazards on hot paths — N+1 data access, per-iteration allocation or IO in loops, unbounded reads, missing caching or indexing, blocking in async contexts |
+| `audit-deps` | third-party dependency health from manifests and lockfiles — outdated majors on load-bearing deps, versions with known advisories, abandoned upstreams, license incompatibility or drift |
 
 **Example.** `/audit-coverage src/billing` — sweep the billing module for untested high-risk paths and surface each as a finding.
 
