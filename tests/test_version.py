@@ -42,6 +42,13 @@ class ParseSubjectTest(unittest.TestCase):
         )
         self.assertTrue(commit.breaking)
 
+    def test_breaking_via_hyphenated_footer(self):
+        commit = version.parse_commit(
+            "feat: rework the claim protocol",
+            body="Adds CAS.\n\nBREAKING-CHANGE: assignee claims are gone.",
+        )
+        self.assertTrue(commit.breaking)
+
     def test_unrecognised_subject_yields_empty_type(self):
         commit = version.parse_commit("Merge pull request #12 from x")
         self.assertEqual(commit.type, "")
@@ -130,6 +137,18 @@ class DeriveNoOpTest(unittest.TestCase):
     def test_material_range_is_not_a_no_op(self):
         result = version.derive("0.2.0", _commits("fix: a"))
         self.assertFalse(result.no_op)
+
+
+class MalformedVersionTest(unittest.TestCase):
+    def test_pre_release_version_raises_clear_error(self):
+        with self.assertRaises(ValueError) as ctx:
+            version.derive("1.0.0-rc1", _commits("feat: a"))
+        self.assertIn("MAJOR.MINOR.PATCH", str(ctx.exception))
+
+    def test_two_component_version_raises_clear_error(self):
+        with self.assertRaises(ValueError) as ctx:
+            version.derive("1.2", _commits("fix: a"))
+        self.assertIn("MAJOR.MINOR.PATCH", str(ctx.exception))
 
 
 class RenderNotesTest(unittest.TestCase):
@@ -262,6 +281,34 @@ class ApplyTest(unittest.TestCase):
         self.assertNotIn("release-v0.3.0", worktrees)
         branches = _git(self.repo, "branch", "--list").stdout
         self.assertNotIn("chore/release-v0.3.0", branches)
+
+    def test_apply_derives_over_fetched_origin_main_not_stale_local_head(self):
+        # A sibling lands a feat on origin after our local HEAD/tag settled.
+        # apply must release THAT feat (deriving over the fetched origin/main tip
+        # it tags), not no-op against a stale local HEAD. (code-review #1)
+        root = Path(self._tmp.name)
+        origin = str(root / "o2.git")
+        _git(str(root), "init", "-q", "--bare", "-b", "main", origin)
+        local = str(root / "c2")
+        _git(str(root), "clone", "-q", origin, local)
+        man = Path(local) / ".claude-plugin"
+        man.mkdir()
+        (man / "plugin.json").write_text(json.dumps({"version": "1.0.0"}, indent=2) + "\n")
+        _git(local, "add", ".")
+        _commit(local, "chore: scaffold")
+        _git(local, "push", "-q", "origin", "main")
+        _git(local, "tag", "-a", "v1.0.0", "-m", "v1.0.0")  # mark the release point
+
+        other = str(root / "o2c")
+        _git(str(root), "clone", "-q", origin, other)
+        _commit(other, "feat: sibling feature")
+        _git(other, "push", "-q", "origin", "main")
+        # local's HEAD and tag have not moved: v1.0.0..HEAD is empty (would no-op);
+        # v1.0.0..origin/main carries the feat -> post-1.0 minor -> 1.1.0.
+        rc = version.cmd_apply(_ApplyArgs(local))
+        self.assertEqual(rc, 0)
+        shown = _git(origin, "show", "main:.claude-plugin/plugin.json").stdout
+        self.assertEqual(json.loads(shown)["version"], "1.1.0")
 
     def test_apply_no_op_when_nothing_material(self):
         # Land only a chore on top, then a fresh clone whose range is chore-only.

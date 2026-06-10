@@ -19,7 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _SUBJECT_RE = re.compile(r"^(?P<type>[a-z]+)(?:\((?P<scope>[^)]*)\))?(?P<bang>!)?:")
-_FOOTER_RE = re.compile(r"^BREAKING CHANGE:", re.MULTILINE)
+# The Conventional Commits spec sanctions both the space and the hyphen form.
+_FOOTER_RE = re.compile(r"^BREAKING[ -]CHANGE:", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -77,8 +78,26 @@ class Derivation:
     notes: str  # grouped release notes, or "" on a no-op
 
 
+def _parse_version(current):
+    """Split a plain MAJOR.MINOR.PATCH string into ints, with a clear error.
+
+    The adapter handles plain semver only; a pre-release or build-metadata
+    version (e.g. 1.0.0-rc1) fails loudly here rather than mid-apply.
+    """
+    parts = current.split(".")
+    try:
+        if len(parts) != 3:
+            raise ValueError
+        return tuple(int(p) for p in parts)
+    except ValueError:
+        raise ValueError(
+            f"version {current!r} is not MAJOR.MINOR.PATCH; the adapter handles "
+            "plain semver only (no pre-release or build metadata)"
+        )
+
+
 def _bump(current, increment):
-    major, minor, patch = (int(p) for p in current.split("."))
+    major, minor, patch = _parse_version(current)
     if increment == "major":
         return f"{major + 1}.0.0"
     if increment == "minor":
@@ -98,7 +117,7 @@ def derive(current_version, commits):
 
     breaking = any(c.breaking for c in material)
     feat = any(c.type == "feat" for c in material)
-    pre_1 = int(current_version.split(".")[0]) == 0
+    pre_1 = _parse_version(current_version)[0] == 0
 
     if breaking:
         increment = "minor" if pre_1 else "major"
@@ -131,11 +150,11 @@ def _git(repo, *args):
     ).stdout
 
 
-def _last_v_tag(repo):
-    """The most recent annotated tag matching v*, or None when none exists."""
+def _last_v_tag(repo, rev="HEAD"):
+    """The most recent annotated tag matching v* reachable from rev, or None."""
     try:
         out = subprocess.run(
-            ["git", "-C", str(repo), "describe", "--tags", "--abbrev=0", "--match", "v*"],
+            ["git", "-C", str(repo), "describe", "--tags", "--abbrev=0", "--match", "v*", rev],
             check=True,
             capture_output=True,
             text=True,
@@ -145,14 +164,14 @@ def _last_v_tag(repo):
     return out or None
 
 
-def read_range(repo):
-    """Parse the commit range last-v*-tag..HEAD on the first-parent line.
+def read_range(repo, rev="HEAD"):
+    """Parse the commit range last-v*-tag..rev on the first-parent line.
 
-    With no v* tag, the range is all history through HEAD. Matches the release
+    With no v* tag, the range is all history through rev. Matches the release
     skill: it walks merges on the first-parent line.
     """
-    tag = _last_v_tag(repo)
-    revs = f"{tag}..HEAD" if tag else "HEAD"
+    tag = _last_v_tag(repo, rev)
+    revs = f"{tag}..{rev}" if tag else rev
     # %s is the subject, %b the body; separate the two with a control char and
     # delimit records with NUL so multi-line bodies survive intact.
     fmt = f"%s{_NUL}%b"
@@ -170,6 +189,12 @@ def read_range(repo):
 def current_version(repo):
     manifest = Path(repo) / ".claude-plugin" / "plugin.json"
     return json.loads(manifest.read_text())["version"]
+
+
+def current_version_at(repo, rev):
+    """Read the manifest version from a git ref — the tip apply will release."""
+    blob = _git(repo, "show", f"{rev}:.claude-plugin/plugin.json")
+    return json.loads(blob)["version"]
 
 
 def _derive_from_repo(repo):
@@ -210,7 +235,10 @@ def cmd_apply(args):
     """
     repo = args.repo
     _git(repo, "fetch", "origin")
-    result = _derive_from_repo(repo)
+    # Derive over the fetched origin/main tip — the commit that will actually be
+    # released and tagged — not local HEAD, which a concurrent land may have left
+    # behind (release skill step 4.1: re-derive rather than tag a stale tip).
+    result = derive(current_version_at(repo, "origin/main"), read_range(repo, "origin/main"))
     if result.no_op:
         print("no-op: no material change since the last release", file=sys.stderr)
         return 1
