@@ -1,6 +1,6 @@
 # GitHub
 
-Issues and PRs for this repo live in GitHub `krixon/skills`. This file is the single place that names GitHub (ADR 0004): every `gh` command, API object, and review enum the workflow needs lives here, and the skills express the workflow in the tracker-neutral concepts defined in the *Glossary* below rather than naming `gh` themselves. The one exception is the workflow label strings (`ready-for-agent`, `in-progress`, and the rest below) — they are the workflow's own state machine, so skills name them directly; this file only records that they are GitHub labels, set via the label-edit command. `gh` infers the repo from the `origin` remote when run inside this clone.
+Issues and PRs for this repo live in GitHub `krixon/skills`. This file is the single place that names GitHub: every `gh` command, API object, and review enum the workflow needs lives here, and the skills express the workflow in the tracker-neutral concepts defined in the *Glossary* below rather than naming `gh` themselves. The one exception is the workflow label strings (`ready-for-agent`, `in-progress`, and the rest below) — they are the workflow's own state machine, so skills name them directly; this file only records that they are GitHub labels, set via the label-edit command. `gh` infers the repo from the `origin` remote when run inside this clone.
 
 ## Body formatting
 
@@ -44,7 +44,7 @@ There is **no** review-state label. A claimed issue (`in-progress`) with an open
 
 ## Glossary — workflow concepts
 
-Skills express the workflow in the tracker-neutral concepts below (ADR 0004); this table is the single place each binds to its GitHub mechanic. A skill uses a concept's **prose wording** verbatim, in plain prose — backticks stay reserved for literals (commands, enums, labels), so a concept never appears backticked or hyphenated. The workflow label strings are not concepts: they stay named in skills (see *Labels* above).
+Skills express the workflow in the tracker-neutral concepts below; this table is the single place each binds to its GitHub mechanic. A skill uses a concept's **prose wording** verbatim, in plain prose — backticks stay reserved for literals (commands, enums, labels), so a concept never appears backticked or hyphenated. The workflow label strings are not concepts: they stay named in skills (see *Labels* above).
 
 | Concept | GitHub binding |
 | --- | --- |
@@ -109,7 +109,7 @@ Prefixing `GH_TOKEN` is atomic per command — it never mutates the active `gh` 
 
 **Unconfigured (multi-dev).** With both vars unset there is no bot dance: skills open PRs under the agent's normal identity (no `GH_TOKEN` prefix), and rework and `land` queries drop the `--author` filter to match any open PR. This is the default the plugin ships; setting the two vars in `.claude/settings.json` — `GITHUB_BOT_ACCOUNT` to the bot login, `GITHUB_BOT_TOKEN_CMD` to a command that prints a classic PAT with `repo` scope — opts a solo-dev repo into the bot indirection.
 
-**Half-configured stops.** One var without the other, or either set but empty, is neither identity — the state where a `gh` call would silently fall through to the wrong account. The `gh-identity.sh` `PreToolUse(Bash)` hook reads the two vars and denies before any shell command runs in that state, naming which is wrong. It inspects only the environment, never the command, so a `gh` phrase appearing as data can't trip it (ADR 0007).
+**Half-configured stops.** One var without the other, or either set but empty, is neither identity — the state where a `gh` call would silently fall through to the wrong account. The `gh-identity.sh` `PreToolUse(Bash)` hook reads the two vars and denies before any shell command runs in that state, naming which is wrong. It inspects only the environment, never the command, so a `gh` phrase appearing as data can't trip it.
 
 ## PRs and rework
 
