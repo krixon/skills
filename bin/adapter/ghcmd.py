@@ -101,7 +101,11 @@ def eval_token(token_cmd):
     """
     result = subprocess.run(token_cmd, shell=True, text=True, capture_output=True)
     if result.returncode != 0:
-        raise GhError([token_cmd], result.returncode, result.stderr)
+        # Withhold the command and its stderr: a failing token command can print
+        # the secret (or fragments of it) to stderr, and surfacing that here would
+        # leak it into the process's error output.
+        raise GhError(["<bot-token-command>"], result.returncode,
+                      "token command failed; stderr withheld to avoid leaking secrets")
     return result.stdout.strip()
 
 

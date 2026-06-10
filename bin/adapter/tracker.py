@@ -265,6 +265,7 @@ class GithubBackend:
             state = self._json(
                 ["pr", "view", str(number), "--repo", self.repo,
                  "--json", "mergeable,mergeStateStatus"],
+                default={},
             )
             if state.get("mergeStateStatus") != "UNKNOWN":
                 return state
@@ -279,10 +280,13 @@ class GithubBackend:
         candidate is re-queried through merge_state — settling past UNKNOWN —
         before it is classified.
         """
+        # The list's own mergeable/mergeStateStatus are deliberately not fetched:
+        # they are the stale values this method exists to defeat. merge_state
+        # re-queries each candidate and supplies the settled pair below.
         prs = self._json(
             ["pr", "list", "--repo", self.repo, "--state", "open",
              *self._author_args(),
-             "--json", "number,title,mergeable,mergeStateStatus,headRefName,baseRefName"],
+             "--json", "number,title,headRefName,baseRefName"],
             default=[],
         )
         conflicting = []
