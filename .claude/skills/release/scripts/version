@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Versioning adapter: derive a release bump from the commit range, or apply it.
+"""Versioning command: derive a release bump from the commit range, or apply it.
 
 Ports the release policy (ADR 0002) and the release skill's prose into code so
-the deterministic mechanics gain unit tests (ADR 0008). The pure core — parsing
-commit subjects and a current version into an increment, a new version, and
-grouped notes — carries no git or IO and is exercised directly by the tests; the
-git and filesystem calls live in a thin shell around it.
+the deterministic mechanics gain unit tests (ADR 0008). Lives with the
+repo-local release skill, outside the distributable (ADR 0005): releasing this
+plugin is specific to this repo, so nothing here ships to plugin consumers. The
+pure core — parsing commit subjects and a current version into an increment, a
+new version, and grouped notes — carries no git or IO and is exercised directly
+by the tests; the git and filesystem calls live in a thin shell around it.
 """
 
 import argparse
@@ -41,7 +43,8 @@ def is_material(commit):
 def parse_commit(subject, body=""):
     match = _SUBJECT_RE.match(subject)
     type_ = match.group("type") if match else ""
-    scope = (match.group("scope") if match else None) or ""
+    # The scope group is optional, so it reads None even on a successful match.
+    scope = (match.group("scope") or "") if match else ""
     breaking = bool(match and match.group("bang")) or bool(_FOOTER_RE.search(body))
     return Commit(type=type_, scope=scope, subject=subject, breaking=breaking)
 
@@ -244,7 +247,9 @@ def cmd_apply(args):
         return 1
 
     new = result.new_version
-    wt = Path(repo) / ".claude" / "worktrees" / f"release-v{new}"
+    # A system temp dir, not a path inside the repo: the worktree is throwaway
+    # and lives only for the duration of this command.
+    wt = Path(tempfile.mkdtemp(prefix=f"release-v{new}-"))
     branch = f"chore/release-v{new}"
     _git(repo, "worktree", "add", str(wt), "-b", branch, "origin/main")
     try:
@@ -293,19 +298,26 @@ def cmd_apply(args):
     return 0
 
 
-def _plugin_root():
-    # ${CLAUDE_PLUGIN_ROOT} when invoked as the adapter; the repo two levels up
-    # from this file in dev (bin/version -> repo root).
-    root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-    return root if root else str(Path(__file__).resolve().parent.parent)
+def _repo_from_cwd():
+    """The enclosing repository's root, or None when run outside one."""
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    except subprocess.CalledProcessError:
+        return None
+    return out.strip()
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="version")
     parser.add_argument(
         "--repo",
-        default=_plugin_root(),
-        help="repository root (defaults to the plugin root)",
+        default=None,
+        help="repository root (defaults to the repository enclosing the cwd)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -319,6 +331,10 @@ def main(argv=None):
     p_apply.set_defaults(func=cmd_apply)
 
     args = parser.parse_args(argv)
+    if args.repo is None:
+        args.repo = _repo_from_cwd()
+        if args.repo is None:
+            parser.error("not inside a git repository; pass --repo")
     return args.func(args)
 
 

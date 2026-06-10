@@ -7,9 +7,17 @@ import unittest
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
-# bin/version has no .py extension, so name an explicit source loader rather
-# than relying on extension-based loader discovery (which yields no loader).
-_BIN = Path(__file__).resolve().parent.parent / "bin" / "version"
+# The version script has no .py extension, so name an explicit source loader
+# rather than relying on extension-based loader discovery (which yields no
+# loader). It lives with the repo-local release skill (ADR 0005), not bin/.
+_BIN = (
+    Path(__file__).resolve().parent.parent
+    / ".claude"
+    / "skills"
+    / "release"
+    / "scripts"
+    / "version"
+)
 _spec = importlib.util.spec_from_loader(
     "version_adapter", SourceFileLoader("version_adapter", str(_BIN))
 )
