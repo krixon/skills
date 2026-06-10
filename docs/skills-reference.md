@@ -4,7 +4,7 @@ A per-skill reference that sits between the [README's task table](../README.md#i
 
 Each entry names its default handover hop — the recommended next skill — on one line. The README and `HANDOVER.md` are canon for triggers and the full graph; this page links to them rather than restating them.
 
-The issue-touching skills (`pickup`, `slice`, `triage`, `capture`, `land`, `patch`, `auto`) reach issue mechanics through one router, [skills/ISSUES.md](../skills/ISSUES.md), rather than naming a tracker directly. The `SKILL_TRACKER` env var selects the binding, defaulting to `github`, which routes to the issue sections of [skills/GITHUB.md](../skills/GITHUB.md); with no selector set, behavior is the GitHub-tracker behavior. PR, branch, tag, and review-thread mechanics stay in `GITHUB.md` whatever the issue tracker.
+The issue-touching skills (`pickup`, `slice`, `triage`, `capture`, `land`, `auto`) reach issue mechanics through one router, [skills/ISSUES.md](../skills/ISSUES.md), rather than naming a tracker directly (`patch` is no-issue work, so it links only to `GITHUB.md` for PR mechanics). The `SKILL_TRACKER` env var selects the binding, defaulting to `github`, which routes to the issue sections of [skills/GITHUB.md](../skills/GITHUB.md); with no selector set, behavior is the GitHub-tracker behavior. PR, branch, tag, and review-thread mechanics stay in `GITHUB.md` whatever the issue tracker.
 
 ## Planning & specs
 
