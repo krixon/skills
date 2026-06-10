@@ -99,7 +99,7 @@ The two coordination mechanics in [CONCURRENCY.md](CONCURRENCY.md), bound to Git
 
 ## PR identity
 
-Identity is configured by two env vars. When `GITHUB_BOT_ACCOUNT` is set, the agent opens PRs as that machine account, never as the maintainer. Commits and branch pushes stay under the maintainer's identity (SSH `origin`); the writes that must appear *as the PR author* — opening the PR, and replying to or resolving its review threads — switch identity by prefixing a bot token. `GITHUB_BOT_TOKEN_CMD` is a shell command that prints that token; evaluate it inline per call so the token never persists:
+Identity is configured by two env vars, set together or left both unset — never one without the other. When both are set, the agent opens PRs as `$GITHUB_BOT_ACCOUNT`, never as the maintainer. Commits and branch pushes stay under the maintainer's identity (SSH `origin`); only the writes that must appear *as the PR author* — opening the PR, and replying to or resolving its review threads — switch identity by prefixing a bot token. `GITHUB_BOT_TOKEN_CMD` is a shell command that prints that token; evaluate it inline per call so the token never persists:
 
 ```
 GH_TOKEN=$(eval "$GITHUB_BOT_TOKEN_CMD") gh pr create …
@@ -107,9 +107,9 @@ GH_TOKEN=$(eval "$GITHUB_BOT_TOKEN_CMD") gh pr create …
 
 Prefixing `GH_TOKEN` is atomic per command — it never mutates the active `gh` account, so the maintainer's session is untouched. Because the bot is the author, rework queries filter on `--author "$GITHUB_BOT_ACCOUNT"`, **not** `@me` (which resolves to the maintainer and would never match the bot's PRs).
 
-**Unconfigured (multi-dev).** With `GITHUB_BOT_ACCOUNT` unset there is no bot dance: skills open PRs under the agent's normal identity (no `GH_TOKEN` prefix), rework and `land` queries drop the `--author` filter and match any open PR, and the `bin/gh` shim is inert. This is the default the plugin ships; setting the two vars in `.claude/settings.json` — `GITHUB_BOT_ACCOUNT` to the bot login, `GITHUB_BOT_TOKEN_CMD` to a command that prints a classic PAT with `repo` scope — opts a solo-dev repo into the bot indirection.
+**Unconfigured (multi-dev).** With both vars unset there is no bot dance: skills open PRs under the agent's normal identity (no `GH_TOKEN` prefix), and rework and `land` queries drop the `--author` filter to match any open PR. This is the default the plugin ships; setting the two vars in `.claude/settings.json` — `GITHUB_BOT_ACCOUNT` to the bot login, `GITHUB_BOT_TOKEN_CMD` to a command that prints a classic PAT with `repo` scope — opts a solo-dev repo into the bot indirection.
 
-The shim that enforces this is `bin/gh`, a wrapper the plugin's `bin/` puts ahead of the system `gh` on PATH. It checks the `gh` argv directly rather than parsing the command string, so the create phrase appearing as data — in an issue body, a quoted title, a heredoc — can never trip it.
+**Half-configured stops.** One var without the other, or either set but empty, is neither identity — the state where a `gh` call would silently fall through to the wrong account. The `gh-identity.sh` `PreToolUse(Bash)` hook reads the two vars and denies before any shell command runs in that state, naming which is wrong. It inspects only the environment, never the command, so a `gh` phrase appearing as data can't trip it (ADR 0007).
 
 ## PRs and rework
 
