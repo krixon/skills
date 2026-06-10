@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -142,6 +143,14 @@ def derive(current_version, commits):
 # read the inputs, hand them to the pure core above, act on the result.
 
 _NUL = "\x1e"  # record separator between commit subject and body in the git log
+
+# URL userinfo (e.g. an https remote's embedded token) in echoed git output.
+_CRED_RE = re.compile(r"(?<=://)[^/@\s]+@")
+
+
+def _redact(text):
+    """Strip URL userinfo from git output before echoing it to the terminal."""
+    return _CRED_RE.sub("***@", text)
 
 
 def _git(repo, *args):
@@ -279,7 +288,7 @@ def cmd_apply(args):
                 file=sys.stderr,
             )
             if exc.stderr:
-                print(exc.stderr.strip(), file=sys.stderr)
+                print(_redact(exc.stderr.strip()), file=sys.stderr)
             return 1
     finally:
         # Tear the throwaway worktree and branch down regardless of outcome.
@@ -293,6 +302,9 @@ def cmd_apply(args):
             capture_output=True,
             text=True,
         )
+        # The temp dir itself outlives a failed `worktree add` (mkdtemp creates
+        # it up front); sweep it whatever happened above.
+        shutil.rmtree(wt, ignore_errors=True)
 
     print(f"released v{new}")
     return 0
