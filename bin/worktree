@@ -12,7 +12,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from adapter.preflight import preflight
 from adapter.worktree import main
 
 if __name__ == "__main__":
+    # worktree is pure git — it never shells out to gh, so it requires only git.
+    rc = preflight(required=("git",))
+    if rc != 0:
+        sys.exit(rc)
     sys.exit(main())

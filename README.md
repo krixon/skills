@@ -26,6 +26,18 @@ Then in Claude Code:
 
 Skills are namespaced once installed: `/skills:diagnose`, `/skills:tdd`, etc.
 
+## Requirements
+
+The workflow skills drive a small code adapter under `bin/` ([ADR 0008](docs/adr/0008-deterministic-mechanics-code-adapter.md)) that shells out to a few tools. On the machine that runs the skills you need:
+
+- `git`
+- `gh` (the GitHub CLI), authenticated
+- Python 3.8 or newer
+
+Each command requires only the tools it actually uses — the `worktree` group is pure git, so it doesn't need `gh`. The adapter binaries ship executable — a marketplace install is a git clone, which reproduces the committed file mode, so no `chmod` and no install step is needed. When a prerequisite is absent the adapter stops on its first call with a named halt on stderr — a JSON envelope whose `reason` is `adapter substrate check failed` and whose `missing` list names each absent prerequisite — rather than a cryptic exec error.
+
+Targets macOS/Linux.
+
 ## I want to…
 
 Start from the task, not the skill. Each entry is the head of a chain — run the command and it hands you to the next hop. Trace a chain by following each skill's handover `default` hop ([skills/HANDOVER.md](skills/HANDOVER.md)).
@@ -114,5 +126,3 @@ Each skill below links to its fuller entry in the [skills reference](docs/skills
 - `.claude/skills/` — symlink to `skills/` so this repo also loads them live as project-local skills during development.
 - `.claude-plugin/plugin.json` — plugin manifest (name `skills`).
 - `.claude-plugin/marketplace.json` — single-plugin marketplace (name `karl`).
-
-Targets macOS/Linux.
