@@ -64,7 +64,11 @@ class TestCreate(WorktreeFixture):
         self.assertEqual(rc, 0)
         payload = json.loads(out.getvalue())
         self.assertEqual(payload["branch"], "feat/87-csv-export")
-        expected_path = os.path.join(self.repo, ".claude", "worktrees", "csv-export")
+        # The path is keyed off the unique branch, not the title-only slug, so
+        # two same-title issues never collide. realpath matches the command's
+        # path-traversal guard, which resolves symlinks (e.g. macOS /var).
+        expected_path = os.path.realpath(
+            os.path.join(self.repo, ".claude", "worktrees", "feat-87-csv-export"))
         self.assertEqual(payload["path"], expected_path)
         self.assertTrue(os.path.isdir(expected_path))
         self.assertTrue(gitcmd.branch_exists(self.repo, "feat/87-csv-export"))
@@ -75,6 +79,30 @@ class TestCreate(WorktreeFixture):
                             issue=None, stream=out)
         payload = json.loads(out.getvalue())
         self.assertEqual(payload["branch"], "chore/bump-eslint")
+
+    def test_same_title_different_issues_get_distinct_paths(self):
+        # Two issues with identical titles produce distinct branches; the
+        # worktree path must be as unique as the branch, or the second add
+        # collides on the first's path.
+        out1 = io.StringIO()
+        worktree.cmd_create(self.repo, kind="feat", title="dup title",
+                            issue=10, stream=out1)
+        out2 = io.StringIO()
+        worktree.cmd_create(self.repo, kind="feat", title="dup title",
+                            issue=11, stream=out2)
+        path1 = json.loads(out1.getvalue())["path"]
+        path2 = json.loads(out2.getvalue())["path"]
+        self.assertNotEqual(path1, path2)
+        self.assertTrue(os.path.isdir(path1))
+        self.assertTrue(os.path.isdir(path2))
+
+    def test_rejects_non_digit_issue(self):
+        out = io.StringIO()
+        rc = worktree.cmd_create(self.repo, kind="feat", title="x",
+                                 issue="12; rm -rf", stream=out)
+        self.assertNotEqual(rc, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["status"], "halted")
 
     def test_checks_out_existing_local_branch(self):
         _git(self.repo, "branch", "feat/5-existing")
@@ -111,7 +139,7 @@ class TestTeardown(WorktreeFixture):
     def test_removes_worktree_and_branch(self):
         worktree.cmd_create(self.repo, kind="feat", title="temp", issue=1,
                             stream=io.StringIO())
-        path = os.path.join(self.repo, ".claude", "worktrees", "temp")
+        path = os.path.join(self.repo, ".claude", "worktrees", "feat-1-temp")
         self.assertTrue(os.path.isdir(path))
 
         out = io.StringIO()

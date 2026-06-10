@@ -17,14 +17,26 @@ import os
 import sys
 
 from adapter import cli, gitcmd
-from adapter.naming import branch_name, slugify
+from adapter.naming import branch_name
 
 WORKTREE_DIR = os.path.join(".claude", "worktrees")
 BASE = "main"
 
 
-def _worktree_path(repo_root, slug):
-    return os.path.join(repo_root, WORKTREE_DIR, slug)
+def _worktree_path(repo_root, branch):
+    """Path for a worktree, keyed off the unique branch so two same-title
+    issues never collide on one directory.
+
+    `branch` carries kind and issue (e.g. `feat/87-csv-export`); flattening its
+    `/` to `-` yields a directory name as unique as the branch itself. The
+    realpath stays under the worktrees root — a defence against a branch slug
+    that somehow encodes `..`.
+    """
+    root = os.path.realpath(os.path.join(repo_root, WORKTREE_DIR))
+    path = os.path.realpath(os.path.join(root, branch.replace("/", "-")))
+    if os.path.commonpath([root, path]) != root:
+        raise ValueError(f"worktree path escapes the worktrees root: {path}")
+    return path
 
 
 def cmd_create(repo_root, kind, title, issue=None, stream=None):
@@ -34,21 +46,30 @@ def cmd_create(repo_root, kind, title, issue=None, stream=None):
     already exists locally or only on the remote, drop `-b` and check it out,
     fetching first so a remote-only ref resolves.
     """
+    if issue is not None and not str(issue).isdigit():
+        return cli.halt("issue must be digits-only",
+                        details={"issue": str(issue)}, stream=stream)
+
+    # Derive the branch once; the worktree path keys off it, so the slug has a
+    # single source feeding both.
     branch = branch_name(kind, title, issue=issue)
-    slug = slugify(title)
-    path = _worktree_path(repo_root, slug)
+    path = _worktree_path(repo_root, branch)
 
     if gitcmd.branch_exists(repo_root, branch):
-        gitcmd.run_git(["worktree", "add", path, branch], cwd=repo_root)
+        gitcmd.run_git(["worktree", "add", "--", path, branch], cwd=repo_root)
         mode = "checkout-local"
     else:
+        # Fetch immediately before the remote-existence check, so the tracking
+        # ref it reads is fresh; a plain fetch creates no local refs/heads, so
+        # only the remote check can newly pass here.
         gitcmd.run_git(["fetch", "origin"], cwd=repo_root)
-        if gitcmd.branch_exists(repo_root, branch) or _remote_branch_exists(repo_root, branch):
-            gitcmd.run_git(["worktree", "add", path, "--track", "-b", branch,
-                            f"origin/{branch}"], cwd=repo_root)
+        if _remote_branch_exists(repo_root, branch):
+            gitcmd.run_git(["worktree", "add", "--track", "-b", branch,
+                            "--", path, f"origin/{branch}"], cwd=repo_root)
             mode = "checkout-remote"
         else:
-            gitcmd.run_git(["worktree", "add", path, "-b", branch, BASE], cwd=repo_root)
+            gitcmd.run_git(["worktree", "add", "-b", branch, "--", path, BASE],
+                           cwd=repo_root)
             mode = "created"
 
     return cli.acted({"branch": branch, "path": path, "mode": mode}, stream=stream)
@@ -78,8 +99,8 @@ def cmd_rebase(worktree_path, stream=None):
 
 def cmd_teardown(repo_root, path, branch, stream=None):
     """Remove the worktree and delete its branch."""
-    gitcmd.run_git(["worktree", "remove", path], cwd=repo_root)
-    gitcmd.run_git(["branch", "-D", branch], cwd=repo_root)
+    gitcmd.run_git(["worktree", "remove", "--", path], cwd=repo_root)
+    gitcmd.run_git(["branch", "-D", "--", branch], cwd=repo_root)
     return cli.acted({"status": "torn-down", "path": path, "branch": branch},
                      stream=stream)
 
@@ -110,7 +131,8 @@ def cmd_sync_main(repo_root, stream=None):
 
 def _remote_branch_exists(repo_root, branch):
     result = gitcmd.run_git(
-        ["show-ref", "--verify", "--quiet", f"refs/remotes/origin/{branch}"],
+        ["show-ref", "--verify", "--quiet", "--",
+         f"refs/remotes/origin/{branch}"],
         cwd=repo_root, check=False,
     )
     return result.returncode == 0

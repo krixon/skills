@@ -50,7 +50,7 @@ def is_clean(cwd):
 def branch_exists(cwd, branch):
     """True when a local branch ref of this name exists."""
     result = run_git(
-        ["show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
+        ["show-ref", "--verify", "--quiet", "--", f"refs/heads/{branch}"],
         cwd=cwd,
         check=False,
     )
@@ -66,7 +66,7 @@ def current_branch(cwd):
 def is_ancestor(cwd, maybe_ancestor, descendant):
     """True when maybe_ancestor is an ancestor of descendant."""
     result = run_git(
-        ["merge-base", "--is-ancestor", maybe_ancestor, descendant],
+        ["merge-base", "--is-ancestor", "--", maybe_ancestor, descendant],
         cwd=cwd,
         check=False,
     )
