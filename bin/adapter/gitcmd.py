@@ -57,6 +57,12 @@ def branch_exists(cwd, branch):
     return result.returncode == 0
 
 
+def current_branch(cwd):
+    """The name of the currently checked-out branch."""
+    result = run_git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=cwd)
+    return result.stdout.strip()
+
+
 def is_ancestor(cwd, maybe_ancestor, descendant):
     """True when maybe_ancestor is an ancestor of descendant."""
     result = run_git(

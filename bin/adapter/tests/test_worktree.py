@@ -195,6 +195,29 @@ class TestRebase(WorktreeFixture):
         merged = gitcmd.run_git(["log", "--oneline"], cwd=path).stdout
         self.assertIn("main advances", merged)
 
+    def test_rebase_pushes_without_preset_upstream(self):
+        # A branch created via cmd_create's `-b <branch> main` path has no
+        # configured upstream. Rebase must push explicitly, not rely on one.
+        out = io.StringIO()
+        worktree.cmd_create(self.repo, kind="feat", title="no upstream",
+                            issue=4, stream=out)
+        path = json.loads(out.getvalue())["path"]
+        _write(os.path.join(path, "feature.txt"), "feature\n")
+        _git(path, "add", "-A")
+        _git(path, "commit", "-q", "-m", "branch work")
+        # main advances with a non-conflicting change.
+        _write(os.path.join(self.repo, "other.txt"), "other\n")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-q", "-m", "main advances")
+
+        rc = worktree.cmd_rebase(path, stream=io.StringIO())
+        self.assertEqual(rc, 0)
+        # The branch was pushed to origin without a pre-set upstream.
+        remote_branches = subprocess.run(
+            ["git", "ls-remote", "--heads", self.remote, "feat/4-no-upstream"],
+            capture_output=True, text=True, check=True).stdout
+        self.assertIn("feat/4-no-upstream", remote_branches)
+
     def test_conflict_halts_and_aborts(self):
         path = self._branch_worktree(3, "clash.txt", "branch side\n")
         # main edits the same file, so the replay conflicts.

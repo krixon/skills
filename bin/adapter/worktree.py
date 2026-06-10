@@ -67,7 +67,12 @@ def cmd_rebase(worktree_path, stream=None):
         return cli.halt("rebase onto main hit a conflict",
                         details={"paths": paths}, stream=stream)
 
-    gitcmd.run_git(["push", "--force-with-lease"], cwd=worktree_path)
+    # Push explicitly to origin/<branch>: a branch created via cmd_create's
+    # `-b <branch> main` path has no configured upstream, so a bare push would
+    # error with "no upstream" rather than push.
+    branch = gitcmd.current_branch(worktree_path)
+    gitcmd.run_git(["push", f"--force-with-lease={branch}", "origin", branch],
+                   cwd=worktree_path)
     return cli.acted({"status": "rebased", "base": BASE}, stream=stream)
 
 
