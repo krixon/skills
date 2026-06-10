@@ -34,7 +34,7 @@ The workflow skills drive a small code adapter under `bin/` ([ADR 0008](docs/adr
 - `gh` (the GitHub CLI), authenticated
 - Python 3.8 or newer
 
-The adapter binaries ship executable — a marketplace install is a git clone, which reproduces the committed file mode, so no `chmod` and no install step is needed. When a prerequisite is absent the adapter stops on its first call with a named line on stderr (for example `adapter substrate check failed: gh is a required prerequisite and was not found on PATH`) rather than a cryptic exec error.
+Each command requires only the tools it actually uses — the `worktree` group is pure git, so it doesn't need `gh`. The adapter binaries ship executable — a marketplace install is a git clone, which reproduces the committed file mode, so no `chmod` and no install step is needed. When a prerequisite is absent the adapter stops on its first call with a named halt on stderr — a JSON envelope whose `reason` is `adapter substrate check failed` and whose `missing` list names each absent prerequisite — rather than a cryptic exec error.
 
 Targets macOS/Linux.
 
