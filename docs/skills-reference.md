@@ -143,16 +143,6 @@ They differ only by what they look for:
 
 **Chains to.** Terminal — open a PR for review.
 
-### land
-
-**What it does.** Merges approved, bot-owned PRs that are ready to merge, strips each issue's `in-progress` label, then tears down the local worktree and branch. Human-invoked only.
-
-**When to reach for it.** You've approved a PR and want it merged and the local state cleaned up.
-
-**Example.** `/land` — or "land the approved PRs".
-
-**Chains to.** Terminal — the work is merged and the trail is clean. After a merge it offers the project's release process, when the project's `CLAUDE.md` documents one.
-
 ### reap
 
 **What it does.** Sweeps the workflow state machine for four classes of staleness and proposes a cleanup for each, mutating nothing without a per-item confirmation: claimed issues abandoned by a crashed run (no open PR, claim older than the threshold) → release the claim and strip `in-progress`; `needs-info` issues quiet past the threshold → re-ping or close; local worktrees and branches whose PR has merged or closed → tear down per the isolation contract; open epics whose sub-issues have all closed → close the epic. Thresholds (claim 24h, needs-info 14d) are overridable by argument. Human-invoked only, interactive-only — `auto` never enters it.
@@ -162,6 +152,20 @@ They differ only by what they look for:
 **Example.** `/reap` — or `/reap claim=48h needs-info=7d` to tighten the thresholds.
 
 **Chains to.** Terminal — the state is tidied; there's no artifact to chain onward.
+
+## Commands
+
+Collapsed pure commands ([ADR 0008](adr/0008-deterministic-mechanics-code-adapter.md)) — thin in-session wrappers over the `bin/` adapter rather than agent-native skills. The mechanics live in tested code; the wrapper carries only the human decision and names only the binary.
+
+### land
+
+**What it does.** Merges approved, bot-owned PRs that are ready to merge, strips each issue's `in-progress` label, then tears down the local worktree and branch. The classification, merge, label-strip, teardown, and `main` fast-forward run in the `bin/land` adapter command; the wrapper presents the plan, confirms in chat only when something is unusual, applies, and offers any emptied parent epic for closing. Human-invoked only.
+
+**When to reach for it.** You've approved a PR and want it merged and the local state cleaned up.
+
+**Example.** `/land` — or "land the approved PRs".
+
+**Chains to.** Terminal — the work is merged and the trail is clean. After a merge it offers the project's release process, when the project's `CLAUDE.md` documents one.
 
 ## Meta & session
 

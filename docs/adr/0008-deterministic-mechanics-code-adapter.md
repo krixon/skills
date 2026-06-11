@@ -51,6 +51,15 @@ Every command is one of two stdin-free shapes: **present** (emit options as JSON
 
 A pure command (the bucket-(1)/(2) commands below) **halts at synthesis** — on reaching a state only a model can resolve, it presents the blocker and exits; it never silently degrades into doing the synthesis, and it never spawns to cover it. That keeps `land` honestly a pure command: it merges what GitHub will merge (ready-to-merge, approval-covers-HEAD, bot-owned) and **never rebases** — rebasing a moved base is rework, owned solely by `pickup`, so `land` has no conflict trapdoor to meet. A clean, approved PR that is *behind and blocked* under up-to-date-required protection is therefore a **rework trigger** (alongside CONFLICTING/DIRTY), routed to `pickup`, not rebased in place by `land`. Only the designated commands (next section) spawn; the rest halt.
 
+### A pure command runs two ways over one implementation
+
+A pure command is one code entry point under `${CLAUDE_PLUGIN_ROOT}/bin/`, run in either of two contexts with no second implementation:
+
+- **From the shell** — a developer by hand, or a loop, runs the binary directly. Bare invocation is the *present* shape (read-only — "what would happen"); an explicit verb is the *act* (`bin/land` presents the landable PRs, `bin/land apply` merges them). This is the surface a developer drives by hand, and the point at which a CLI run can seed a model session (`claude "<seed>"`) from what *present* emitted.
+- **In-session** — a thin `commands/<name>.md` slash wrapper whose `!`-injection runs *present* into the turn; the agent renders it, the human confirms in chat, the agent calls *act* (the *In-session* handoff below). The wrapper holds no mechanics and names only the binary, so the per-skill acceptance check (no skill or command names `gh`/a git mutation) falls out by construction.
+
+The binary is the single source of the mechanics; the shell run and the wrapper are two faces of it, never two copies — which is why interactivity is never the binary's job (it has no TTY in either context). The present/act split carries the lone human decision out to whichever surface drives it, and the side-effect-free default — bare invocation presents — keeps a by-hand run safe to fire blind. The same model extends to the bucket-(3) commands that *do* spawn (`pickup`, `triage`, `capture`): they run from the shell or in-session over one implementation too; the difference is only that they reach a synthesis step and hand off to an agent (next section) where a pure command halts.
+
 ### The entry point inverts; agents are spawned, not wrapping
 
 The human (or a loop) runs a **command**, not a skill. The command does the deterministic work, presents, and where bucket-(3) synthesis is reached, **launches an agent** with a constructed prompt. Three handoff modes:

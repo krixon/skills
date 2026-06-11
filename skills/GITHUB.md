@@ -49,7 +49,6 @@ Skills express the workflow in the tracker-neutral concepts below; this table is
 | Concept | GitHub binding |
 | --- | --- |
 | **approved** | a review whose decision is `APPROVED` |
-| **approval covers HEAD** | the latest approving review's `commit.oid` equals the PR's `headRefOid`; a force-push after approval leaves the approval standing against the commit the reviewer saw, not the one that would merge (*Check an approval covers HEAD* below) |
 | **changes requested** | a review whose decision is `CHANGES_REQUESTED` |
 | **no review** | review decision `REVIEW_REQUIRED` — a required review is absent |
 | **ready to merge** | `mergeable` is `MERGEABLE` and `mergeStateStatus` is `CLEAN`: no conflicts, required checks green. Not `CONFLICTING` / `BLOCKED` / `UNKNOWN`. (The skill-facing wording for the GitHub `mergeable` concept; skills say "ready to merge".) |
@@ -128,17 +127,6 @@ Prefixing `GH_TOKEN` is atomic per command — it never mutates the active `gh` 
 - **Read the review** — the comments that form the rework brief:
   `gh pr view <n> --comments` (or `--json reviews,comments`).
 - **Update a PR**: push more commits to its branch; the open PR tracks the branch, no re-create needed.
-- **Check an approval covers HEAD** — read the head oid and each reviewer's latest review with the commit it covered, in one query: `gh api graphql -f query='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){headRefOid latestReviews(first:20){nodes{state author{login} commit{oid}}}}}}' -F owner=<owner> -F repo=<repo> -F pr=<n>`. The approval is current when a node has `state == "APPROVED"` and `commit.oid == headRefOid`; otherwise HEAD moved past the reviewed commit and the approval is stale. `land` gates on this.
-
-These cover landing an approved PR:
-
-- **Find approved PRs to land** — bot-owned PRs a human has approved:
-  `gh pr list --state open --author "$GITHUB_BOT_ACCOUNT" --json number,title,reviewDecision,mergeable,headRefName --jq '[.[] | select(.reviewDecision == "APPROVED")]'` — drop `--author` when `GITHUB_BOT_ACCOUNT` is unset, to match any open PR. The `reviewDecision == "APPROVED"` filter is a first cut: it does not catch a stale approval (the decision stays `APPROVED` against an earlier commit), so apply *Check an approval covers HEAD* per PR.
-- **Check whether a PR is already merged** (a human may have merged in the UI): `gh pr view <n> --json state,mergedAt`.
-- **Re-check a PR is ready to merge** (a swept list goes stale the moment `main` moves): `gh pr view <n> --json mergeable,mergeStateStatus`.
-- **Discover the allowed merge methods** — never assume one; a branch ruleset can restrict beyond the repo settings, and a disallowed method fails only at merge time (`Squash merges are not allowed on this repository.`). Read the base branch's effective rules: `gh api repos/{owner}/{repo}/rules/branches/<base>` — when a `pull_request` rule is present, its `allowed_merge_methods` is the allowed set. With no `pull_request` rule, the repo flags govern: `gh api repos/{owner}/{repo} --jq '{allow_squash_merge,allow_merge_commit,allow_rebase_merge}'`.
-- **Merge a PR**: `gh pr merge <n> --squash --delete-branch`, with the method flag picked from the allowed set, in this order: `--squash` when allowed; otherwise `--rebase`, after reducing the branch to its logical commits — a branch already reduced to one commit rebase-merges to the same result a squash would. Never fall through to `--merge`: the workflow keeps history linear, so if neither squash nor rebase is allowed, skip the PR with that reason. The repo does **not** auto-delete the remote branch on merge, so `--delete-branch` removes it; git refuses to delete a branch checked out in a worktree at merge time, so the local branch persists until the worktree is torn down. The PR's closing reference closes the linked issue as the merge lands.
-- **Confirm the closing reference** resolved to the issue: `gh pr view <n> --json closingIssuesReferences`.
 
 ## Releases
 
