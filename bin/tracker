@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""Entry point for the `tracker` command group.
+
+Invoked by absolute path under ${CLAUDE_PLUGIN_ROOT}/bin/ (ADR 0008), not via
+PATH. This stays thin: it puts the adapter package on the path and hands argv to
+adapter.tracker.main, which holds the command logic, the GitHub backend, and the
+internal bot-identity dance. Sibling of bin/worktree over the same bin/adapter
+substrate.
+"""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from adapter.tracker import main
+
+if __name__ == "__main__":
+    sys.exit(main())
