@@ -12,9 +12,12 @@ to a stream, so they stay thin over naming.py and gitcmd.py and test directly.
 The argparse dispatcher and the bin/worktree executable wire them to argv.
 """
 
+from __future__ import annotations
+
 import argparse
 import os
 import sys
+from typing import Sequence, TextIO
 
 from adapter import cli, gitcmd
 from adapter.naming import branch_name
@@ -23,7 +26,7 @@ WORKTREE_DIR = os.path.join(".claude", "worktrees")
 BASE = "main"
 
 
-def _worktree_path(repo_root, branch):
+def _worktree_path(repo_root: str, branch: str) -> str:
     """Path for a worktree, keyed off the unique branch so two same-title
     issues never collide on one directory.
 
@@ -39,7 +42,13 @@ def _worktree_path(repo_root, branch):
     return path
 
 
-def cmd_create(repo_root, kind, title, issue=None, stream=None):
+def cmd_create(
+    repo_root: str,
+    kind: str,
+    title: str,
+    issue: int | str | None = None,
+    stream: TextIO | None = None,
+) -> int:
     """Create a worktree on its own branch, or check out an existing one.
 
     New branch: `git worktree add <path> -b <branch> main`. When the branch
@@ -75,7 +84,7 @@ def cmd_create(repo_root, kind, title, issue=None, stream=None):
     return cli.acted({"branch": branch, "path": path, "mode": mode}, stream=stream)
 
 
-def cmd_rebase(worktree_path, stream=None):
+def cmd_rebase(worktree_path: str, stream: TextIO | None = None) -> int:
     """Rebase the worktree's branch onto main without squashing, then force-push.
 
     On conflict, abort the rebase and halt with the conflicting paths — the
@@ -97,7 +106,12 @@ def cmd_rebase(worktree_path, stream=None):
     return cli.acted({"status": "rebased", "base": BASE}, stream=stream)
 
 
-def cmd_teardown(repo_root, path, branch, stream=None):
+def cmd_teardown(
+    repo_root: str,
+    path: str,
+    branch: str,
+    stream: TextIO | None = None,
+) -> int:
     """Remove the worktree and delete its branch."""
     gitcmd.run_git(["worktree", "remove", "--", path], cwd=repo_root)
     gitcmd.run_git(["branch", "-D", "--", branch], cwd=repo_root)
@@ -105,7 +119,7 @@ def cmd_teardown(repo_root, path, branch, stream=None):
                      stream=stream)
 
 
-def cmd_sync_main(repo_root, stream=None):
+def cmd_sync_main(repo_root: str, stream: TextIO | None = None) -> int:
     """Bring local main current: fast-forward only on a clean, behind tree.
 
     Fetch, then fast-forward only when the tree is clean and main is an ancestor
@@ -129,7 +143,7 @@ def cmd_sync_main(repo_root, stream=None):
     return cli.present_json({"status": "fast-forwarded"}, stream=stream)
 
 
-def _remote_branch_exists(repo_root, branch):
+def _remote_branch_exists(repo_root: str, branch: str) -> bool:
     result = gitcmd.run_git(
         ["show-ref", "--verify", "--quiet", "--",
          f"refs/remotes/origin/{branch}"],
@@ -138,13 +152,13 @@ def _remote_branch_exists(repo_root, branch):
     return result.returncode == 0
 
 
-def _conflicting_paths(worktree_path):
+def _conflicting_paths(worktree_path: str) -> list[str]:
     result = gitcmd.run_git(["diff", "--name-only", "--diff-filter=U"],
                             cwd=worktree_path, check=False)
     return [line for line in result.stdout.splitlines() if line]
 
 
-def _build_parser():
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="worktree",
         description="Git isolation command group (create, rebase, teardown, sync-main).",
@@ -169,7 +183,7 @@ def _build_parser():
     return parser
 
 
-def main(argv=None):
+def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     if args.command == "create":
         return cmd_create(args.repo_root, kind=args.kind, title=args.title,
