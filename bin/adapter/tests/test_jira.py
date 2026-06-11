@@ -274,13 +274,17 @@ class TestJiraDispatch(unittest.TestCase):
         "JIRA_PROJECT": "PROJ",
     }
 
+    # acli's real auth-status report is plain text (no --json in acli 1.x).
+    _AUTHED = "✓ Authenticated\n  Authentication Type: api_token\n"
+    _NOT_AUTHED = "✗ Not authenticated\n"
+
     def test_jira_tracker_dispatches_to_jira_backend(self) -> None:
         # auth status (authenticated) then the issue view.
         view = json.dumps({"key": "PROJ-7", "fields": {
             "summary": "t", "status": {"statusCategory": {"key": "new"}}}})
         runner = ScriptedRunner([
-            (json.dumps({"authenticated": True}),),  # acli auth status
-            (view,),                                  # workitem view
+            (self._AUTHED,),  # acli auth status
+            (view,),          # workitem view
         ])
         out = io.StringIO()
         rc = tracker.run(
@@ -291,7 +295,7 @@ class TestJiraDispatch(unittest.TestCase):
         self.assertEqual(json.loads(out.getvalue())["key"], "PROJ-7")
 
     def test_unauthenticated_acli_halts_at_startup(self) -> None:
-        runner = ScriptedRunner([(json.dumps({"authenticated": False}),)])
+        runner = ScriptedRunner([(self._NOT_AUTHED,)])
         out = io.StringIO()
         rc = tracker.run(
             ["issue", "view", "--key", "PROJ-7"],

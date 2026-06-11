@@ -9,7 +9,6 @@ clean authenticated/not state, never a status-name read.
 
 from __future__ import annotations
 
-import json
 import unittest
 from typing import Any, Sequence
 
@@ -73,16 +72,25 @@ class _AuthRunner:
 
 
 class TestAuthStatus(unittest.TestCase):
-    def test_authenticated_when_status_parses_authenticated(self) -> None:
-        runner = _AuthRunner(stdout=json.dumps({"authenticated": True}))
-        self.assertTrue(aclicmd.is_authenticated(runner=runner))
-        # It asks acli for its own auth state, in JSON.
-        argv = runner.calls[0]["args"]
-        self.assertEqual(argv[:3], ["jira", "auth", "status"])
-        self.assertIn("--json", argv)
+    # The real `acli jira auth status` (acli 1.x) emits a plain-text report and
+    # rejects `--json` as an unknown flag, so the check parses the text.
+    _AUTHED = ("✓ Authenticated\n  Site: acme.atlassian.net\n"
+               "  Email: bot@acme.io\n  Authentication Type: api_token\n")
+    _NOT_AUTHED = "✗ Not authenticated\n"
 
-    def test_not_authenticated_when_status_says_so(self) -> None:
-        runner = _AuthRunner(stdout=json.dumps({"authenticated": False}))
+    def test_authenticated_when_status_reports_authenticated(self) -> None:
+        runner = _AuthRunner(stdout=self._AUTHED)
+        self.assertTrue(aclicmd.is_authenticated(runner=runner))
+        # It asks acli for its own auth state in plain text — never --json,
+        # which acli 1.x rejects as an unknown flag.
+        argv = runner.calls[0]["args"]
+        self.assertEqual(argv, ["jira", "auth", "status"])
+        self.assertNotIn("--json", argv)
+
+    def test_not_authenticated_when_status_says_so_at_exit_zero(self) -> None:
+        # The negative report must not be mistaken for the positive one even
+        # when acli exits zero — "not authenticated" contains "authenticated".
+        runner = _AuthRunner(stdout=self._NOT_AUTHED)
         self.assertFalse(aclicmd.is_authenticated(runner=runner))
 
     def test_not_authenticated_when_acli_exits_nonzero(self) -> None:

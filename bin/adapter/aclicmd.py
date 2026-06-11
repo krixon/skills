@@ -215,24 +215,21 @@ def eval_token(token_cmd: str) -> str:
 def is_authenticated(runner: Runner | None = None) -> bool:
     """Whether `acli` is itself authenticated to Jira.
 
-    The startup check, mirroring the GitHub identity check's shape: it asks acli
-    for its own auth state via `acli jira auth status --json` and parses a clean
-    authenticated/not. A non-zero exit (acli not logged in at all) reads as
-    not-authenticated rather than crashing, so the startup check can turn it into
-    one clear halt.
+    The startup check, mirroring the GitHub identity check's shape. `acli jira
+    auth status` has no machine-readable mode — `--json` is rejected as an
+    unknown flag in acli 1.x — so this parses its plain-text report: a clean
+    exit carrying the authenticated marker means logged in. A non-zero exit
+    (acli not logged in at all) reads as not-authenticated rather than crashing,
+    so the startup check can turn it into one clear halt. The negative marker is
+    matched explicitly so a "not authenticated" line that still exits zero is
+    not mistaken for the positive one.
     """
     runner = runner or run_acli
-    result = runner(["jira", "auth", "status", "--json"], check=False)
+    result = runner(["jira", "auth", "status"], check=False)
     if result.returncode != 0:
         return False
-    text = result.stdout.strip()
-    if not text:
-        return False
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        return False
-    return bool(data.get("authenticated"))
+    text = result.stdout.lower()
+    return "authenticated" in text and "not authenticated" not in text
 
 
 # --- the mandatory urllib /transitions fallback -----------------------------
