@@ -572,10 +572,10 @@ class TestDispatchAndShapes(unittest.TestCase):
         out = io.StringIO()
         rc = tracker.run(
             ["issue", "view", "--number", "7"],
-            env={"ISSUE_TRACKER": "jira"},
+            env={"ISSUE_TRACKER": "gitlab"},
             runner=ScriptedRunner([("{}",)]), repo="x", stream=out,
         )
-        # jira is not built in this slice; the dispatcher halts, not crashes.
+        # gitlab is not a built backend; the dispatcher halts, not crashes.
         self.assertNotEqual(rc, 0)
         self.assertEqual(json.loads(out.getvalue())["status"], "halted")
 
