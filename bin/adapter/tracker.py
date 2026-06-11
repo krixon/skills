@@ -215,7 +215,10 @@ class GithubBackend:
         )
         if result.returncode == 0:
             return {"created": True, "branch": branch}
-        if "already exists" in result.stderr or "HTTP 422" in result.stderr:
+        # The lost-claim signal is precisely "Reference already exists"; other
+        # 422s (a malformed ref, a ref-creation rule) are real failures, not a
+        # lost claim, so they raise rather than read as one.
+        if "already exists" in result.stderr:
             return {"created": False, "branch": branch, "reason": "claim-lost"}
         raise ghcmd.GhError(result.args, result.returncode, result.stderr)
 
@@ -260,14 +263,20 @@ class GithubBackend:
         returning the last read.
         """
         sleep = sleep or time.sleep
-        state = None
+        state = {}
         for attempt in range(max_polls):
             state = self._json(
                 ["pr", "view", str(number), "--repo", self.repo,
                  "--json", "mergeable,mergeStateStatus"],
                 default={},
             )
-            if state.get("mergeStateStatus") != "UNKNOWN":
+            # Settled only when both fields are present and neither is UNKNOWN:
+            # `mergeable` is the async-computed value, but `mergeStateStatus` can
+            # settle while it is still UNKNOWN, and an empty read leaves both
+            # None. Treating any of those as settled would let find_conflicting
+            # decide off a value that has not resolved.
+            if (state.get("mergeStateStatus") not in (None, "UNKNOWN")
+                    and state.get("mergeable") not in (None, "UNKNOWN")):
                 return state
             if attempt < max_polls - 1:
                 sleep(_REQUERY_SLEEP)
@@ -330,11 +339,13 @@ class GithubBackend:
 
     def find_approved(self):
         """Bot-owned open PRs a human has approved (a first cut; the caller
-        applies approval_covers_head per PR to reject a stale approval)."""
+        applies approval_covers_head per PR to reject a stale approval, and
+        re-reads readiness via merge_state — so `mergeable` is deliberately not
+        carried here, where the list read would only ever supply a stale one)."""
         prs = self._json(
             ["pr", "list", "--repo", self.repo, "--state", "open",
              *self._author_args(),
-             "--json", "number,title,reviewDecision,mergeable,headRefName"],
+             "--json", "number,title,reviewDecision,headRefName"],
             default=[],
         )
         return [p for p in prs if p.get("reviewDecision") == "APPROVED"]

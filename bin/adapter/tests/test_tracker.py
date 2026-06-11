@@ -94,6 +94,27 @@ class TestStaleMergeableRequery(unittest.TestCase):
         self.assertEqual(len(runner.calls), 4)
         self.assertEqual(state["mergeStateStatus"], "UNKNOWN")
 
+    def test_repolls_while_mergeable_unknown_though_status_settled(self):
+        # mergeStateStatus can settle (BLOCKED) while mergeable is still being
+        # computed — that is not a decidable read, so it keeps polling.
+        runner = ScriptedRunner([
+            (json.dumps({"mergeable": "UNKNOWN", "mergeStateStatus": "BLOCKED"}),),
+            (json.dumps({"mergeable": "MERGEABLE", "mergeStateStatus": "BLOCKED"}),),
+        ])
+        be = _backend(runner)
+        state = be.merge_state(7, sleep=lambda _s: None)
+        self.assertEqual(state["mergeable"], "MERGEABLE")
+        self.assertEqual(len(runner.calls), 2)
+
+    def test_empty_read_is_not_treated_as_settled(self):
+        # An empty payload (default {}) leaves both fields None; treating that as
+        # settled would decide off a failed read. It polls to the cap instead.
+        runner = ScriptedRunner([("",)])
+        be = _backend(runner)
+        state = be.merge_state(7, max_polls=3, sleep=lambda _s: None)
+        self.assertEqual(len(runner.calls), 3)
+        self.assertEqual(state, {})
+
     def test_find_conflicting_requeries_each_candidate(self):
         # The list read reports one PR clean (stale); the per-PR re-query
         # settles it to CONFLICTING, so it is reported as conflicting.
@@ -263,6 +284,16 @@ class TestBranchRefCas(unittest.TestCase):
         be = _backend(runner)
         with self.assertRaises(ghcmd.GhError):
             be.create_branch_ref("feat/1-x", "deadbeef")
+
+    def test_non_exists_422_raises_not_lost_claim(self):
+        # A 422 that is not "already exists" (e.g. a malformed ref) is a real
+        # failure, not a lost claim — it must raise, not read as claim-lost.
+        runner = ScriptedRunner([
+            ("", 1, "gh: Validation Failed: ref is malformed (HTTP 422)"),
+        ])
+        be = _backend(runner)
+        with self.assertRaises(ghcmd.GhError):
+            be.create_branch_ref("bad ref", "deadbeef")
 
 
 # --- selection: find-rework / find-approved drop author when unconfigured ---
