@@ -306,6 +306,106 @@ class TestSelectionAuthorFilter(unittest.TestCase):
         self.assertEqual([p["number"] for p in out], [1])
 
 
+# --- selection: sweep-stale (the per-PR rework-state scan) ------------------
+
+class TestSweepRework(unittest.TestCase):
+    @staticmethod
+    def _search(nodes):
+        return json.dumps({"data": {"search": {"nodes": nodes}}})
+
+    def test_computes_unresolved_count_and_latest_review(self):
+        nodes = [{
+            "number": 5,
+            "commits": {"nodes": [{"commit": {"committedDate": "2026-06-01T00:00:00Z"}}]},
+            "reviewThreads": {"nodes": [
+                {"isResolved": False}, {"isResolved": True}, {"isResolved": False},
+            ]},
+            "latestReviews": {"nodes": [
+                {"state": "COMMENTED", "submittedAt": "2026-06-02T00:00:00Z"},
+                {"state": "CHANGES_REQUESTED", "submittedAt": "2026-06-03T00:00:00Z"},
+            ]},
+        }]
+        runner = ScriptedRunner([(self._search(nodes),)])
+        be = _backend(runner)
+        out = be.sweep_rework()
+        self.assertEqual(len(out), 1)
+        row = out[0]
+        self.assertEqual(row["number"], 5)
+        self.assertEqual(row["unresolvedCount"], 2)
+        # Latest review is the one with the most recent submittedAt.
+        self.assertEqual(row["lastReviewState"], "CHANGES_REQUESTED")
+        self.assertEqual(row["lastReviewAt"], "2026-06-03T00:00:00Z")
+        self.assertEqual(row["headAt"], "2026-06-01T00:00:00Z")
+
+    def test_pr_with_no_reviews_or_threads(self):
+        nodes = [{
+            "number": 6,
+            "commits": {"nodes": [{"commit": {"committedDate": "2026-06-01T00:00:00Z"}}]},
+            "reviewThreads": {"nodes": []},
+            "latestReviews": {"nodes": []},
+        }]
+        runner = ScriptedRunner([(self._search(nodes),)])
+        be = _backend(runner)
+        row = be.sweep_rework()[0]
+        self.assertEqual(row["unresolvedCount"], 0)
+        self.assertIsNone(row["lastReviewState"])
+        self.assertIsNone(row["lastReviewAt"])
+
+    def test_configured_scopes_query_to_bot_author(self):
+        runner = ScriptedRunner([(self._search([]),)])
+        be = _backend(runner, identity=Identity(account="krixon-bot",
+                                                token_cmd="printf t"))
+        be.sweep_rework()
+        # The search query string carries the author scope, passed out-of-band
+        # as the -F q variable, not spliced into the GraphQL source.
+        argv = runner.argv(0)
+        qval = argv[argv.index("-F") + 1] if "-F" in argv else ""
+        # find the q=... arg (there may be multiple -F)
+        qvals = [a for a in argv if a.startswith("q=")]
+        self.assertTrue(qvals, "no q= variable in argv")
+        self.assertIn("author:krixon-bot", qvals[0])
+        self.assertIn("is:pr", qvals[0])
+
+    def test_unconfigured_omits_author_scope(self):
+        runner = ScriptedRunner([(self._search([]),)])
+        be = _backend(runner)
+        be.sweep_rework()
+        argv = runner.argv(0)
+        qvals = [a for a in argv if a.startswith("q=")]
+        self.assertTrue(qvals)
+        self.assertNotIn("author:", qvals[0])
+
+
+# --- selection: next (ready candidates for a readiness label) ---------------
+
+class TestFindNext(unittest.TestCase):
+    @staticmethod
+    def _issues():
+        return json.dumps([
+            {"number": 3, "title": "c", "createdAt": "2026-06-03T00:00:00Z",
+             "labels": [{"name": "ready-for-agent"}]},
+            {"number": 1, "title": "a", "createdAt": "2026-06-01T00:00:00Z",
+             "labels": [{"name": "ready-for-agent"}]},
+            {"number": 2, "title": "b", "createdAt": "2026-06-02T00:00:00Z",
+             "labels": [{"name": "ready-for-agent"}, {"name": "in-progress"}]},
+        ])
+
+    def test_excludes_in_progress_and_sorts_oldest_first(self):
+        runner = ScriptedRunner([(self._issues(),)])
+        be = _backend(runner)
+        out = be.find_next("ready-for-agent")
+        # #2 is in-progress (claimed) — dropped; the rest oldest-first.
+        self.assertEqual([i["number"] for i in out], [1, 3])
+
+    def test_filters_on_the_given_label(self):
+        runner = ScriptedRunner([("[]",)])
+        be = _backend(runner)
+        be.find_next("ready-for-human")
+        argv = runner.argv(0)
+        self.assertIn("--label", argv)
+        self.assertIn("ready-for-human", argv)
+
+
 # --- PR create uses bot identity (token in env, not argv) -------------------
 
 class TestPrCreate(unittest.TestCase):
@@ -401,6 +501,36 @@ class TestDispatchAndShapes(unittest.TestCase):
         self.assertEqual(rc, 0)
         # The body reached gh on stdin, not in argv.
         self.assertEqual(runner.calls[0]["input"], "a comment body")
+
+    def test_present_select_sweep_stale_emits_json(self):
+        search = json.dumps({"data": {"search": {"nodes": [{
+            "number": 8,
+            "commits": {"nodes": [{"commit": {"committedDate": "2026-06-01T00:00:00Z"}}]},
+            "reviewThreads": {"nodes": [{"isResolved": False}]},
+            "latestReviews": {"nodes": []},
+        }]}}})
+        out = io.StringIO()
+        rc = tracker.run(
+            ["select", "sweep-stale"],
+            env={"ISSUE_TRACKER": "github"},
+            runner=ScriptedRunner([(search,)]), repo="krixon/skills", stream=out,
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(out.getvalue())[0]["unresolvedCount"], 1)
+
+    def test_present_select_next_emits_json(self):
+        issues = json.dumps([
+            {"number": 4, "title": "t", "createdAt": "2026-06-01T00:00:00Z",
+             "labels": [{"name": "ready-for-agent"}]},
+        ])
+        out = io.StringIO()
+        rc = tracker.run(
+            ["select", "next", "--label", "ready-for-agent"],
+            env={"ISSUE_TRACKER": "github"},
+            runner=ScriptedRunner([(issues,)]), repo="krixon/skills", stream=out,
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(out.getvalue())[0]["number"], 4)
 
     def test_unknown_tracker_halts(self):
         out = io.StringIO()

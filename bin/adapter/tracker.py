@@ -339,6 +339,74 @@ class GithubBackend:
         )
         return [p for p in prs if p.get("reviewDecision") == "APPROVED"]
 
+    def sweep_rework(self):
+        """Compact per-PR rework state across all open bot PRs in one query.
+
+        `auto`'s per-iteration scan: rather than a query per PR, one GraphQL
+        search returns each open (bot-owned) PR's open-thread count, its most
+        recent review across reviewers (state + time), and its head-commit time.
+        The caller decides actionability — an unresolved thread, or a changes-
+        requested review postdating HEAD — from these without further reads.
+        The author scope rides the search query string passed out-of-band as the
+        `q` variable, never spliced into the GraphQL source.
+        """
+        qstr = f"repo:{self.repo} is:pr is:open"
+        af = self.identity.author_filter()
+        if af:
+            qstr += f" author:{af}"
+        query = (
+            "query($q:String!){search(query:$q,type:ISSUE,first:100){nodes"
+            "{...on PullRequest{number commits(last:1){nodes{commit{committedDate}}} "
+            "reviewThreads(first:100){nodes{isResolved}} "
+            "latestReviews(first:20){nodes{state submittedAt}}}}}}"
+        )
+        data = self._json(
+            ["api", "graphql", "-f", f"query={query}", "-F", f"q={qstr}"],
+            default={},
+        )
+        nodes = ((data.get("data") or {}).get("search") or {}).get("nodes") or []
+        out = []
+        for node in nodes:
+            if not node:
+                continue
+            threads = (node.get("reviewThreads") or {}).get("nodes") or []
+            unresolved = sum(1 for t in threads if not t.get("isResolved"))
+            reviews = (node.get("latestReviews") or {}).get("nodes") or []
+            latest = max(reviews, key=lambda r: r.get("submittedAt") or "",
+                         default=None)
+            commits = (node.get("commits") or {}).get("nodes") or []
+            head_at = commits[0]["commit"]["committedDate"] if commits else None
+            out.append({
+                "number": node["number"],
+                "unresolvedCount": unresolved,
+                "lastReviewState": latest["state"] if latest else None,
+                "lastReviewAt": latest["submittedAt"] if latest else None,
+                "headAt": head_at,
+            })
+        return out
+
+    def find_next(self, label, state="open"):
+        """Ready candidates for a readiness label: open, carrying the label, and
+        not yet claimed (`in-progress`), oldest first.
+
+        The raw candidate pool — a present-shape mechanic. The selection
+        *policy* (rework before new work, the label precedence, skipping a
+        blocked issue) stays with the caller; this returns the pool it draws on.
+        """
+        issues = self._json(
+            ["issue", "list", "--repo", self.repo, "--state", state,
+             "--label", label, "--json", "number,title,labels,createdAt"],
+            default=[],
+        )
+        ready = [
+            {"number": i["number"], "title": i["title"],
+             "createdAt": i["createdAt"]}
+            for i in issues
+            if not any(l["name"] == "in-progress" for l in i.get("labels", []))
+        ]
+        ready.sort(key=lambda i: i["createdAt"])
+        return ready
+
     def is_merged(self, number):
         state = self._json(
             ["pr", "view", str(number), "--repo", self.repo,
@@ -585,6 +653,10 @@ def _route(be, args, stream, stdin_body):
             return cli.present_json(be.find_conflicting(), stream=stream)
         if command == "approved":
             return cli.present_json(be.find_approved(), stream=stream)
+        if command == "sweep-stale":
+            return cli.present_json(be.sweep_rework(), stream=stream)
+        if command == "next":
+            return cli.present_json(be.find_next(args.label), stream=stream)
 
     if group == "release":
         if command == "publish":
@@ -642,6 +714,8 @@ def _build_parser():
 
     sel = groups.add_parser("select").add_subparsers(dest="command", required=True)
     sel.add_parser("rework"); sel.add_parser("conflicting"); sel.add_parser("approved")
+    sel.add_parser("sweep-stale")
+    s_next = sel.add_parser("next"); s_next.add_argument("--label", required=True)
 
     rel_pub = groups.add_parser("release").add_subparsers(dest="command", required=True)
     rp = rel_pub.add_parser("publish"); rp.add_argument("--tag", required=True)
