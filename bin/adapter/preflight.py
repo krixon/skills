@@ -17,8 +17,11 @@ report to the `cli.halt` envelope — the same shape every other adapter blocker
 emits — so a missing substrate reads identically to any other halt.
 """
 
+from __future__ import annotations
+
 import shutil
 import sys
+from typing import Sequence, TextIO
 
 from adapter import cli
 
@@ -34,7 +37,10 @@ PYTHON_FLOOR = (3, 8)
 PYTHON_FLOOR_STR = ".".join(str(n) for n in PYTHON_FLOOR)
 
 
-def check_substrate(required=REQUIRED_TOOLS, python_version=None):
+def check_substrate(
+    required: Sequence[str] = REQUIRED_TOOLS,
+    python_version: Sequence[int] | None = None,
+) -> list[str]:
     """Report the missing runtime prerequisites, in declaration order.
 
     `required` is the set of tools the calling entry point shells out to.
@@ -56,7 +62,11 @@ def check_substrate(required=REQUIRED_TOOLS, python_version=None):
     return missing
 
 
-def preflight(required=REQUIRED_TOOLS, python_version=None, stream=None):
+def preflight(
+    required: Sequence[str] = REQUIRED_TOOLS,
+    python_version: Sequence[int] | None = None,
+    stream: TextIO | None = None,
+) -> int:
     """Run the substrate check; on a miss, halt with a named blocker.
 
     Returns 0 when the substrate is present and silent. On a miss, emits the

@@ -4,6 +4,8 @@ create / teardown / sync-main / rebase each run real git in a tempdir with a
 bare "remote" so the mutations and halt paths are exercised, not mocked.
 """
 
+from __future__ import annotations
+
 import io
 import json
 import os
@@ -14,18 +16,18 @@ import unittest
 from adapter import gitcmd, worktree
 
 
-def _git(cwd, *args):
+def _git(cwd: str, *args: str) -> None:
     subprocess.run(["git", *args], cwd=cwd, check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def _write(path, content):
+def _write(path: str, content: str) -> None:
     with open(path, "w") as fh:
         fh.write(content)
 
 
 class WorktreeFixture(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         root = self._tmp.name
         # A bare repo stands in for origin.
@@ -41,10 +43,10 @@ class WorktreeFixture(unittest.TestCase):
         _git(self.repo, "commit", "-q", "-m", "initial")
         _git(self.repo, "push", "-q", "origin", "main")
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def _advance_remote_main(self, content="moved\n"):
+    def _advance_remote_main(self, content: str = "moved\n") -> None:
         # Move origin/main forward via a throwaway clone so the local main is behind.
         other = os.path.join(self._tmp.name, "other")
         _git(self._tmp.name, "clone", "-q", self.remote, other)
@@ -57,7 +59,7 @@ class WorktreeFixture(unittest.TestCase):
 
 
 class TestCreate(WorktreeFixture):
-    def test_creates_worktree_on_new_branch(self):
+    def test_creates_worktree_on_new_branch(self) -> None:
         out = io.StringIO()
         rc = worktree.cmd_create(self.repo, kind="feat", title="CSV Export",
                                  issue=87, stream=out)
@@ -73,14 +75,14 @@ class TestCreate(WorktreeFixture):
         self.assertTrue(os.path.isdir(expected_path))
         self.assertTrue(gitcmd.branch_exists(self.repo, "feat/87-csv-export"))
 
-    def test_no_issue_form(self):
+    def test_no_issue_form(self) -> None:
         out = io.StringIO()
         worktree.cmd_create(self.repo, kind="chore", title="bump eslint",
                             issue=None, stream=out)
         payload = json.loads(out.getvalue())
         self.assertEqual(payload["branch"], "chore/bump-eslint")
 
-    def test_same_title_different_issues_get_distinct_paths(self):
+    def test_same_title_different_issues_get_distinct_paths(self) -> None:
         # Two issues with identical titles produce distinct branches; the
         # worktree path must be as unique as the branch, or the second add
         # collides on the first's path.
@@ -96,7 +98,7 @@ class TestCreate(WorktreeFixture):
         self.assertTrue(os.path.isdir(path1))
         self.assertTrue(os.path.isdir(path2))
 
-    def test_rejects_non_digit_issue(self):
+    def test_rejects_non_digit_issue(self) -> None:
         out = io.StringIO()
         rc = worktree.cmd_create(self.repo, kind="feat", title="x",
                                  issue="12; rm -rf", stream=out)
@@ -104,7 +106,7 @@ class TestCreate(WorktreeFixture):
         payload = json.loads(out.getvalue())
         self.assertEqual(payload["status"], "halted")
 
-    def test_checks_out_existing_local_branch(self):
+    def test_checks_out_existing_local_branch(self) -> None:
         _git(self.repo, "branch", "feat/5-existing")
         out = io.StringIO()
         rc = worktree.cmd_create(self.repo, kind="feat", title="existing",
@@ -114,7 +116,7 @@ class TestCreate(WorktreeFixture):
         self.assertEqual(payload["branch"], "feat/5-existing")
         self.assertTrue(os.path.isdir(payload["path"]))
 
-    def test_checks_out_remote_only_branch(self):
+    def test_checks_out_remote_only_branch(self) -> None:
         # Create the branch only on origin, then prune the local ref.
         other = os.path.join(self._tmp.name, "rbranch")
         _git(self._tmp.name, "clone", "-q", self.remote, other)
@@ -136,7 +138,7 @@ class TestCreate(WorktreeFixture):
 
 
 class TestTeardown(WorktreeFixture):
-    def test_removes_worktree_and_branch(self):
+    def test_removes_worktree_and_branch(self) -> None:
         worktree.cmd_create(self.repo, kind="feat", title="temp", issue=1,
                             stream=io.StringIO())
         path = os.path.join(self.repo, ".claude", "worktrees", "feat-1-temp")
@@ -151,7 +153,7 @@ class TestTeardown(WorktreeFixture):
 
 
 class TestSyncMain(WorktreeFixture):
-    def test_fast_forwards_when_behind_and_clean(self):
+    def test_fast_forwards_when_behind_and_clean(self) -> None:
         self._advance_remote_main()
         out = io.StringIO()
         rc = worktree.cmd_sync_main(self.repo, stream=out)
@@ -160,14 +162,14 @@ class TestSyncMain(WorktreeFixture):
         self.assertEqual(payload["status"], "fast-forwarded")
         self.assertTrue(os.path.isfile(os.path.join(self.repo, "upstream.txt")))
 
-    def test_noop_when_already_current(self):
+    def test_noop_when_already_current(self) -> None:
         out = io.StringIO()
         rc = worktree.cmd_sync_main(self.repo, stream=out)
         self.assertEqual(rc, 0)
         payload = json.loads(out.getvalue())
         self.assertEqual(payload["status"], "up-to-date")
 
-    def test_skips_dirty_tree(self):
+    def test_skips_dirty_tree(self) -> None:
         self._advance_remote_main()
         _write(os.path.join(self.repo, "README.md"), "dirty edit\n")
         out = io.StringIO()
@@ -179,7 +181,7 @@ class TestSyncMain(WorktreeFixture):
         # Never fast-forwarded a dirty tree.
         self.assertFalse(os.path.isfile(os.path.join(self.repo, "upstream.txt")))
 
-    def test_skips_when_diverged(self):
+    def test_skips_when_diverged(self) -> None:
         self._advance_remote_main()
         # Local main commits independently, so it is no longer an ancestor.
         _write(os.path.join(self.repo, "local.txt"), "local\n")
@@ -194,7 +196,7 @@ class TestSyncMain(WorktreeFixture):
 
 
 class TestRebase(WorktreeFixture):
-    def _branch_worktree(self, issue, fname, content):
+    def _branch_worktree(self, issue: int, fname: str, content: str) -> str:
         out = io.StringIO()
         worktree.cmd_create(self.repo, kind="feat", title=f"work {issue}",
                             issue=issue, stream=out)
@@ -207,7 +209,7 @@ class TestRebase(WorktreeFixture):
         _git(path, "push", "-q", "-u", "origin", f"feat/{issue}-work-{issue}")
         return path
 
-    def test_clean_rebase_pushes(self):
+    def test_clean_rebase_pushes(self) -> None:
         path = self._branch_worktree(2, "feature.txt", "feature\n")
         # main advances with a non-conflicting change.
         _write(os.path.join(self.repo, "other.txt"), "other\n")
@@ -223,7 +225,7 @@ class TestRebase(WorktreeFixture):
         merged = gitcmd.run_git(["log", "--oneline"], cwd=path).stdout
         self.assertIn("main advances", merged)
 
-    def test_rebase_pushes_without_preset_upstream(self):
+    def test_rebase_pushes_without_preset_upstream(self) -> None:
         # A branch created via cmd_create's `-b <branch> main` path has no
         # configured upstream. Rebase must push explicitly, not rely on one.
         out = io.StringIO()
@@ -246,7 +248,7 @@ class TestRebase(WorktreeFixture):
             capture_output=True, text=True, check=True).stdout
         self.assertIn("feat/4-no-upstream", remote_branches)
 
-    def test_conflict_halts_and_aborts(self):
+    def test_conflict_halts_and_aborts(self) -> None:
         path = self._branch_worktree(3, "clash.txt", "branch side\n")
         # main edits the same file, so the replay conflicts.
         _write(os.path.join(self.repo, "clash.txt"), "main side\n")

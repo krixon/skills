@@ -4,6 +4,8 @@ These functions carry the unit-test weight of the worktree group: they are
 side-effect-free so the git-mutating commands can stay thin wrappers over them.
 """
 
+from __future__ import annotations
+
 import re
 
 # Branch kinds, per ISOLATION.md. The kind is chosen from the artifact.
@@ -18,7 +20,7 @@ class InvalidKind(ValueError):
     """Raised when a branch kind is not one of KINDS."""
 
 
-def slugify(title):
+def slugify(title: str) -> str:
     """Derive a branch slug from a title: kebab-case, lowercased, punctuation
     stripped, length-capped at a word boundary.
 
@@ -36,7 +38,7 @@ def slugify(title):
     return _cap(text)
 
 
-def _cap(slug):
+def _cap(slug: str) -> str:
     if len(slug) <= _MAX_SLUG:
         return slug
     head = slug[:_MAX_SLUG]
@@ -48,7 +50,7 @@ def _cap(slug):
     return head
 
 
-def branch_name(kind, title, issue=None):
+def branch_name(kind: str, title: str, issue: int | str | None = None) -> str:
     """Build a branch name: `<kind>/<issue>-<slug>` with a tracker issue,
     `<kind>/<slug>` without one.
     """
