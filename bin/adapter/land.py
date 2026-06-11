@@ -259,6 +259,9 @@ def apply(be: GithubBackend, repo_root: str,
                 results.append(result)
                 continue
             method = lp.get("method")
+            # Defence-in-depth: classify drops a landable PR when merge_method
+            # returns None, so this guard is unreached on the normal path — it
+            # keeps apply safe if a caller hands it a hand-built bucket.
             if method is None:
                 result.update(merged=False, skipped=True,
                               reason="no-allowed-merge-method")
@@ -271,6 +274,10 @@ def apply(be: GithubBackend, repo_root: str,
 
         # Confirm the closing refs resolved, then act on the closed issues.
         closes = _closing_numbers(be.closing_refs(number))
+        # `closes` is re-read live; `body` is the plan-time text. This fails
+        # safe: if a body gained a `No-issue:` marker between plan and apply,
+        # the worst case is the PR is reported as noLinkedIssue for the
+        # maintainer rather than a label wrongly stripped.
         body = lp.get("body")
         if not closes and not _no_issue_declared(body):
             result.update(closedIssues=[], noLinkedIssue=True)

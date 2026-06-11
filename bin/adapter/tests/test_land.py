@@ -449,6 +449,170 @@ class TestApply(unittest.TestCase):
                    sleep=lambda _s: None, stream=out)
         self.assertEqual(json.loads(out.getvalue())["epic_close_candidates"], [])
 
+    def _approved_many(self, prs: list[dict[str, Any]]) -> str:
+        return json.dumps([{"number": p["number"], "title": "t",
+                            "reviewDecision": "APPROVED",
+                            "headRefName": p["head"], "body": p["body"]}
+                           for p in prs])
+
+    def test_multi_pr_shared_epic_dedups_to_one_candidate(self) -> None:
+        # Two landable PRs, #5 closing #42 and #6 closing #43, both children of
+        # the same epic #100 which now has only those two closed sub-issues.
+        runner = ProgrammedRunner({
+            "pr list": [self._approved_many([
+                {"number": 5, "head": "feat/5-x", "body": "Closes #42"},
+                {"number": 6, "head": "feat/6-y", "body": "Closes #43"},
+            ])],
+            "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
+            "headRefOid": [_approval("abc", "abc")],
+            "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
+            "rules/branches": [_rules(["squash"])],
+            # closing-refs is asked per PR: #5 closes #42, #6 closes #43.
+            "pr view 5 ": [_closing([42])],
+            "pr view 6 ": [_closing([43])],
+            "pr merge": ["merged"],
+            "issue edit": ["ok"],
+            # both children parent to the same epic #100.
+            "issues/42/parent": [json.dumps(100)],
+            "issues/43/parent": [json.dumps(100)],
+            "issue view": [json.dumps({"number": 100, "title": "epic",
+                                       "state": "OPEN"})],
+            # the epic's only sub-issues, both now closed.
+            "issues/100/sub_issues": [json.dumps([
+                {"number": 42, "state": "closed"},
+                {"number": 43, "state": "closed"},
+            ])],
+        })
+        be = _backend(runner)
+        fw = FakeWorktree()
+        out = io.StringIO()
+        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+                   worktree_runner=_git_no_worktree(),
+                   sleep=lambda _s: None, stream=out)
+        payload = json.loads(out.getvalue())
+        # Both PRs merged.
+        self.assertEqual(len(payload["results"]), 2)
+        self.assertTrue(all(r["merged"] for r in payload["results"]))
+        # The shared epic is offered exactly once (seen_epics dedup).
+        cands = payload["epic_close_candidates"]
+        self.assertEqual(len(cands), 1)
+        self.assertEqual(cands[0]["number"], 100)
+
+    def test_first_pr_skip_does_not_abort_the_sweep(self) -> None:
+        # #5 goes stale at apply-time re-check (approval no longer covers HEAD);
+        # #6 is still CLEAN+covered. The first PR's skip must not stop the sweep.
+        runner = ProgrammedRunner({
+            "pr list": [self._approved_many([
+                {"number": 5, "head": "feat/5-x", "body": "Closes #42"},
+                {"number": 6, "head": "feat/6-y", "body": "Closes #43"},
+            ])],
+            "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
+            # approval-covers-HEAD asked: at plan time twice (both covered), then
+            # at apply re-check — #5 stale (False), #6 covered (True).
+            "headRefOid": [
+                _approval("abc", "abc"),   # #5 plan-time
+                _approval("def", "def"),   # #6 plan-time
+                _approval("new", "old"),   # #5 apply re-check -> stale
+                _approval("def", "def"),   # #6 apply re-check -> covered
+            ],
+            "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
+            "rules/branches": [_rules(["squash"])],
+            "pr view 5 ": [_closing([42])],
+            "pr view 6 ": [_closing([43])],
+            "pr merge": ["merged"],
+            "issue edit": ["ok"],
+            "issues/43/parent": [("", 1, "404")],
+        })
+        be = _backend(runner)
+        fw = FakeWorktree()
+        out = io.StringIO()
+        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+                   worktree_runner=_git_no_worktree(),
+                   sleep=lambda _s: None, stream=out)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(len(payload["results"]), 2)
+        first, second = payload["results"]
+        # #5 skipped stale; #6 still processed and merged.
+        self.assertEqual(first["number"], 5)
+        self.assertTrue(first["skipped"])
+        self.assertEqual(first["reason"], "stale-approval")
+        self.assertEqual(second["number"], 6)
+        self.assertTrue(second["merged"])
+
+    def test_stale_approval_at_merge_time_skips_with_no_merge(self) -> None:
+        # CLEAN + covered at plan time, but approval no longer covers HEAD at the
+        # apply-time re-check: skip with stale-approval, no merge issued.
+        runner = ProgrammedRunner({
+            "pr list": [self._approved(5, "feat/5-x", "Closes #42")],
+            "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
+            "headRefOid": [
+                _approval("abc", "abc"),   # plan-time -> covered
+                _approval("new", "old"),   # apply re-check -> stale
+            ],
+            "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
+            "rules/branches": [_rules(["squash"])],
+            "closingIssuesReferences": [_closing([42])],
+        })
+        be = _backend(runner)
+        fw = FakeWorktree()
+        out = io.StringIO()
+        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+                   worktree_runner=_git_no_worktree(),
+                   sleep=lambda _s: None, stream=out)
+        res = json.loads(out.getvalue())["results"][0]
+        self.assertTrue(res["skipped"])
+        self.assertEqual(res["reason"], "stale-approval")
+        self.assertEqual(runner.argvs("pr merge"), [])
+
+    def test_no_candidate_when_epic_already_closed(self) -> None:
+        # Like the last-child case, but the parent epic reads CLOSED — the
+        # uppercase issue_view branch of _epic_close_candidate.
+        runner = ProgrammedRunner({
+            "pr list": [self._approved(5, "feat/5-x", "Closes #42")],
+            "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
+            "headRefOid": [_approval("abc", "abc")],
+            "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
+            "rules/branches": [_rules(["squash"])],
+            "closingIssuesReferences": [_closing([42])],
+            "pr merge": ["merged"],
+            "issue edit": ["ok"],
+            "issues/42/parent": [json.dumps(100)],
+            "issue view": [json.dumps({"number": 100, "title": "epic",
+                                       "state": "CLOSED"})],
+        })
+        be = _backend(runner)
+        fw = FakeWorktree()
+        out = io.StringIO()
+        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+                   worktree_runner=_git_no_worktree(),
+                   sleep=lambda _s: None, stream=out)
+        self.assertEqual(json.loads(out.getvalue())["epic_close_candidates"], [])
+
+    def test_no_candidate_when_epic_has_no_sub_issues(self) -> None:
+        # The parent epic exists and is OPEN, but its sub-issue list is empty:
+        # the `if subs and all(...)` guard must not offer a candidate.
+        runner = ProgrammedRunner({
+            "pr list": [self._approved(5, "feat/5-x", "Closes #42")],
+            "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
+            "headRefOid": [_approval("abc", "abc")],
+            "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
+            "rules/branches": [_rules(["squash"])],
+            "closingIssuesReferences": [_closing([42])],
+            "pr merge": ["merged"],
+            "issue edit": ["ok"],
+            "issues/42/parent": [json.dumps(100)],
+            "issue view": [json.dumps({"number": 100, "title": "epic",
+                                       "state": "OPEN"})],
+            "issues/100/sub_issues": [json.dumps([])],
+        })
+        be = _backend(runner)
+        fw = FakeWorktree()
+        out = io.StringIO()
+        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+                   worktree_runner=_git_no_worktree(),
+                   sleep=lambda _s: None, stream=out)
+        self.assertEqual(json.loads(out.getvalue())["epic_close_candidates"], [])
+
 
 # --- close-epic (human-gated) -----------------------------------------------
 
