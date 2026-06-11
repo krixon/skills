@@ -9,9 +9,12 @@ branch-ref CAS lost-claim signal, the identity dispatch, and the present/act
 output shapes.
 """
 
+from __future__ import annotations
+
 import io
 import json
 import unittest
+from typing import Any, Sequence
 
 from adapter import ghcmd, tracker
 from adapter.identity import Identity
@@ -25,13 +28,13 @@ class ScriptedRunner:
     harmlessly in a test.
     """
 
-    def __init__(self, script):
+    def __init__(self, script: Sequence[Any]) -> None:
         # script: list of (stdout, returncode, stderr)
         self._script = [self._norm(s) for s in script]
-        self.calls = []
+        self.calls: list[dict[str, Any]] = []
 
     @staticmethod
-    def _norm(entry):
+    def _norm(entry: Any) -> tuple[str, int, str]:
         if isinstance(entry, tuple):
             stdout = entry[0]
             rc = entry[1] if len(entry) > 1 else 0
@@ -39,18 +42,20 @@ class ScriptedRunner:
             return (stdout, rc, stderr)
         return (entry, 0, "")
 
-    def __call__(self, args, env=None, input=None, check=True):
+    def __call__(self, args: Sequence[str], env: dict[str, str] | None = None,
+                 input: str | None = None, check: bool = True) -> ghcmd.GhResult:
         self.calls.append({"args": list(args), "env": env, "input": input})
         idx = min(len(self.calls) - 1, len(self._script) - 1)
         stdout, rc, stderr = self._script[idx]
         return ghcmd.GhResult(args=list(args), returncode=rc, stdout=stdout,
                               stderr=stderr)
 
-    def argv(self, i=0):
+    def argv(self, i: int = 0) -> list[str]:
         return self.calls[i]["args"]
 
 
-def _backend(runner, identity=None):
+def _backend(runner: Any,
+             identity: Identity | None = None) -> tracker.GithubBackend:
     return tracker.GithubBackend(
         identity=identity or Identity(),
         repo="krixon/skills",
@@ -61,7 +66,7 @@ def _backend(runner, identity=None):
 # --- stale-mergeable re-query (named criterion) -----------------------------
 
 class TestStaleMergeableRequery(unittest.TestCase):
-    def test_repolls_until_mergestatestatus_leaves_unknown(self):
+    def test_repolls_until_mergestatestatus_leaves_unknown(self) -> None:
         # Two UNKNOWN reads, then it settles to CONFLICTING/DIRTY.
         runner = ScriptedRunner([
             (json.dumps({"mergeable": "UNKNOWN", "mergeStateStatus": "UNKNOWN"}),),
@@ -75,7 +80,7 @@ class TestStaleMergeableRequery(unittest.TestCase):
         # It polled three times — it did not decide on the first UNKNOWN read.
         self.assertEqual(len(runner.calls), 3)
 
-    def test_settled_read_does_not_repoll(self):
+    def test_settled_read_does_not_repoll(self) -> None:
         runner = ScriptedRunner([
             (json.dumps({"mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN"}),),
         ])
@@ -84,7 +89,7 @@ class TestStaleMergeableRequery(unittest.TestCase):
         self.assertEqual(state["mergeStateStatus"], "CLEAN")
         self.assertEqual(len(runner.calls), 1)
 
-    def test_gives_up_after_max_polls_returning_last(self):
+    def test_gives_up_after_max_polls_returning_last(self) -> None:
         runner = ScriptedRunner([
             (json.dumps({"mergeable": "UNKNOWN", "mergeStateStatus": "UNKNOWN"}),),
         ])
@@ -94,7 +99,7 @@ class TestStaleMergeableRequery(unittest.TestCase):
         self.assertEqual(len(runner.calls), 4)
         self.assertEqual(state["mergeStateStatus"], "UNKNOWN")
 
-    def test_repolls_while_mergeable_unknown_though_status_settled(self):
+    def test_repolls_while_mergeable_unknown_though_status_settled(self) -> None:
         # mergeStateStatus can settle (BLOCKED) while mergeable is still being
         # computed — that is not a decidable read, so it keeps polling.
         runner = ScriptedRunner([
@@ -106,7 +111,7 @@ class TestStaleMergeableRequery(unittest.TestCase):
         self.assertEqual(state["mergeable"], "MERGEABLE")
         self.assertEqual(len(runner.calls), 2)
 
-    def test_empty_read_is_not_treated_as_settled(self):
+    def test_empty_read_is_not_treated_as_settled(self) -> None:
         # An empty payload (default {}) leaves both fields None; treating that as
         # settled would decide off a failed read. It polls to the cap instead.
         runner = ScriptedRunner([("",)])
@@ -115,7 +120,7 @@ class TestStaleMergeableRequery(unittest.TestCase):
         self.assertEqual(len(runner.calls), 3)
         self.assertEqual(state, {})
 
-    def test_find_conflicting_requeries_each_candidate(self):
+    def test_find_conflicting_requeries_each_candidate(self) -> None:
         # The list read reports one PR clean (stale); the per-PR re-query
         # settles it to CONFLICTING, so it is reported as conflicting.
         list_payload = json.dumps([
@@ -135,7 +140,7 @@ class TestStaleMergeableRequery(unittest.TestCase):
 # --- merge-method discovery (named criterion) -------------------------------
 
 class TestMergeMethodDiscovery(unittest.TestCase):
-    def test_branch_rule_allowed_methods_win(self):
+    def test_branch_rule_allowed_methods_win(self) -> None:
         # A pull_request rule on the base restricts to rebase only.
         rules = json.dumps([
             {"type": "creation"},
@@ -146,7 +151,7 @@ class TestMergeMethodDiscovery(unittest.TestCase):
         be = _backend(runner)
         self.assertEqual(be.merge_method("main"), "rebase")
 
-    def test_prefers_squash_when_allowed(self):
+    def test_prefers_squash_when_allowed(self) -> None:
         rules = json.dumps([
             {"type": "pull_request",
              "parameters": {"allowed_merge_methods": ["merge", "squash", "rebase"]}},
@@ -155,7 +160,7 @@ class TestMergeMethodDiscovery(unittest.TestCase):
         be = _backend(runner)
         self.assertEqual(be.merge_method("main"), "squash")
 
-    def test_falls_back_to_repo_flags_without_pr_rule(self):
+    def test_falls_back_to_repo_flags_without_pr_rule(self) -> None:
         rules = json.dumps([{"type": "creation"}])
         repo_flags = json.dumps({
             "allow_squash_merge": False,
@@ -167,7 +172,7 @@ class TestMergeMethodDiscovery(unittest.TestCase):
         # Squash disallowed → rebase, never the merge commit.
         self.assertEqual(be.merge_method("main"), "rebase")
 
-    def test_returns_none_when_only_merge_commit_allowed(self):
+    def test_returns_none_when_only_merge_commit_allowed(self) -> None:
         rules = json.dumps([{"type": "creation"}])
         repo_flags = json.dumps({
             "allow_squash_merge": False,
@@ -183,13 +188,13 @@ class TestMergeMethodDiscovery(unittest.TestCase):
 # --- approval-covers-HEAD (named criterion) ---------------------------------
 
 class TestApprovalCoversHead(unittest.TestCase):
-    def _payload(self, head, reviews):
+    def _payload(self, head: str, reviews: list[dict[str, Any]]) -> str:
         return json.dumps({"data": {"repository": {"pullRequest": {
             "headRefOid": head,
             "latestReviews": {"nodes": reviews},
         }}}})
 
-    def test_current_when_approval_oid_equals_head(self):
+    def test_current_when_approval_oid_equals_head(self) -> None:
         runner = ScriptedRunner([(self._payload("abc123", [
             {"state": "APPROVED", "author": {"login": "human"},
              "commit": {"oid": "abc123"}},
@@ -197,7 +202,7 @@ class TestApprovalCoversHead(unittest.TestCase):
         be = _backend(runner)
         self.assertTrue(be.approval_covers_head(5))
 
-    def test_stale_when_approval_oid_behind_head(self):
+    def test_stale_when_approval_oid_behind_head(self) -> None:
         runner = ScriptedRunner([(self._payload("newhead", [
             {"state": "APPROVED", "author": {"login": "human"},
              "commit": {"oid": "oldcommit"}},
@@ -205,7 +210,7 @@ class TestApprovalCoversHead(unittest.TestCase):
         be = _backend(runner)
         self.assertFalse(be.approval_covers_head(5))
 
-    def test_changes_requested_at_head_does_not_count(self):
+    def test_changes_requested_at_head_does_not_count(self) -> None:
         runner = ScriptedRunner([(self._payload("abc123", [
             {"state": "CHANGES_REQUESTED", "author": {"login": "human"},
              "commit": {"oid": "abc123"}},
@@ -213,7 +218,7 @@ class TestApprovalCoversHead(unittest.TestCase):
         be = _backend(runner)
         self.assertFalse(be.approval_covers_head(5))
 
-    def test_no_reviews_is_not_covered(self):
+    def test_no_reviews_is_not_covered(self) -> None:
         runner = ScriptedRunner([(self._payload("abc123", []),)])
         be = _backend(runner)
         self.assertFalse(be.approval_covers_head(5))
@@ -222,7 +227,7 @@ class TestApprovalCoversHead(unittest.TestCase):
 # --- relations: typed sub_issue_id (-F, integer) ----------------------------
 
 class TestRelations(unittest.TestCase):
-    def test_add_sub_issue_resolves_child_id_and_types_with_F(self):
+    def test_add_sub_issue_resolves_child_id_and_types_with_F(self) -> None:
         # First call resolves the child's internal id; second adds the relation.
         runner = ScriptedRunner([
             ("9876",),  # child id
@@ -237,7 +242,7 @@ class TestRelations(unittest.TestCase):
         self.assertNotIn("-f", add_argv)
         self.assertIn("repos/krixon/skills/issues/10/sub_issues", add_argv)
 
-    def test_add_blocker_types_issue_id_with_F(self):
+    def test_add_blocker_types_issue_id_with_F(self) -> None:
         runner = ScriptedRunner([
             ("5555",),  # blocker id
             ("{}",),
@@ -249,7 +254,7 @@ class TestRelations(unittest.TestCase):
         self.assertIn("issue_id=5555", add_argv)
         self.assertIn("repos/krixon/skills/issues/10/dependencies/blocked_by", add_argv)
 
-    def test_read_parent_absent_reads_as_no_parent(self):
+    def test_read_parent_absent_reads_as_no_parent(self) -> None:
         # The /parent endpoint 404s (non-zero) when there is no parent.
         runner = ScriptedRunner([("", 1, "gh: Not Found (HTTP 404)")])
         be = _backend(runner)
@@ -259,7 +264,7 @@ class TestRelations(unittest.TestCase):
 # --- branch-ref create as CAS ----------------------------------------------
 
 class TestBranchRefCas(unittest.TestCase):
-    def test_create_succeeds(self):
+    def test_create_succeeds(self) -> None:
         runner = ScriptedRunner([(json.dumps({"ref": "refs/heads/feat/1-x"}),)])
         be = _backend(runner)
         result = be.create_branch_ref("feat/1-x", "deadbeef")
@@ -269,7 +274,7 @@ class TestBranchRefCas(unittest.TestCase):
         self.assertIn("repos/krixon/skills/git/refs", post_argv)
         self.assertIn("ref=refs/heads/feat/1-x", post_argv)
 
-    def test_422_already_exists_is_lost_claim_not_error(self):
+    def test_422_already_exists_is_lost_claim_not_error(self) -> None:
         runner = ScriptedRunner([
             ("", 1, "gh: Reference already exists (HTTP 422)"),
         ])
@@ -279,13 +284,13 @@ class TestBranchRefCas(unittest.TestCase):
         self.assertFalse(result["created"])
         self.assertEqual(result["reason"], "claim-lost")
 
-    def test_other_failure_still_raises(self):
+    def test_other_failure_still_raises(self) -> None:
         runner = ScriptedRunner([("", 1, "gh: Server Error (HTTP 500)")])
         be = _backend(runner)
         with self.assertRaises(ghcmd.GhError):
             be.create_branch_ref("feat/1-x", "deadbeef")
 
-    def test_non_exists_422_raises_not_lost_claim(self):
+    def test_non_exists_422_raises_not_lost_claim(self) -> None:
         # A 422 that is not "already exists" (e.g. a malformed ref) is a real
         # failure, not a lost claim — it must raise, not read as claim-lost.
         runner = ScriptedRunner([
@@ -299,7 +304,7 @@ class TestBranchRefCas(unittest.TestCase):
 # --- selection: find-rework / find-approved drop author when unconfigured ---
 
 class TestSelectionAuthorFilter(unittest.TestCase):
-    def test_configured_filters_on_bot_author(self):
+    def test_configured_filters_on_bot_author(self) -> None:
         runner = ScriptedRunner([("[]",)])
         be = _backend(runner, identity=Identity(account="krixon-bot",
                                                 token_cmd="printf t"))
@@ -308,14 +313,14 @@ class TestSelectionAuthorFilter(unittest.TestCase):
         self.assertIn("--author", argv)
         self.assertIn("krixon-bot", argv)
 
-    def test_unconfigured_drops_author_filter(self):
+    def test_unconfigured_drops_author_filter(self) -> None:
         runner = ScriptedRunner([("[]",)])
         be = _backend(runner)  # unconfigured
         be.find_rework()
         argv = runner.argv(0)
         self.assertNotIn("--author", argv)
 
-    def test_find_rework_keeps_only_changes_requested(self):
+    def test_find_rework_keeps_only_changes_requested(self) -> None:
         payload = json.dumps([
             {"number": 1, "reviewDecision": "CHANGES_REQUESTED"},
             {"number": 2, "reviewDecision": "APPROVED"},
@@ -326,7 +331,7 @@ class TestSelectionAuthorFilter(unittest.TestCase):
         out = be.find_rework()
         self.assertEqual([p["number"] for p in out], [1])
 
-    def test_find_approved_keeps_only_approved(self):
+    def test_find_approved_keeps_only_approved(self) -> None:
         payload = json.dumps([
             {"number": 1, "reviewDecision": "APPROVED"},
             {"number": 2, "reviewDecision": "CHANGES_REQUESTED"},
@@ -341,10 +346,10 @@ class TestSelectionAuthorFilter(unittest.TestCase):
 
 class TestSweepRework(unittest.TestCase):
     @staticmethod
-    def _search(nodes):
+    def _search(nodes: list[dict[str, Any]]) -> str:
         return json.dumps({"data": {"search": {"nodes": nodes}}})
 
-    def test_computes_unresolved_count_and_latest_review(self):
+    def test_computes_unresolved_count_and_latest_review(self) -> None:
         nodes = [{
             "number": 5,
             "commits": {"nodes": [{"commit": {"committedDate": "2026-06-01T00:00:00Z"}}]},
@@ -368,7 +373,7 @@ class TestSweepRework(unittest.TestCase):
         self.assertEqual(row["lastReviewAt"], "2026-06-03T00:00:00Z")
         self.assertEqual(row["headAt"], "2026-06-01T00:00:00Z")
 
-    def test_pr_with_no_reviews_or_threads(self):
+    def test_pr_with_no_reviews_or_threads(self) -> None:
         nodes = [{
             "number": 6,
             "commits": {"nodes": [{"commit": {"committedDate": "2026-06-01T00:00:00Z"}}]},
@@ -382,7 +387,7 @@ class TestSweepRework(unittest.TestCase):
         self.assertIsNone(row["lastReviewState"])
         self.assertIsNone(row["lastReviewAt"])
 
-    def test_configured_scopes_query_to_bot_author(self):
+    def test_configured_scopes_query_to_bot_author(self) -> None:
         runner = ScriptedRunner([(self._search([]),)])
         be = _backend(runner, identity=Identity(account="krixon-bot",
                                                 token_cmd="printf t"))
@@ -397,7 +402,7 @@ class TestSweepRework(unittest.TestCase):
         self.assertIn("author:krixon-bot", qvals[0])
         self.assertIn("is:pr", qvals[0])
 
-    def test_unconfigured_omits_author_scope(self):
+    def test_unconfigured_omits_author_scope(self) -> None:
         runner = ScriptedRunner([(self._search([]),)])
         be = _backend(runner)
         be.sweep_rework()
@@ -411,7 +416,7 @@ class TestSweepRework(unittest.TestCase):
 
 class TestFindNext(unittest.TestCase):
     @staticmethod
-    def _issues():
+    def _issues() -> str:
         return json.dumps([
             {"number": 3, "title": "c", "createdAt": "2026-06-03T00:00:00Z",
              "labels": [{"name": "ready-for-agent"}]},
@@ -421,14 +426,14 @@ class TestFindNext(unittest.TestCase):
              "labels": [{"name": "ready-for-agent"}, {"name": "in-progress"}]},
         ])
 
-    def test_excludes_in_progress_and_sorts_oldest_first(self):
+    def test_excludes_in_progress_and_sorts_oldest_first(self) -> None:
         runner = ScriptedRunner([(self._issues(),)])
         be = _backend(runner)
         out = be.find_next("ready-for-agent")
         # #2 is in-progress (claimed) — dropped; the rest oldest-first.
         self.assertEqual([i["number"] for i in out], [1, 3])
 
-    def test_filters_on_the_given_label(self):
+    def test_filters_on_the_given_label(self) -> None:
         runner = ScriptedRunner([("[]",)])
         be = _backend(runner)
         be.find_next("ready-for-human")
@@ -440,7 +445,7 @@ class TestFindNext(unittest.TestCase):
 # --- PR create uses bot identity (token in env, not argv) -------------------
 
 class TestPrCreate(unittest.TestCase):
-    def test_passes_body_on_stdin_and_token_in_env(self):
+    def test_passes_body_on_stdin_and_token_in_env(self) -> None:
         runner = ScriptedRunner([("https://github.com/krixon/skills/pull/9",)])
         be = _backend(runner, identity=Identity(account="krixon-bot",
                                                 token_cmd="printf tok"))
@@ -453,7 +458,7 @@ class TestPrCreate(unittest.TestCase):
         # Token never in argv.
         self.assertNotIn("tok", " ".join(call["args"]))
 
-    def test_unconfigured_pr_create_has_no_token(self):
+    def test_unconfigured_pr_create_has_no_token(self) -> None:
         runner = ScriptedRunner([("https://github.com/krixon/skills/pull/9",)])
         be = _backend(runner)
         be.pr_create(title="feat: x", body="Closes #1")
@@ -464,7 +469,7 @@ class TestPrCreate(unittest.TestCase):
 # --- review thread reply-then-resolve ---------------------------------------
 
 class TestReviewThread(unittest.TestCase):
-    def test_reply_then_resolve_gated_on_reply_id(self):
+    def test_reply_then_resolve_gated_on_reply_id(self) -> None:
         runner = ScriptedRunner([
             (json.dumps({"id": 555}),),  # reply posts, returns id
             (json.dumps({"data": {"repository": {"pullRequest": {
@@ -479,7 +484,7 @@ class TestReviewThread(unittest.TestCase):
         # The reply body went out-of-band on stdin.
         self.assertEqual(runner.calls[0]["input"], "answer")
 
-    def test_reply_failure_skips_resolve(self):
+    def test_reply_failure_skips_resolve(self) -> None:
         # The reply returns no id (failed); resolve must not fire.
         runner = ScriptedRunner([("", 1, "gh: error")])
         be = _backend(runner, identity=Identity(account="krixon-bot",
@@ -490,7 +495,7 @@ class TestReviewThread(unittest.TestCase):
         # Only the reply was attempted — never the resolve mutation.
         self.assertEqual(len(runner.calls), 1)
 
-    def test_already_resolved_thread_skips_mutation(self):
+    def test_already_resolved_thread_skips_mutation(self) -> None:
         runner = ScriptedRunner([
             (json.dumps({"id": 555}),),  # reply
             (json.dumps({"data": {"repository": {"pullRequest": {
@@ -508,7 +513,7 @@ class TestReviewThread(unittest.TestCase):
 # --- present/act output shapes via the dispatcher ---------------------------
 
 class TestDispatchAndShapes(unittest.TestCase):
-    def test_present_issue_view_emits_json(self):
+    def test_present_issue_view_emits_json(self) -> None:
         payload = json.dumps({"number": 7, "title": "t", "body": "b"})
         runner = ScriptedRunner([(payload,)])
         out = io.StringIO()
@@ -520,7 +525,7 @@ class TestDispatchAndShapes(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(json.loads(out.getvalue())["number"], 7)
 
-    def test_act_issue_comment_reports_acted(self):
+    def test_act_issue_comment_reports_acted(self) -> None:
         runner = ScriptedRunner([("https://github.com/krixon/skills/issues/7#x",)])
         out = io.StringIO()
         rc = tracker.run(
@@ -533,7 +538,7 @@ class TestDispatchAndShapes(unittest.TestCase):
         # The body reached gh on stdin, not in argv.
         self.assertEqual(runner.calls[0]["input"], "a comment body")
 
-    def test_present_select_sweep_stale_emits_json(self):
+    def test_present_select_sweep_stale_emits_json(self) -> None:
         search = json.dumps({"data": {"search": {"nodes": [{
             "number": 8,
             "commits": {"nodes": [{"commit": {"committedDate": "2026-06-01T00:00:00Z"}}]},
@@ -549,7 +554,7 @@ class TestDispatchAndShapes(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(json.loads(out.getvalue())[0]["unresolvedCount"], 1)
 
-    def test_present_select_next_emits_json(self):
+    def test_present_select_next_emits_json(self) -> None:
         issues = json.dumps([
             {"number": 4, "title": "t", "createdAt": "2026-06-01T00:00:00Z",
              "labels": [{"name": "ready-for-agent"}]},
@@ -563,7 +568,7 @@ class TestDispatchAndShapes(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(json.loads(out.getvalue())[0]["number"], 4)
 
-    def test_unknown_tracker_halts(self):
+    def test_unknown_tracker_halts(self) -> None:
         out = io.StringIO()
         rc = tracker.run(
             ["issue", "view", "--number", "7"],
@@ -574,7 +579,7 @@ class TestDispatchAndShapes(unittest.TestCase):
         self.assertNotEqual(rc, 0)
         self.assertEqual(json.loads(out.getvalue())["status"], "halted")
 
-    def test_half_configured_identity_halts_at_startup(self):
+    def test_half_configured_identity_halts_at_startup(self) -> None:
         out = io.StringIO()
         rc = tracker.run(
             ["issue", "view", "--number", "7"],

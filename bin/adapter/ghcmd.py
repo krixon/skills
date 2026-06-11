@@ -15,15 +15,25 @@ Two calling conventions enforce the security boundary (SECURITY.md):
     command inline per call and injects it for exactly that invocation.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import subprocess
+from typing import TYPE_CHECKING, Any, Callable, Sequence
+
+if TYPE_CHECKING:
+    from adapter.identity import Identity
+
+# The `gh` runner seam: any callable with run_gh's signature, returning a
+# GhResult. The command logic takes one so tests can substitute a recording fake.
+Runner = Callable[..., "GhResult"]
 
 
 class GhError(RuntimeError):
     """A `gh` subprocess exited non-zero. Carries argv, code, and stderr."""
 
-    def __init__(self, args, returncode, stderr):
+    def __init__(self, args: Sequence[str], returncode: int, stderr: str) -> None:
         self.args = args
         self.returncode = returncode
         self.stderr = stderr
@@ -33,14 +43,16 @@ class GhError(RuntimeError):
 class GhResult:
     """The outcome of a `gh` call: argv, exit code, captured streams."""
 
-    def __init__(self, args, returncode, stdout, stderr):
+    def __init__(self, args: Sequence[str], returncode: int, stdout: str,
+                 stderr: str) -> None:
         self.args = args
         self.returncode = returncode
         self.stdout = stdout
         self.stderr = stderr
 
 
-def run_gh(args, env=None, input=None, check=True):
+def run_gh(args: Sequence[str], env: dict[str, str] | None = None,
+           input: str | None = None, check: bool = True) -> GhResult:
     """Run `gh <args>`, capturing stdout/stderr as text.
 
     `env`, when given, is merged onto the parent environment for this call only
@@ -62,13 +74,15 @@ def run_gh(args, env=None, input=None, check=True):
                     stdout=result.stdout, stderr=result.stderr)
 
 
-def _checked(result):
+def _checked(result: GhResult) -> GhResult:
     if result.returncode != 0:
         raise GhError(result.args, result.returncode, result.stderr)
     return result
 
 
-def gh_text(args, runner=None, env=None, input=None, check=True):
+def gh_text(args: Sequence[str], runner: Runner | None = None,
+            env: dict[str, str] | None = None, input: str | None = None,
+            check: bool = True) -> str:
     """Run `gh` and return its stdout text (stripped)."""
     runner = runner or run_gh
     result = runner(args, env=env, input=input, check=check)
@@ -77,7 +91,9 @@ def gh_text(args, runner=None, env=None, input=None, check=True):
     return result.stdout.strip()
 
 
-def gh_json(args, runner=None, env=None, input=None, default=None, check=True):
+def gh_json(args: Sequence[str], runner: Runner | None = None,
+            env: dict[str, str] | None = None, input: str | None = None,
+            default: Any = None, check: bool = True) -> Any:
     """Run `gh` and parse its stdout as JSON.
 
     Empty stdout yields `default` (e.g. an absent optional record), so a command
@@ -93,7 +109,7 @@ def gh_json(args, runner=None, env=None, input=None, default=None, check=True):
     return json.loads(text)
 
 
-def eval_token(token_cmd):
+def eval_token(token_cmd: str) -> str:
     """Evaluate the token command in a shell and return its stdout, stripped.
 
     Mirrors `GH_TOKEN=$(eval "$GITHUB_BOT_TOKEN_CMD")`: the command is the
@@ -109,7 +125,9 @@ def eval_token(token_cmd):
     return result.stdout.strip()
 
 
-def gh_as_author(args, identity, runner=None, input=None, check=True):
+def gh_as_author(args: Sequence[str], identity: "Identity",
+                 runner: Runner | None = None, input: str | None = None,
+                 check: bool = True) -> GhResult:
     """Run a `gh` write that must appear as the PR author.
 
     When the identity is configured, evaluate its token command and inject the

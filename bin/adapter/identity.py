@@ -18,7 +18,10 @@ is the silent-fallback gap (a PR opened as the maintainer instead of the bot).
 `resolve` refuses it rather than guessing.
 """
 
+from __future__ import annotations
+
 import os
+from typing import Mapping
 
 
 class HalfConfigured(RuntimeError):
@@ -32,21 +35,22 @@ class HalfConfigured(RuntimeError):
 class Identity:
     """Resolved bot identity: configured (bot) or not (default `gh`)."""
 
-    def __init__(self, account=None, token_cmd=None):
+    def __init__(self, account: str | None = None,
+                 token_cmd: str | None = None) -> None:
         self.account = account
         self.token_cmd = token_cmd
 
     @property
-    def configured(self):
+    def configured(self) -> bool:
         return self.account is not None
 
-    def author_filter(self):
+    def author_filter(self) -> str | None:
         """The `--author` value for rework/land queries, or None when
         unconfigured — where the filter drops to match any open PR."""
         return self.account
 
 
-def _state(present, nonempty):
+def _state(present: bool, nonempty: bool) -> str:
     if not present:
         return "unset"
     if not nonempty:
@@ -54,7 +58,7 @@ def _state(present, nonempty):
     return "set"
 
 
-def resolve(env=None):
+def resolve(env: Mapping[str, str] | None = None) -> Identity:
     """Resolve identity from the environment (or an explicit mapping).
 
     Returns an Identity. Raises HalfConfigured on any half-configured state.

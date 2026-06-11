@@ -16,10 +16,13 @@ is unit-tested against canned `gh` JSON without the network. Bodies and untruste
 fields ride stdin (`--body-file -`, `-F field=@-`), never argv (SECURITY.md).
 """
 
+from __future__ import annotations
+
 import argparse
 import os
 import sys
 import time
+from typing import Any, Callable, Mapping, Sequence, TextIO
 
 from adapter import cli, ghcmd, identity as identity_mod
 
@@ -38,29 +41,30 @@ class GithubBackend:
     decides whether author filters and the `GH_TOKEN` dance apply.
     """
 
-    def __init__(self, identity, repo, runner=None):
+    def __init__(self, identity: identity_mod.Identity, repo: str,
+                 runner: ghcmd.Runner | None = None) -> None:
         self.identity = identity
         self.repo = repo
         self.runner = runner or ghcmd.run_gh
 
     # -- internal helpers ----------------------------------------------------
 
-    def _json(self, args, **kw):
+    def _json(self, args: Sequence[str], **kw: Any) -> Any:
         return ghcmd.gh_json(args, runner=self.runner, **kw)
 
-    def _text(self, args, **kw):
+    def _text(self, args: Sequence[str], **kw: Any) -> str:
         return ghcmd.gh_text(args, runner=self.runner, **kw)
 
-    def _api(self, path):
+    def _api(self, path: str) -> str:
         return f"repos/{self.repo}/{path}"
 
-    def _issue_id(self, number):
+    def _issue_id(self, number: int) -> str:
         """Resolve an issue's internal id from its number (relations key on id)."""
         return self._text(["api", self._api(f"issues/{number}"), "--jq", ".id"])
 
     # -- issues --------------------------------------------------------------
 
-    def issue_create(self, title, body):
+    def issue_create(self, title: str, body: str) -> dict[str, str]:
         """Create an issue; body on stdin. Returns the new issue's URL."""
         url = self._text(
             ["issue", "create", "--repo", self.repo, "--title", title,
@@ -69,20 +73,21 @@ class GithubBackend:
         )
         return {"url": url}
 
-    def issue_view(self, number):
+    def issue_view(self, number: int) -> dict[str, Any]:
         return self._json(
             ["issue", "view", str(number), "--repo", self.repo,
              "--json", "number,title,body,state,labels,assignees,comments"],
         )
 
-    def issue_list(self, label=None, state="open"):
+    def issue_list(self, label: str | None = None,
+                   state: str = "open") -> list[dict[str, Any]]:
         args = ["issue", "list", "--repo", self.repo, "--state", state,
                 "--json", "number,title,body,labels"]
         if label:
             args += ["--label", label]
         return self._json(args, default=[])
 
-    def issue_comment(self, number, body):
+    def issue_comment(self, number: int, body: str) -> dict[str, str]:
         url = self._text(
             ["issue", "comment", str(number), "--repo", self.repo,
              "--body-file", "-"],
@@ -90,7 +95,8 @@ class GithubBackend:
         )
         return {"url": url}
 
-    def issue_label(self, number, add=None, remove=None):
+    def issue_label(self, number: int, add: list[str] | None = None,
+                    remove: list[str] | None = None) -> dict[str, Any]:
         args = ["issue", "edit", str(number), "--repo", self.repo]
         for lbl in add or []:
             args += ["--add-label", lbl]
@@ -99,7 +105,8 @@ class GithubBackend:
         self._text(args)
         return {"number": number, "added": add or [], "removed": remove or []}
 
-    def issue_close(self, number, comment=None):
+    def issue_close(self, number: int,
+                    comment: str | None = None) -> dict[str, Any]:
         args = ["issue", "close", str(number), "--repo", self.repo]
         if comment is not None:
             args += ["--comment", comment]
@@ -108,7 +115,7 @@ class GithubBackend:
 
     # -- relations -----------------------------------------------------------
 
-    def add_sub_issue(self, parent, child):
+    def add_sub_issue(self, parent: int, child: int) -> dict[str, int]:
         """Add `child` as a sub-issue of `parent`.
 
         `sub_issue_id` is the child's resolved internal id, typed as an integer
@@ -121,14 +128,14 @@ class GithubBackend:
         )
         return {"parent": parent, "child": child}
 
-    def list_sub_issues(self, parent):
+    def list_sub_issues(self, parent: int) -> list[dict[str, Any]]:
         return self._json(
             ["api", self._api(f"issues/{parent}/sub_issues"),
              "--jq", "[.[] | {number, state}]"],
             default=[],
         )
 
-    def remove_sub_issue(self, parent, child):
+    def remove_sub_issue(self, parent: int, child: int) -> dict[str, int]:
         child_id = self._issue_id(child)
         self._text(
             ["api", "-X", "DELETE", self._api(f"issues/{parent}/sub_issue"),
@@ -136,7 +143,7 @@ class GithubBackend:
         )
         return {"parent": parent, "child": child}
 
-    def parent_of(self, number):
+    def parent_of(self, number: int) -> int | None:
         """The issue's parent number, or None when it has no parent.
 
         The `/parent` endpoint 404s (non-zero exit) for an issue with no parent;
@@ -151,7 +158,7 @@ class GithubBackend:
         text = result.stdout.strip()
         return int(text) if text else None
 
-    def add_blocked_by(self, number, blocker):
+    def add_blocked_by(self, number: int, blocker: int) -> dict[str, int]:
         """Record that `number` is blocked by `blocker` (typed `issue_id`)."""
         blocker_id = self._issue_id(blocker)
         self._text(
@@ -160,14 +167,14 @@ class GithubBackend:
         )
         return {"number": number, "blocker": blocker}
 
-    def list_blocked_by(self, number):
+    def list_blocked_by(self, number: int) -> list[dict[str, Any]]:
         return self._json(
             ["api", self._api(f"issues/{number}/dependencies/blocked_by"),
              "--jq", "[.[] | {number, state}]"],
             default=[],
         )
 
-    def list_blocking(self, number):
+    def list_blocking(self, number: int) -> list[dict[str, Any]]:
         return self._json(
             ["api", self._api(f"issues/{number}/dependencies/blocking"),
              "--jq", "[.[] | {number, state}]"],
@@ -176,31 +183,31 @@ class GithubBackend:
 
     # -- claims --------------------------------------------------------------
 
-    def claim_assign(self, number):
+    def claim_assign(self, number: int) -> dict[str, Any]:
         self._text(["issue", "edit", str(number), "--repo", self.repo,
                     "--add-assignee", "@me"])
         return {"number": number, "claimed": True}
 
-    def claim_release(self, number):
+    def claim_release(self, number: int) -> dict[str, Any]:
         self._text(["issue", "edit", str(number), "--repo", self.repo,
                     "--remove-assignee", "@me"])
         return {"number": number, "claimed": False}
 
-    def claim_holder(self, number):
+    def claim_holder(self, number: int) -> dict[str, Any]:
         logins = self._text(
             ["issue", "view", str(number), "--repo", self.repo,
              "--json", "assignees", "--jq", ".assignees[].login"],
         )
         return {"number": number, "holders": logins.splitlines() if logins else []}
 
-    def claim_since(self, number):
+    def claim_since(self, number: int) -> dict[str, Any]:
         ts = self._text(
             ["api", self._api(f"issues/{number}/timeline"),
              "--jq", '[.[] | select(.event == "assigned")][-1].created_at'],
         )
         return {"number": number, "since": ts or None}
 
-    def create_branch_ref(self, branch, sha):
+    def create_branch_ref(self, branch: str, sha: str) -> dict[str, Any]:
         """Create a branch ref as a compare-and-swap at a commit site.
 
         The POST returns 422 when the ref already exists — another session
@@ -224,7 +231,7 @@ class GithubBackend:
 
     # -- PR mechanics --------------------------------------------------------
 
-    def pr_create(self, title, body):
+    def pr_create(self, title: str, body: str) -> dict[str, str]:
         """Open a PR as the bot (or normal identity when unconfigured).
 
         The body — carrying the closing reference — rides stdin; the token, when
@@ -237,12 +244,12 @@ class GithubBackend:
         )
         return {"url": result.stdout.strip()}
 
-    def _author_args(self):
+    def _author_args(self) -> list[str]:
         """The `--author <bot>` filter, or [] when unconfigured (matches any PR)."""
         af = self.identity.author_filter()
         return ["--author", af] if af else []
 
-    def find_rework(self):
+    def find_rework(self) -> list[dict[str, Any]]:
         """Bot-owned open PRs the maintainer sent back with changes requested."""
         prs = self._json(
             ["pr", "list", "--repo", self.repo, "--state", "open",
@@ -252,7 +259,8 @@ class GithubBackend:
         )
         return [p for p in prs if p.get("reviewDecision") == "CHANGES_REQUESTED"]
 
-    def merge_state(self, number, max_polls=_REQUERY_MAX_POLLS, sleep=None):
+    def merge_state(self, number: int, max_polls: int = _REQUERY_MAX_POLLS,
+                    sleep: Callable[[float], None] | None = None) -> dict[str, Any]:
         """Read a PR's `mergeable`/`mergeStateStatus`, re-querying past UNKNOWN.
 
         `mergeable` is computed asynchronously: after a push, or when the base
@@ -282,7 +290,9 @@ class GithubBackend:
                 sleep(_REQUERY_SLEEP)
         return state
 
-    def find_conflicting(self, sleep=None):
+    def find_conflicting(
+            self, sleep: Callable[[float], None] | None = None,
+    ) -> list[dict[str, Any]]:
         """Bot-owned open PRs that no longer merge cleanly onto the base.
 
         The list read can report a now-conflicting PR as clean (stale), so each
@@ -306,13 +316,13 @@ class GithubBackend:
                 conflicting.append({**pr, **state})
         return conflicting
 
-    def read_review(self, number):
+    def read_review(self, number: int) -> dict[str, Any]:
         return self._json(
             ["pr", "view", str(number), "--repo", self.repo,
              "--json", "reviews,comments"],
         )
 
-    def approval_covers_head(self, number):
+    def approval_covers_head(self, number: int) -> bool:
         """True when the latest approving review covers the PR's HEAD.
 
         A force-push after approval leaves the approval standing against the
@@ -337,7 +347,7 @@ class GithubBackend:
                 return True
         return False
 
-    def find_approved(self):
+    def find_approved(self) -> list[dict[str, Any]]:
         """Bot-owned open PRs a human has approved (a first cut; the caller
         applies approval_covers_head per PR to reject a stale approval, and
         re-reads readiness via merge_state — so `mergeable` is deliberately not
@@ -350,7 +360,7 @@ class GithubBackend:
         )
         return [p for p in prs if p.get("reviewDecision") == "APPROVED"]
 
-    def sweep_rework(self):
+    def sweep_rework(self) -> list[dict[str, Any]]:
         """Compact per-PR rework state across all open bot PRs in one query.
 
         `auto`'s per-iteration scan: rather than a query per PR, one GraphQL
@@ -396,7 +406,8 @@ class GithubBackend:
             })
         return out
 
-    def find_next(self, label, state="open"):
+    def find_next(self, label: str,
+                  state: str = "open") -> list[dict[str, Any]]:
         """Ready candidates for a readiness label: open, carrying the label, and
         not yet claimed (`in-progress`), oldest first.
 
@@ -418,7 +429,7 @@ class GithubBackend:
         ready.sort(key=lambda i: i["createdAt"])
         return ready
 
-    def is_merged(self, number):
+    def is_merged(self, number: int) -> dict[str, Any]:
         state = self._json(
             ["pr", "view", str(number), "--repo", self.repo,
              "--json", "state,mergedAt"],
@@ -426,7 +437,7 @@ class GithubBackend:
         return {"merged": state.get("state") == "MERGED",
                 "mergedAt": state.get("mergedAt")}
 
-    def merge_method(self, base):
+    def merge_method(self, base: str) -> str | None:
         """Discover the allowed merge method for the base branch.
 
         A branch ruleset can restrict beyond the repo settings, and a disallowed
@@ -461,14 +472,15 @@ class GithubBackend:
             return "rebase"
         return None
 
-    def merge(self, number, method, delete_branch=True):
+    def merge(self, number: int, method: str,
+              delete_branch: bool = True) -> dict[str, Any]:
         args = ["pr", "merge", str(number), "--repo", self.repo, f"--{method}"]
         if delete_branch:
             args.append("--delete-branch")
         self._text(args)
         return {"number": number, "merged": True, "method": method}
 
-    def closing_refs(self, number):
+    def closing_refs(self, number: int) -> dict[str, Any]:
         return self._json(
             ["pr", "view", str(number), "--repo", self.repo,
              "--json", "closingIssuesReferences"],
@@ -476,7 +488,7 @@ class GithubBackend:
 
     # -- review threads ------------------------------------------------------
 
-    def unresolved_threads(self, number):
+    def unresolved_threads(self, number: int) -> list[dict[str, Any]]:
         owner, name = self.repo.split("/", 1)
         query = (
             "query($owner:String!,$repo:String!,$pr:Int!)"
@@ -491,13 +503,14 @@ class GithubBackend:
         nodes = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
         return [n for n in nodes if not n["isResolved"]]
 
-    def _thread_is_resolved(self, number, thread_id):
+    def _thread_is_resolved(self, number: int, thread_id: str) -> bool:
         for node in self.unresolved_threads(number):
             if node["id"] == thread_id:
                 return False
         return True
 
-    def reply_and_resolve(self, pr, comment_id, thread_id, body):
+    def reply_and_resolve(self, pr: int, comment_id: int, thread_id: str,
+                          body: str) -> dict[str, Any]:
         """Post the converged answer to a review thread, then resolve it.
 
         Sequence per skills/GITHUB.md: reply (body out-of-band on stdin, as the
@@ -529,7 +542,7 @@ class GithubBackend:
 
     # -- release -------------------------------------------------------------
 
-    def release_publish(self, tag, notes):
+    def release_publish(self, tag: str, notes: str) -> dict[str, str]:
         """Publish a GitHub release for an existing tag; notes on stdin, as the
         bot. The tag already exists on main, so gh attaches to it."""
         result = ghcmd.gh_as_author(
@@ -542,13 +555,15 @@ class GithubBackend:
 
 # --- dispatch ---------------------------------------------------------------
 
-def _resolve_repo(runner):
+def _resolve_repo(runner: ghcmd.Runner | None) -> str:
     """Discover owner/name from the current clone's origin."""
     return ghcmd.gh_text(["repo", "view", "--json", "nameWithOwner",
                           "--jq", ".nameWithOwner"], runner=runner)
 
 
-def run(argv, env=None, runner=None, repo=None, stream=None, stdin_body=None):
+def run(argv: Sequence[str], env: Mapping[str, str] | None = None,
+        runner: ghcmd.Runner | None = None, repo: str | None = None,
+        stream: TextIO | None = None, stdin_body: str | None = None) -> int:
     """Dispatch a tracker command.
 
     Resolves the backend from `$ISSUE_TRACKER` (only `github` is built here),
@@ -578,7 +593,8 @@ def run(argv, env=None, runner=None, repo=None, stream=None, stdin_body=None):
     return _route(be, args, stream=stream, stdin_body=stdin_body)
 
 
-def _route(be, args, stream, stdin_body):
+def _route(be: GithubBackend, args: argparse.Namespace,
+           stream: TextIO | None, stdin_body: str | None) -> int:
     group, command = args.group, args.command
 
     if group == "issue":
@@ -676,7 +692,7 @@ def _route(be, args, stream, stdin_body):
     return cli.halt(f"unknown command: {group} {command}", stream=stream)
 
 
-def _build_parser():
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tracker",
         description="Issue and PR mechanics (GitHub backend).",
@@ -735,14 +751,14 @@ def _build_parser():
 
 
 # Commands whose body/notes ride stdin (the out-of-band channel).
-_STDIN_COMMANDS = {
+_STDIN_COMMANDS: set[tuple[str, str]] = {
     ("issue", "create"), ("issue", "comment"),
     ("pr", "create"), ("pr", "reply-resolve"),
     ("release", "publish"),
 }
 
 
-def main(argv=None):
+def main(argv: Sequence[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     # Peek the group/command to decide whether a stdin body is expected, so a
     # body-bearing command reads it before dispatch and the rest never block.
