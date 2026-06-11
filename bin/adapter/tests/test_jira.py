@@ -159,6 +159,10 @@ class TestTransitionResolution(unittest.TestCase):
         self.assertIn("Ship It", transition_argv)
         # The name "Done" is never assumed.
         self.assertNotIn("Done", transition_argv)
+        # acli names the work item by --key and needs --yes (no TTY to confirm).
+        self.assertIn("--key", transition_argv)
+        self.assertIn("PROJ-7", transition_argv)
+        self.assertIn("--yes", transition_argv)
 
     def test_rename_does_not_break_the_binding(self) -> None:
         # The project renamed its done status to "Closed"; resolution still finds
@@ -208,7 +212,7 @@ class TestIssueConcepts(unittest.TestCase):
         self.assertEqual(argv[:3], ["jira", "workitem", "view"])
         self.assertIn("--json", argv)
 
-    def test_issue_create_uses_issue_type_for_category_and_body_on_stdin(self) -> None:
+    def test_issue_create_uses_issue_type_for_category_and_body_via_file(self) -> None:
         runner = ScriptedRunner([(json.dumps({"key": "PROJ-9"}),)])
         be = _backend(runner)
         out = be.issue_create(title="add widget", body="the body",
@@ -219,23 +223,59 @@ class TestIssueConcepts(unittest.TestCase):
         # The category label resolved to the Jira issue type Story.
         self.assertIn("Story", argv)
         self.assertIn("PROJ", argv)
-        # The untrusted body rode stdin, never argv (SECURITY.md).
-        self.assertEqual(runner.calls[0]["input"], "the body")
+        # The untrusted body reached acli via a temp file path, never argv or
+        # stdin (acli has no stdin `-` convention). Only the path rides argv.
+        self.assertIn("--description-file", argv)
+        self.assertIsNone(runner.calls[0]["input"])
         self.assertNotIn("the body", argv)
 
-    def test_issue_comment_body_rides_stdin(self) -> None:
+    def test_issue_create_writes_body_to_the_passed_file(self) -> None:
+        # The out-of-band channel works end to end: the path acli is handed
+        # holds the body while the call runs.
+        seen = {}
+
+        def reader(args, env=None, input=None, check=True):
+            idx = args.index("--description-file")
+            with open(args[idx + 1], encoding="utf-8") as fh:
+                seen["body"] = fh.read()
+            return aclicmd.AcliResult(args=list(args), returncode=0,
+                                      stdout=json.dumps({"key": "PROJ-9"}),
+                                      stderr="")
+
+        be = _backend(reader)
+        be.issue_create(title="t", body="line1\nline2", category="bug")
+        self.assertEqual(seen["body"], "line1\nline2")
+
+    def test_issue_comment_uses_create_subcommand_and_body_via_file(self) -> None:
         runner = ScriptedRunner([("{}",)])
         be = _backend(runner)
         be.issue_comment("PROJ-7", body="a comment")
-        self.assertEqual(runner.calls[0]["input"], "a comment")
-        self.assertNotIn("a comment", runner.argv(0))
+        argv = runner.argv(0)
+        # `comment` is a command group; the leaf is `comment create`, keyed by
+        # --key. The body rides a temp file path, never argv or stdin.
+        self.assertEqual(argv[:4], ["jira", "workitem", "comment", "create"])
+        self.assertIn("--key", argv)
+        self.assertIn("PROJ-7", argv)
+        self.assertIn("--body-file", argv)
+        self.assertIsNone(runner.calls[0]["input"])
+        self.assertNotIn("a comment", argv)
 
-    def test_issue_label_maps_state_labels_through(self) -> None:
+    def test_issue_label_uses_key_labels_and_yes(self) -> None:
         runner = ScriptedRunner([("{}",)])
         be = _backend(runner)
-        be.issue_label("PROJ-7", add=["in-progress"])
+        be.issue_label("PROJ-7", add=["in-progress", "ready-for-agent"],
+                       remove=["needs-triage"])
         argv = runner.argv(0)
-        self.assertIn("in-progress", argv)
+        self.assertEqual(argv[:3], ["jira", "workitem", "edit"])
+        # acli edit: --key (not positional), comma-joined --labels /
+        # --remove-labels, and --yes for the no-TTY non-interactive run.
+        self.assertIn("--key", argv)
+        self.assertIn("PROJ-7", argv)
+        self.assertIn("--yes", argv)
+        self.assertIn("--labels", argv)
+        self.assertIn("in-progress,ready-for-agent", argv)
+        self.assertIn("--remove-labels", argv)
+        self.assertIn("needs-triage", argv)
 
 
 # --- PR title embeds the key (the truth-of-record link) ---------------------

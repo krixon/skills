@@ -24,7 +24,10 @@ so a workflow rename can never break the binding to a hard-coded name.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Sequence
+import contextlib
+import os
+import tempfile
+from typing import Any, Callable, Iterator, Sequence
 
 from adapter import aclicmd
 
@@ -71,6 +74,25 @@ def pr_title(kind: str, description: str, key: str) -> str:
     this is the human-readable echo of it.
     """
     return f"{kind}: {description} ({key})"
+
+
+@contextlib.contextmanager
+def _body_file(body: str) -> Iterator[str]:
+    """Write an untrusted body to a private temp file and yield its path.
+
+    acli reads a body from a file path (`--description-file` / `--body-file`),
+    not from stdin — it has no `-` stdin convention. So the out-of-band channel
+    here is a 0600 temp file (mkstemp's default mode) whose *path* rides argv
+    while the body itself never does (SECURITY.md). The file is removed on exit
+    whether or not the acli call succeeds.
+    """
+    fd, path = tempfile.mkstemp(prefix="tracker-body-", suffix=".txt")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(body or "")
+        yield path
+    finally:
+        os.unlink(path)
 
 
 def label_for(label: str) -> str:
@@ -168,7 +190,11 @@ class JiraBackend:
                 f"{[t.get('name') for t in transitions]})")
 
         name = match["name"]
-        self._text(["jira", "workitem", "transition", key, "--status", name])
+        # acli identifies the work item by `--key` (not positionally, unlike
+        # `view`) and prompts for confirmation unless `--yes` is given — the
+        # binary has no TTY, so the prompt would hang.
+        self._text(["jira", "workitem", "transition", "--key", key,
+                    "--status", name, "--yes"])
         return {"key": key, "category": target_category, "status": name,
                 "noop": False}
 
@@ -187,28 +213,34 @@ class JiraBackend:
 
     def issue_create(self, title: str, body: str,
                      category: str) -> dict[str, Any]:
-        """Create an issue in the project; body on stdin. Returns the new key.
+        """Create an issue in the project. Returns the new key.
 
         The category label resolves to a Jira issue type (the concept→primitive
-        map); the untrusted body rides stdin (`--description-file -`), never
-        argv (SECURITY.md).
+        map); the untrusted body reaches acli via a temp file path
+        (`--description-file <path>`), never argv (SECURITY.md, `_body_file`).
         """
         issue_type = issue_type_for(category) or category
-        out = self._json(
-            ["jira", "workitem", "create", "--project", self.project,
-             "--type", issue_type, "--summary", title,
-             "--description-file", "-", "--json"],
-            input=body,
-            default={},
-        )
+        with _body_file(body) as path:
+            out = self._json(
+                ["jira", "workitem", "create", "--project", self.project,
+                 "--type", issue_type, "--summary", title,
+                 "--description-file", path, "--json"],
+                default={},
+            )
         return {"key": out.get("key")}
 
     def issue_comment(self, key: str, body: str) -> dict[str, Any]:
-        """Comment on an issue; body on stdin, never argv (SECURITY.md)."""
-        self._text(
-            ["jira", "workitem", "comment", key, "--body-file", "-"],
-            input=body,
-        )
+        """Comment on an issue.
+
+        `comment` is an acli command *group*; the leaf is `comment create`. The
+        work item is named by `--key`, and the untrusted body reaches acli via a
+        temp file path (`--body-file <path>`), never argv (SECURITY.md).
+        """
+        with _body_file(body) as path:
+            self._text(
+                ["jira", "workitem", "comment", "create", "--key", key,
+                 "--body-file", path],
+            )
         return {"key": key}
 
     def issue_label(self, key: str, add: list[str] | None = None,
@@ -216,13 +248,16 @@ class JiraBackend:
         """Add/remove workflow-state labels on an issue.
 
         The state labels are the workflow's own state machine; they carry across
-        as Jira labels verbatim (the identity mapping in `label_for`).
+        as Jira labels verbatim (the identity mapping in `label_for`). acli's
+        `edit` names the work item by `--key`, takes comma-separated label lists
+        on `--labels` (add) / `--remove-labels` (remove), and prompts unless
+        `--yes` is given — the binary has no TTY.
         """
-        args = ["jira", "workitem", "edit", key]
-        for lbl in add or []:
-            args += ["--add-label", label_for(lbl)]
-        for lbl in remove or []:
-            args += ["--remove-label", label_for(lbl)]
+        args = ["jira", "workitem", "edit", "--key", key, "--yes"]
+        if add:
+            args += ["--labels", ",".join(label_for(lbl) for lbl in add)]
+        if remove:
+            args += ["--remove-labels", ",".join(label_for(lbl) for lbl in remove)]
         self._text(args)
         return {"key": key, "added": add or [], "removed": remove or []}
 
