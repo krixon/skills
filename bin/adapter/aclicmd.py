@@ -114,11 +114,7 @@ def acli_json(args: Sequence[str], runner: Runner | None = None,
     Empty stdout yields `default` (e.g. an absent optional record), so a command
     can distinguish "no data" from a parse it must branch on.
     """
-    runner = runner or run_acli
-    result = runner(args, env=env, input=input, check=check)
-    if check:
-        _checked(result)
-    text = result.stdout.strip()
+    text = acli_text(args, runner=runner, env=env, input=input, check=check)
     if not text:
         return default
     return json.loads(text)
