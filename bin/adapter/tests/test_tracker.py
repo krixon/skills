@@ -16,7 +16,7 @@ import json
 import unittest
 from typing import Any, Sequence
 
-from adapter import ghcmd, tracker
+from adapter import enums, ghcmd, tracker
 from adapter.identity import Identity
 
 
@@ -510,31 +510,146 @@ class TestReviewThread(unittest.TestCase):
         self.assertEqual(len(runner.calls), 2)
 
 
+# --- issue contract projection (ADR 0009) -----------------------------------
+
+class TestIssueContract(unittest.TestCase):
+    """The GitHub issue methods project gh's native JSON into the neutral
+    two-zone contract: neutral `id`/`state`/`title`/`labels` at the top level,
+    the native number and url under `info`, and act results carry an outcome."""
+
+    def test_issue_view_returns_neutral_top_level_with_info_sidecar(self) -> None:
+        # gh's native --json output for issue view.
+        native = json.dumps({
+            "number": 227, "title": "T", "body": "B", "state": "open",
+            "labels": [{"id": "L1", "name": "bug"}, {"id": "L2", "name": "p1"}],
+            "assignees": [{"login": "human"}],
+            "comments": [],
+        })
+        be = _backend(ScriptedRunner([(native,)]))
+        result = be.issue_view("227")
+        # Neutral fields at the top level — an opaque string id, not `number`.
+        self.assertEqual(result["id"], "227")
+        self.assertEqual(result["state"], "open")
+        self.assertEqual(result["title"], "T")
+        # Labels carry across as plain neutral strings, not {id,name} objects.
+        self.assertEqual(result["labels"], ["bug", "p1"])
+        # The native number and url ride in the info sidecar.
+        self.assertEqual(result["info"]["number"], 227)
+        self.assertNotIn("number", result)
+
+    def test_issue_view_closed_state_maps_to_closed(self) -> None:
+        native = json.dumps({"number": 1, "title": "t", "body": "", "state": "closed",
+                             "labels": [], "assignees": [], "comments": []})
+        be = _backend(ScriptedRunner([(native,)]))
+        self.assertEqual(be.issue_view("1")["state"], "closed")
+
+    def test_issue_view_unmapped_state_raises(self) -> None:
+        # A native state with no neutral mapping is an error, never passed through.
+        native = json.dumps({"number": 1, "title": "t", "body": "", "state": "weird",
+                             "labels": [], "assignees": [], "comments": []})
+        be = _backend(ScriptedRunner([(native,)]))
+        with self.assertRaises(enums.UnmappedValue):
+            be.issue_view("1")
+
+    def test_issue_create_returns_id_with_url_and_number_in_info(self) -> None:
+        url = "https://github.com/krixon/skills/issues/42"
+        be = _backend(ScriptedRunner([(url,)]))
+        result = be.issue_create(title="T", body="B")
+        self.assertEqual(result["outcome"], "ok")
+        self.assertEqual(result["id"], "42")
+        self.assertEqual(result["info"]["url"], url)
+        self.assertEqual(result["info"]["number"], 42)
+        # Not the bare native {url}.
+        self.assertNotIn("url", result)
+
+    def test_issue_list_returns_neutral_issue_shape(self) -> None:
+        native = json.dumps([
+            {"number": 3, "title": "c", "body": "", "state": "open",
+             "labels": [{"id": "L", "name": "ready"}]},
+        ])
+        be = _backend(ScriptedRunner([(native,)]))
+        out = be.issue_list()
+        self.assertEqual(out[0]["id"], "3")
+        self.assertEqual(out[0]["state"], "open")
+        self.assertEqual(out[0]["labels"], ["ready"])
+        self.assertEqual(out[0]["info"]["number"], 3)
+
+    def test_issue_comment_is_act_shaped_with_outcome(self) -> None:
+        url = "https://github.com/krixon/skills/issues/7#issuecomment-1"
+        be = _backend(ScriptedRunner([(url,)]))
+        result = be.issue_comment("7", body="hi")
+        self.assertEqual(result["outcome"], "ok")
+        self.assertEqual(result["info"]["url"], url)
+
+    def test_issue_label_is_act_shaped_with_outcome(self) -> None:
+        be = _backend(ScriptedRunner([("",)]))
+        result = be.issue_label("7", add=["bug"], remove=["wip"])
+        self.assertEqual(result["outcome"], "ok")
+        self.assertEqual(result["id"], "7")
+        self.assertEqual(result["info"]["added"], ["bug"])
+        self.assertEqual(result["info"]["removed"], ["wip"])
+
+    def test_issue_close_is_act_shaped_with_neutral_state(self) -> None:
+        be = _backend(ScriptedRunner([("",)]))
+        result = be.issue_close("7")
+        self.assertEqual(result["outcome"], "ok")
+        self.assertEqual(result["id"], "7")
+        self.assertEqual(result["state"], "closed")
+
+    def test_issue_methods_coerce_opaque_id_to_native_number(self) -> None:
+        # The id is opaque to the caller; the backend coerces int(id) internally.
+        native = json.dumps({"number": 7, "title": "t", "body": "", "state": "open",
+                             "labels": [], "assignees": [], "comments": []})
+        runner = ScriptedRunner([(native,)])
+        _backend(runner).issue_view("7")
+        self.assertIn("7", runner.argv(0))
+
+
 # --- present/act output shapes via the dispatcher ---------------------------
 
 class TestDispatchAndShapes(unittest.TestCase):
-    def test_present_issue_view_emits_json(self) -> None:
-        payload = json.dumps({"number": 7, "title": "t", "body": "b"})
+    def test_present_issue_view_emits_contract_envelope(self) -> None:
+        payload = json.dumps({"number": 7, "title": "t", "body": "b",
+                              "state": "open", "labels": [], "assignees": [],
+                              "comments": []})
         runner = ScriptedRunner([(payload,)])
         out = io.StringIO()
         rc = tracker.run(
-            ["issue", "view", "--number", "7"],
+            ["issue", "view", "--id", "7"],
             env={"ISSUE_TRACKER": "github"},
             runner=runner, repo="krixon/skills", stream=out,
         )
         self.assertEqual(rc, 0)
-        self.assertEqual(json.loads(out.getvalue())["number"], 7)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["id"], "7")
+        self.assertEqual(payload["info"]["number"], 7)
+
+    def test_present_issue_create_emits_contract_envelope(self) -> None:
+        url = "https://github.com/krixon/skills/issues/9"
+        out = io.StringIO()
+        rc = tracker.run(
+            ["issue", "create", "--title", "T"],
+            env={"ISSUE_TRACKER": "github"},
+            runner=ScriptedRunner([(url,)]), repo="krixon/skills", stream=out,
+            stdin_body="the body",
+        )
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["id"], "9")
+        self.assertEqual(payload["outcome"], "ok")
+        self.assertEqual(payload["info"]["url"], url)
 
     def test_act_issue_comment_reports_acted(self) -> None:
         runner = ScriptedRunner([("https://github.com/krixon/skills/issues/7#x",)])
         out = io.StringIO()
         rc = tracker.run(
-            ["issue", "comment", "--number", "7"],
+            ["issue", "comment", "--id", "7"],
             env={"ISSUE_TRACKER": "github"},
             runner=runner, repo="krixon/skills", stream=out,
             stdin_body="a comment body",
         )
         self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(out.getvalue())["outcome"], "ok")
         # The body reached gh on stdin, not in argv.
         self.assertEqual(runner.calls[0]["input"], "a comment body")
 
@@ -571,25 +686,28 @@ class TestDispatchAndShapes(unittest.TestCase):
     def test_unknown_tracker_halts(self) -> None:
         out = io.StringIO()
         rc = tracker.run(
-            ["issue", "view", "--number", "7"],
+            ["issue", "view", "--id", "7"],
             env={"ISSUE_TRACKER": "jira"},
             runner=ScriptedRunner([("{}",)]), repo="x", stream=out,
         )
         # jira is not built in this slice; the dispatcher halts, not crashes.
         self.assertNotEqual(rc, 0)
-        self.assertEqual(json.loads(out.getvalue())["status"], "halted")
+        payload = json.loads(out.getvalue())
+        # A coded outcome, with free text confined to message (ADR 0009).
+        self.assertEqual(payload["outcome"], "unsupported")
+        self.assertIn("jira", payload["message"])
 
     def test_half_configured_identity_halts_at_startup(self) -> None:
         out = io.StringIO()
         rc = tracker.run(
-            ["issue", "view", "--number", "7"],
+            ["issue", "view", "--id", "7"],
             env={"ISSUE_TRACKER": "github", "GITHUB_BOT_ACCOUNT": "krixon-bot"},
             runner=ScriptedRunner([("{}",)]), repo="x", stream=out,
         )
         self.assertNotEqual(rc, 0)
         payload = json.loads(out.getvalue())
-        self.assertEqual(payload["status"], "halted")
-        self.assertIn("half-configured", payload["reason"])
+        self.assertEqual(payload["outcome"], "unconfigured")
+        self.assertIn("half-configured", payload["message"])
 
 
 if __name__ == "__main__":
