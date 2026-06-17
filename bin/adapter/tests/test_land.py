@@ -734,7 +734,8 @@ class TestCloseEpic(unittest.TestCase):
         self.assertNotEqual(rc, 0)
         payload = json.loads(out.getvalue())
         self.assertEqual(payload["status"], "halted")
-        self.assertIn(43, payload["openChildren"])
+        # Open children are reported as opaque string ids (ADR 0009 contract).
+        self.assertIn("43", payload["openChildren"])
         # The epic was not closed.
         self.assertEqual(runner.argvs("issue close"), [])
 

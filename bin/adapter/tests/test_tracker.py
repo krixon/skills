@@ -261,6 +261,271 @@ class TestRelations(unittest.TestCase):
         self.assertIsNone(be.parent_of(42))
 
 
+# --- relation/claim contract projection (ADR 0009, #230) --------------------
+
+class TestRelationContract(unittest.TestCase):
+    """The tracker-axis relation methods speak the neutral contract: list reads
+    are `[{id, state}]` with opaque string ids and the closed state vocabulary;
+    act results carry a coded `outcome` with native ids quarantined under `info`;
+    `parent` is `{id}` when present and a coded `noop` when absent."""
+
+    def test_list_sub_returns_id_keyed_neutral_rows(self) -> None:
+        native = json.dumps([{"number": 3, "state": "closed"},
+                             {"number": 4, "state": "open"}])
+        be = _backend(ScriptedRunner([(native,)]))
+        out = be.list_sub_issues(parent=2)
+        self.assertEqual(out, [{"id": "3", "state": "closed"},
+                               {"id": "4", "state": "open"}])
+        # No native `number` leaks into the neutral row.
+        self.assertNotIn("number", out[0])
+
+    def test_list_sub_maps_state_through_closed_vocabulary(self) -> None:
+        # An unmapped native state is an error, never passed through.
+        native = json.dumps([{"number": 3, "state": "weird"}])
+        be = _backend(ScriptedRunner([(native,)]))
+        with self.assertRaises(enums.UnmappedValue):
+            be.list_sub_issues(parent=2)
+
+    def test_list_blockers_returns_id_keyed_neutral_rows(self) -> None:
+        native = json.dumps([{"number": 7, "state": "open"}])
+        be = _backend(ScriptedRunner([(native,)]))
+        self.assertEqual(be.list_blocked_by(number=10),
+                         [{"id": "7", "state": "open"}])
+
+    def test_list_blocking_returns_id_keyed_neutral_rows(self) -> None:
+        native = json.dumps([{"number": 11, "state": "closed"}])
+        be = _backend(ScriptedRunner([(native,)]))
+        self.assertEqual(be.list_blocking(number=10),
+                         [{"id": "11", "state": "closed"}])
+
+    def test_parent_present_is_id_keyed_with_ok_outcome(self) -> None:
+        runner = ScriptedRunner([(json.dumps(100),)])
+        be = _backend(runner)
+        result = be.parent(child=42)
+        self.assertEqual(result["outcome"], "ok")
+        self.assertEqual(result["id"], "100")
+        self.assertNotIn("parent", result)
+
+    def test_parent_absent_is_coded_noop(self) -> None:
+        # The /parent endpoint 404s (non-zero) for an issue with no parent; the
+        # contract reports that as a coded noop, not a null `parent` key.
+        runner = ScriptedRunner([("", 1, "gh: Not Found (HTTP 404)")])
+        be = _backend(runner)
+        result = be.parent(child=42)
+        self.assertEqual(result["outcome"], "noop")
+        self.assertNotIn("id", result)
+
+    def test_add_sub_issue_is_act_shaped_with_outcome_and_info(self) -> None:
+        runner = ScriptedRunner([("9876",), ("{}",)])
+        be = _backend(runner)
+        result = be.add_sub_issue(parent=10, child=42)
+        self.assertEqual(result["outcome"], "ok")
+        # Native parent/child numbers quarantined under info — not at top level.
+        self.assertEqual(result["info"]["parent"], 10)
+        self.assertEqual(result["info"]["child"], 42)
+        self.assertNotIn("parent", result)
+
+    def test_remove_sub_issue_is_act_shaped_with_outcome(self) -> None:
+        runner = ScriptedRunner([("9876",), ("{}",)])
+        be = _backend(runner)
+        result = be.remove_sub_issue(parent=10, child=42)
+        self.assertEqual(result["outcome"], "ok")
+        self.assertEqual(result["info"]["parent"], 10)
+
+    def test_add_blocked_by_is_act_shaped_with_outcome(self) -> None:
+        runner = ScriptedRunner([("5555",), ("{}",)])
+        be = _backend(runner)
+        result = be.add_blocked_by(number=10, blocker=7)
+        self.assertEqual(result["outcome"], "ok")
+        self.assertEqual(result["info"]["blocker"], 7)
+
+
+class TestClaimContract(unittest.TestCase):
+    """The assignee/label claim methods speak the contract: act results carry a
+    coded `outcome` and an opaque `id`; reads are `id`-keyed neutral results with
+    a coded outcome and the native holder/timestamp data under `info`."""
+
+    def test_claim_assign_is_act_shaped_with_outcome(self) -> None:
+        be = _backend(ScriptedRunner([("",)]))
+        result = be.claim_assign(number=10)
+        self.assertEqual(result["outcome"], "ok")
+        self.assertEqual(result["id"], "10")
+        self.assertNotIn("number", result)
+
+    def test_claim_release_is_act_shaped_with_outcome(self) -> None:
+        be = _backend(ScriptedRunner([("",)]))
+        result = be.claim_release(number=10)
+        self.assertEqual(result["outcome"], "ok")
+        self.assertEqual(result["id"], "10")
+
+    def test_claim_holder_is_id_keyed_with_holders_in_info(self) -> None:
+        be = _backend(ScriptedRunner([("ghost\nother",)]))
+        result = be.claim_holder(number=10)
+        self.assertEqual(result["id"], "10")
+        self.assertEqual(result["info"]["holders"], ["ghost", "other"])
+        # A held claim reads ok; an unheld one reads noop.
+        self.assertEqual(result["outcome"], "ok")
+        self.assertNotIn("number", result)
+
+    def test_claim_holder_unheld_reads_noop(self) -> None:
+        be = _backend(ScriptedRunner([("",)]))
+        result = be.claim_holder(number=10)
+        self.assertEqual(result["outcome"], "noop")
+        self.assertEqual(result["info"]["holders"], [])
+
+    def test_claim_since_is_id_keyed_with_timestamp_in_info(self) -> None:
+        be = _backend(ScriptedRunner([("2026-06-01T00:00:00Z",)]))
+        result = be.claim_since(number=10)
+        self.assertEqual(result["id"], "10")
+        self.assertEqual(result["info"]["since"], "2026-06-01T00:00:00Z")
+        self.assertEqual(result["outcome"], "ok")
+
+    def test_claim_since_never_assigned_reads_noop(self) -> None:
+        be = _backend(ScriptedRunner([("",)]))
+        result = be.claim_since(number=10)
+        self.assertEqual(result["outcome"], "noop")
+        self.assertIsNone(result["info"]["since"])
+
+
+# --- relation/claim dispatch shapes -----------------------------------------
+
+class TestRelationClaimDispatch(unittest.TestCase):
+    def test_relation_list_sub_emits_id_keyed_rows(self) -> None:
+        native = json.dumps([{"number": 3, "state": "closed"}])
+        out = io.StringIO()
+        rc = tracker.run(
+            ["relation", "list-sub", "--id", "2"],
+            env={"ISSUE_TRACKER": "github"},
+            runner=ScriptedRunner([(native,)]), repo="krixon/skills", stream=out,
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(out.getvalue()), [{"id": "3", "state": "closed"}])
+
+    def test_relation_parent_present_emits_id(self) -> None:
+        out = io.StringIO()
+        rc = tracker.run(
+            ["relation", "parent", "--id", "42"],
+            env={"ISSUE_TRACKER": "github"},
+            runner=ScriptedRunner([(json.dumps(100),)]), repo="krixon/skills",
+            stream=out,
+        )
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["id"], "100")
+        self.assertEqual(payload["outcome"], "ok")
+
+    def test_relation_parent_absent_emits_noop(self) -> None:
+        out = io.StringIO()
+        rc = tracker.run(
+            ["relation", "parent", "--id", "42"],
+            env={"ISSUE_TRACKER": "github"},
+            runner=ScriptedRunner([("", 1, "404")]), repo="krixon/skills",
+            stream=out,
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(out.getvalue())["outcome"], "noop")
+
+    def test_relation_add_sub_emits_outcome(self) -> None:
+        out = io.StringIO()
+        rc = tracker.run(
+            ["relation", "add-sub", "--id", "10", "--child", "42"],
+            env={"ISSUE_TRACKER": "github"},
+            runner=ScriptedRunner([("9876",), ("{}",)]), repo="krixon/skills",
+            stream=out,
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(out.getvalue())["outcome"], "ok")
+
+    def test_claim_assign_emits_outcome(self) -> None:
+        out = io.StringIO()
+        rc = tracker.run(
+            ["claim", "assign", "--id", "10"],
+            env={"ISSUE_TRACKER": "github"},
+            runner=ScriptedRunner([("",)]), repo="krixon/skills", stream=out,
+        )
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["outcome"], "ok")
+        self.assertEqual(payload["id"], "10")
+
+    def test_claim_holder_emits_id_keyed_present(self) -> None:
+        out = io.StringIO()
+        rc = tracker.run(
+            ["claim", "holder", "--id", "10"],
+            env={"ISSUE_TRACKER": "github"},
+            runner=ScriptedRunner([("ghost",)]), repo="krixon/skills", stream=out,
+        )
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["id"], "10")
+        self.assertEqual(payload["info"]["holders"], ["ghost"])
+
+
+# --- opaque non-numeric id survives the path (#232 guard, ADR 0009) ---------
+
+class TestOpaqueNonNumericId(unittest.TestCase):
+    """A Jira-style key (`ORPL-123`) is a valid opaque id: it must clear the
+    parser, the neutral dispatch layer, and the backend method signatures with
+    no `int()` coercion until the gh boundary — the GitHub backend alone may
+    narrow there (its ids are numeric). These guard #232, where ids are keys.
+
+    The defect they catch: `type=int` on a secondary id flag, or an `int(args.id)`
+    at the dispatcher, would reject or explode on `ORPL-123` before it ever
+    reached the backend.
+    """
+
+    JIRA_ID = "ORPL-123"
+
+    def test_relation_secondary_id_accepts_non_numeric_key_at_parser(self) -> None:
+        # --child is an opaque id (same kind as --id), not type=int: a key like
+        # ORPL-124 fed back from list-sub must parse, not be rejected.
+        captured: dict[str, Any] = {}
+
+        class CapturingBackend(tracker.GithubBackend):
+            def add_sub_issue(self, parent: str, child: str) -> dict[str, Any]:
+                captured["parent"] = parent
+                captured["child"] = child
+                return {"outcome": "ok", "info": {}}
+
+        be = CapturingBackend(identity=Identity(), repo="krixon/skills",
+                              runner=ScriptedRunner([("",)]))
+        args = tracker._build_parser().parse_args(
+            ["relation", "add-sub", "--id", self.JIRA_ID, "--child", "ORPL-124"])
+        rc = tracker._route(be, args, stream=io.StringIO(), stdin_body=None)
+        self.assertEqual(rc, 0)
+        # Both ids reach the backend as opaque strings — no parser rejection, no
+        # int() narrowing at dispatch.
+        self.assertEqual(captured, {"parent": "ORPL-123", "child": "ORPL-124"})
+
+    def test_claim_dispatch_passes_non_numeric_key_through(self) -> None:
+        # The dispatcher hands the opaque id straight to the backend — no
+        # int(args.id) — so a non-numeric key survives the neutral layer.
+        captured: dict[str, Any] = {}
+
+        class CapturingBackend(tracker.GithubBackend):
+            def claim_assign(self, number: str) -> dict[str, Any]:
+                captured["number"] = number
+                return {"outcome": "ok", "id": number}
+
+        be = CapturingBackend(identity=Identity(), repo="krixon/skills",
+                              runner=ScriptedRunner([("",)]))
+        args = tracker._build_parser().parse_args(
+            ["claim", "assign", "--id", self.JIRA_ID])
+        rc = tracker._route(be, args, stream=io.StringIO(), stdin_body=None)
+        self.assertEqual(rc, 0)
+        self.assertEqual(captured["number"], self.JIRA_ID)
+
+    def test_claim_assign_carries_non_numeric_key_to_gh_argv_intact(self) -> None:
+        # The assignee write keys on the opaque id verbatim (str, never int):
+        # ORPL-123 reaches the gh argv unmangled — the end-to-end proof that the
+        # id stays opaque through the whole claim path.
+        runner = ScriptedRunner([("",)])
+        be = _backend(runner)
+        result = be.claim_assign(number=self.JIRA_ID)
+        self.assertEqual(result["id"], self.JIRA_ID)
+        self.assertIn(self.JIRA_ID, runner.argv(0))
+
+
 # --- branch-ref create as CAS ----------------------------------------------
 
 class TestBranchRefCas(unittest.TestCase):
