@@ -461,6 +461,71 @@ class TestRelationClaimDispatch(unittest.TestCase):
         self.assertEqual(payload["info"]["holders"], ["ghost"])
 
 
+# --- opaque non-numeric id survives the path (#232 guard, ADR 0009) ---------
+
+class TestOpaqueNonNumericId(unittest.TestCase):
+    """A Jira-style key (`ORPL-123`) is a valid opaque id: it must clear the
+    parser, the neutral dispatch layer, and the backend method signatures with
+    no `int()` coercion until the gh boundary — the GitHub backend alone may
+    narrow there (its ids are numeric). These guard #232, where ids are keys.
+
+    The defect they catch: `type=int` on a secondary id flag, or an `int(args.id)`
+    at the dispatcher, would reject or explode on `ORPL-123` before it ever
+    reached the backend.
+    """
+
+    JIRA_ID = "ORPL-123"
+
+    def test_relation_secondary_id_accepts_non_numeric_key_at_parser(self) -> None:
+        # --child is an opaque id (same kind as --id), not type=int: a key like
+        # ORPL-124 fed back from list-sub must parse, not be rejected.
+        captured: dict[str, Any] = {}
+
+        class CapturingBackend(tracker.GithubBackend):
+            def add_sub_issue(self, parent: str, child: str) -> dict[str, Any]:
+                captured["parent"] = parent
+                captured["child"] = child
+                return {"outcome": "ok", "info": {}}
+
+        be = CapturingBackend(identity=Identity(), repo="krixon/skills",
+                              runner=ScriptedRunner([("",)]))
+        args = tracker._build_parser().parse_args(
+            ["relation", "add-sub", "--id", self.JIRA_ID, "--child", "ORPL-124"])
+        rc = tracker._route(be, args, stream=io.StringIO(), stdin_body=None)
+        self.assertEqual(rc, 0)
+        # Both ids reach the backend as opaque strings — no parser rejection, no
+        # int() narrowing at dispatch.
+        self.assertEqual(captured, {"parent": "ORPL-123", "child": "ORPL-124"})
+
+    def test_claim_dispatch_passes_non_numeric_key_through(self) -> None:
+        # The dispatcher hands the opaque id straight to the backend — no
+        # int(args.id) — so a non-numeric key survives the neutral layer.
+        captured: dict[str, Any] = {}
+
+        class CapturingBackend(tracker.GithubBackend):
+            def claim_assign(self, number: str) -> dict[str, Any]:
+                captured["number"] = number
+                return {"outcome": "ok", "id": number}
+
+        be = CapturingBackend(identity=Identity(), repo="krixon/skills",
+                              runner=ScriptedRunner([("",)]))
+        args = tracker._build_parser().parse_args(
+            ["claim", "assign", "--id", self.JIRA_ID])
+        rc = tracker._route(be, args, stream=io.StringIO(), stdin_body=None)
+        self.assertEqual(rc, 0)
+        self.assertEqual(captured["number"], self.JIRA_ID)
+
+    def test_claim_assign_carries_non_numeric_key_to_gh_argv_intact(self) -> None:
+        # The assignee write keys on the opaque id verbatim (str, never int):
+        # ORPL-123 reaches the gh argv unmangled — the end-to-end proof that the
+        # id stays opaque through the whole claim path.
+        runner = ScriptedRunner([("",)])
+        be = _backend(runner)
+        result = be.claim_assign(number=self.JIRA_ID)
+        self.assertEqual(result["id"], self.JIRA_ID)
+        self.assertIn(self.JIRA_ID, runner.argv(0))
+
+
 # --- branch-ref create as CAS ----------------------------------------------
 
 class TestBranchRefCas(unittest.TestCase):

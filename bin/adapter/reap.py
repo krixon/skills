@@ -188,7 +188,7 @@ def reap_claim(be: GithubBackend, number: int, before: str,
     mutating: a claim re-taken, refreshed, or a PR opened since the sweep must
     not be reaped. Halts with the reason rather than yanking live work.
     """
-    since = be.claim_since(number)["info"]["since"]
+    since = be.claim_since(str(number))["info"]["since"]
     if since is None or since >= before:
         return cli.halt("claim is no longer past the threshold",
                         details={"number": number, "since": since},
@@ -196,7 +196,7 @@ def reap_claim(be: GithubBackend, number: int, before: str,
     if be.open_pr_for_issue(number):
         return cli.halt("issue now has an open PR — in review, not abandoned",
                         details={"number": number}, stream=stream)
-    be.claim_release(number)
+    be.claim_release(str(number))
     be.issue_label(number, remove=["in-progress"])
     return cli.acted({"number": number, "reaped": "claim",
                       "released": True, "labelStripped": "in-progress"},
@@ -245,7 +245,7 @@ def reap_epic(be: GithubBackend, number: int,
     and the confirmation halts the close rather than closing an epic with live
     children.
     """
-    subs = be.list_sub_issues(number)
+    subs = be.list_sub_issues(str(number))
     open_children = [s["id"] for s in subs if s.get("state") != "closed"]
     if not subs:
         return cli.halt("epic has no sub-issues to evidence closure",

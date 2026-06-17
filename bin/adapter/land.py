@@ -192,7 +192,7 @@ def _epic_close_candidate(be: GithubBackend,
     is still open, and every sub-issue now reads closed. land never closes the
     epic here — the offer faces a human in the wrapper.
     """
-    parent = be.parent_of(closed_issue)
+    parent = be.parent_of(str(closed_issue))
     if parent is None:
         return None
     # issue_view now returns the neutral contract envelope (ADR 0009): the state
@@ -200,7 +200,7 @@ def _epic_close_candidate(be: GithubBackend,
     epic = be.issue_view(str(parent))
     if epic.get("state") != "open":
         return None
-    subs = be.list_sub_issues(parent)
+    subs = be.list_sub_issues(str(parent))
     if subs and all(s.get("state") == "closed" for s in subs):
         return {"number": parent, "title": epic.get("title"),
                 "subIssues": subs}
@@ -334,7 +334,7 @@ def close_epic(be: GithubBackend, number: int,
     confirmation. When one is still open, halt with that reason rather than
     closing an epic with live children.
     """
-    subs = be.list_sub_issues(number)
+    subs = be.list_sub_issues(str(number))
     open_children = [s["id"] for s in subs if s.get("state") != "closed"]
     if open_children:
         return cli.halt(
