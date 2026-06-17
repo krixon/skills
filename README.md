@@ -110,13 +110,13 @@ Each skill below links to its fuller entry in the [skills reference](docs/skills
 - **[patch](docs/skills-reference.md#patch)** — ship a small fix straight from a conversation, no tracked issue: worktree branch → review gate → a no-issue PR (`No-issue:` marker) a human lands; human-invoked.
 - **[tdd](docs/skills-reference.md#tdd)** — red-green-refactor loop, integration-test first.
 - **[diagnose](docs/skills-reference.md#diagnose)** — disciplined loop for hard bugs and perf regressions: reproduce → minimise → hypothesise → instrument → fix → regression-test.
-- **[reap](docs/skills-reference.md#reap)** — sweep workflow state for staleness — abandoned claims, quiet `needs-info`, orphaned worktrees/branches, emptied epics — and propose each cleanup one human-confirmed action at a time; human-invoked only.
 
 ### Commands
 
 Collapsed pure commands ([ADR 0008](docs/adr/0008-deterministic-mechanics-code-adapter.md)) — thin wrappers over the `bin/` adapter, not agent-native skills. Invoked the same way (`/land`).
 
 - **[land](docs/skills-reference.md#land)** — merge approved PRs, strip `in-progress`, and tear down the branch/worktree; human-invoked only.
+- **[reap](docs/skills-reference.md#reap)** — sweep workflow state for staleness — abandoned claims, quiet `needs-info`, orphaned worktrees/branches, emptied epics — and clean each up one human-confirmed action at a time; human-invoked only.
 
 ### Meta & session
 - **[auto](docs/skills-reference.md#auto)** — run a skill workflow unattended, walking the handover chain until the first human gate.

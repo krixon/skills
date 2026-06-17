@@ -12,8 +12,11 @@
 # commands/*.md — the collapsed pure commands (thin wrappers over bin/<name>),
 # distinct from the agent-native skills.
 #
-# Repo-local skills that must NOT ship (release) live as real directories directly
-# under .claude/skills/, outside skills/. They are left untouched here.
+# Repo-local entries that must NOT ship live as real files/directories directly
+# under the .claude/ farms, outside skills/ and commands/: the version binary's
+# home .claude/skills/release/ (a real directory), and the release command
+# .claude/commands/release.md (a real file). The symlink purge below removes only
+# symlinks, so these real entries survive every relink untouched.
 #
 # Idempotent: drops the existing symlinks and recreates them. Run after adding,
 # renaming, or removing a skill or command. See ADR 0005 and ADR 0008.

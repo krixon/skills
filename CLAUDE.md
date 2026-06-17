@@ -27,9 +27,9 @@ Open PRs as the configured bot account, never as the maintainer — identity com
 
 ## Releases
 
-Cut versioned releases with the repo-local `release` skill (`/release`): it derives the bump from the Conventional-Commit types landed since the last `v*` tag, bumps `.claude-plugin/plugin.json`, and pushes the bump plus an annotated `v<new>` tag to `main` from a worktree. Human-invoked only — it makes a version judgment and pushes to `main`, neither safe unattended. `land` offers it after a merge by discovering this section.
+Cut versioned releases with the repo-local `release` command (`/release`): it derives the bump from the Conventional-Commit types landed since the last `v*` tag, bumps `.claude-plugin/plugin.json`, pushes the bump plus an annotated `v<new>` tag to `main` from a worktree, then offers to publish a GitHub release. Human-invoked only — it makes a version judgment and pushes to `main`, neither safe unattended. `land` offers it after a merge by discovering this section.
 
-`release` is a **repo-local skill**: bumping *this* plugin's version is specific to this repo, so it lives under `.claude/skills/release/`, not `skills/`, and never ships to plugin consumers (ADR 0005). That is the home for any future repo-local skill — a real directory under `.claude/skills/`, outside the distributable `skills/`.
+`release` is a **repo-local command** (ADR 0008): bumping *this* plugin's version is specific to this repo, so it never ships to plugin consumers (ADR 0005). The wrapper lives at `.claude/commands/release.md` — a real, tracked file directly under the `.claude/commands/` farm, outside the distributable `commands/`, the command analogue of how the repo-local skill kept its directory under `.claude/skills/`. Its mechanics live in the repo-local `version` binary (`.claude/skills/release/scripts/version`: `derive` / `apply` / `publish`), which `relink-dev-skills.sh` leaves untouched. That `.claude/`-direct home is where any future repo-local command or skill lives, outside the distributable trees.
 
 ## Goal
 

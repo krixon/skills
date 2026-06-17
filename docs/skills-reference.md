@@ -143,16 +143,6 @@ They differ only by what they look for:
 
 **Chains to.** Terminal — open a PR for review.
 
-### reap
-
-**What it does.** Sweeps the workflow state machine for four classes of staleness and proposes a cleanup for each, mutating nothing without a per-item confirmation: claimed issues abandoned by a crashed run (no open PR, claim older than the threshold) → release the claim and strip `in-progress`; `needs-info` issues quiet past the threshold → re-ping or close; local worktrees and branches whose PR has merged or closed → tear down per the isolation contract; open epics whose sub-issues have all closed → close the epic. Thresholds (claim 24h, needs-info 14d) are overridable by argument. Human-invoked only, interactive-only — `auto` never enters it.
-
-**When to reach for it.** A crashed `pickup` left an issue stuck `in-progress` and the drain keeps skipping it; orphaned worktrees are piling up; `needs-info` issues are going stale; or you just want to tidy the workflow's loose ends.
-
-**Example.** `/reap` — or `/reap claim=48h needs-info=7d` to tighten the thresholds.
-
-**Chains to.** Terminal — the state is tidied; there's no artifact to chain onward.
-
 ## Commands
 
 Collapsed pure commands ([ADR 0008](adr/0008-deterministic-mechanics-code-adapter.md)) — thin in-session wrappers over the `bin/` adapter rather than agent-native skills. The mechanics live in tested code; the wrapper carries only the human decision and names only the binary.
@@ -166,6 +156,16 @@ Collapsed pure commands ([ADR 0008](adr/0008-deterministic-mechanics-code-adapte
 **Example.** `/land` — or "land the approved PRs".
 
 **Chains to.** Terminal — the work is merged and the trail is clean. After a merge it offers the project's release process, when the project's `CLAUDE.md` documents one.
+
+### reap
+
+**What it does.** Sweeps the workflow state machine for four classes of staleness and cleans each up, mutating nothing without a per-item confirmation: claimed issues abandoned by a crashed run (no open PR, claim older than the threshold) → release the claim and strip `in-progress`; `needs-info` issues quiet past the threshold → re-ping or close; local worktrees and branches whose PR has merged or closed → tear down per the isolation contract; open epics whose sub-issues have all closed → close the epic. The sweep, the thresholds, and each act run in the `bin/reap` adapter command, which re-reads every deciding signal at the moment it acts; the wrapper presents the candidates and confirms each in chat. Thresholds (claim 24h, needs-info 14d) are overridable by argument. Human-invoked only, interactive-only — `auto` never enters it.
+
+**When to reach for it.** A crashed `pickup` left an issue stuck `in-progress` and the drain keeps skipping it; orphaned worktrees are piling up; `needs-info` issues are going stale; or you just want to tidy the workflow's loose ends.
+
+**Example.** `/reap` — or `/reap claim=48h needs-info=7d` to tighten the thresholds.
+
+**Chains to.** Terminal — the state is tidied; there's no artifact to chain onward.
 
 ## Meta & session
 
