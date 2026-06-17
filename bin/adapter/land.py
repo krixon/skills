@@ -335,7 +335,7 @@ def close_epic(be: GithubBackend, number: int,
     closing an epic with live children.
     """
     subs = be.list_sub_issues(number)
-    open_children = [s["number"] for s in subs if s.get("state") != "closed"]
+    open_children = [s["id"] for s in subs if s.get("state") != "closed"]
     if open_children:
         return cli.halt(
             "epic has children that are no longer closed",

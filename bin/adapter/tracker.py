@@ -182,39 +182,57 @@ class GithubBackend:
 
     # -- relations -----------------------------------------------------------
 
-    def add_sub_issue(self, parent: int, child: int) -> dict[str, int]:
+    @staticmethod
+    def _neutral_relation(native: Mapping[str, Any]) -> dict[str, Any]:
+        """Project a gh relation row (`{number, state}`) into the neutral
+        two-zone shape: an opaque string `id` and the closed-vocabulary state.
+
+        Reused across every relation list (sub-issues, blockers, blocking) and
+        copied by the sibling slices (#231/#232). The native number becomes the
+        opaque id; the state goes through the raise-on-miss mapper.
+        """
+        return {
+            "id": str(native["number"]),
+            "state": enums.issue_state(native["state"]),
+        }
+
+    def add_sub_issue(self, parent: int, child: int) -> dict[str, Any]:
         """Add `child` as a sub-issue of `parent`.
 
         `sub_issue_id` is the child's resolved internal id, typed as an integer
-        with `-F`; a string (`-f`) returns HTTP 422.
+        with `-F`; a string (`-f`) returns HTTP 422. Returns the contract act
+        envelope: a coded `outcome` with the native parent/child numbers under
+        `info`.
         """
         child_id = self._issue_id(child)
         self._text(
             ["api", self._api(f"issues/{parent}/sub_issues"),
              "-F", f"sub_issue_id={child_id}"],
         )
-        return {"parent": parent, "child": child}
+        return {"outcome": cli.OK, "info": {"parent": parent, "child": child}}
 
     def list_sub_issues(self, parent: int) -> list[dict[str, Any]]:
-        return self._json(
+        rows = self._json(
             ["api", self._api(f"issues/{parent}/sub_issues"),
              "--jq", "[.[] | {number, state}]"],
             default=[],
         )
+        return [self._neutral_relation(r) for r in rows]
 
-    def remove_sub_issue(self, parent: int, child: int) -> dict[str, int]:
+    def remove_sub_issue(self, parent: int, child: int) -> dict[str, Any]:
         child_id = self._issue_id(child)
         self._text(
             ["api", "-X", "DELETE", self._api(f"issues/{parent}/sub_issue"),
              "-F", f"sub_issue_id={child_id}"],
         )
-        return {"parent": parent, "child": child}
+        return {"outcome": cli.OK, "info": {"parent": parent, "child": child}}
 
     def parent_of(self, number: int) -> int | None:
         """The issue's parent number, or None when it has no parent.
 
         The `/parent` endpoint 404s (non-zero exit) for an issue with no parent;
-        that reads as no parent, not an error.
+        that reads as no parent, not an error. The raw helper internal callers
+        (land's epic-close path) use; `parent` wraps it in the neutral contract.
         """
         result = self.runner(
             ["api", self._api(f"issues/{number}/parent"), "--jq", ".number"],
@@ -225,54 +243,84 @@ class GithubBackend:
         text = result.stdout.strip()
         return int(text) if text else None
 
-    def add_blocked_by(self, number: int, blocker: int) -> dict[str, int]:
-        """Record that `number` is blocked by `blocker` (typed `issue_id`)."""
+    def parent(self, child: int) -> dict[str, Any]:
+        """The child's parent in the neutral contract shape.
+
+        An issue with a parent reads `{id, outcome: ok}` — the opaque parent id.
+        An issue with none reads a coded `noop` (the absence is a result, not an
+        error), so a caller branches on the outcome, never on a null `id`.
+        """
+        number = self.parent_of(child)
+        if number is None:
+            return {"outcome": cli.NOOP, "message": "issue has no parent"}
+        return {"outcome": cli.OK, "id": str(number)}
+
+    def add_blocked_by(self, number: int, blocker: int) -> dict[str, Any]:
+        """Record that `number` is blocked by `blocker` (typed `issue_id`).
+
+        Returns the contract act envelope: a coded `outcome` with the native
+        issue/blocker numbers under `info`.
+        """
         blocker_id = self._issue_id(blocker)
         self._text(
             ["api", self._api(f"issues/{number}/dependencies/blocked_by"),
              "-F", f"issue_id={blocker_id}"],
         )
-        return {"number": number, "blocker": blocker}
+        return {"outcome": cli.OK, "info": {"number": number, "blocker": blocker}}
 
     def list_blocked_by(self, number: int) -> list[dict[str, Any]]:
-        return self._json(
+        rows = self._json(
             ["api", self._api(f"issues/{number}/dependencies/blocked_by"),
              "--jq", "[.[] | {number, state}]"],
             default=[],
         )
+        return [self._neutral_relation(r) for r in rows]
 
     def list_blocking(self, number: int) -> list[dict[str, Any]]:
-        return self._json(
+        rows = self._json(
             ["api", self._api(f"issues/{number}/dependencies/blocking"),
              "--jq", "[.[] | {number, state}]"],
             default=[],
         )
+        return [self._neutral_relation(r) for r in rows]
 
     # -- claims --------------------------------------------------------------
 
     def claim_assign(self, number: int) -> dict[str, Any]:
+        """Take the advisory assignee claim. Returns the contract act envelope:
+        a coded `outcome` and the opaque issue id."""
         self._text(["issue", "edit", str(number), "--repo", self.repo,
                     "--add-assignee", "@me"])
-        return {"number": number, "claimed": True}
+        return {"outcome": cli.OK, "id": str(number)}
 
     def claim_release(self, number: int) -> dict[str, Any]:
+        """Drop the advisory assignee claim. Contract act envelope."""
         self._text(["issue", "edit", str(number), "--repo", self.repo,
                     "--remove-assignee", "@me"])
-        return {"number": number, "claimed": False}
+        return {"outcome": cli.OK, "id": str(number)}
 
     def claim_holder(self, number: int) -> dict[str, Any]:
+        """Who holds the claim. Neutral `id`-keyed result: a held issue reads
+        `ok`, an unheld one `noop`; the holder logins ride under `info`."""
         logins = self._text(
             ["issue", "view", str(number), "--repo", self.repo,
              "--json", "assignees", "--jq", ".assignees[].login"],
         )
-        return {"number": number, "holders": logins.splitlines() if logins else []}
+        holders = logins.splitlines() if logins else []
+        return {"outcome": cli.OK if holders else cli.NOOP,
+                "id": str(number), "info": {"holders": holders}}
 
     def claim_since(self, number: int) -> dict[str, Any]:
+        """When the claim was taken. Neutral `id`-keyed result: an assigned
+        issue reads `ok`, a never-assigned one `noop`; the timestamp (or None)
+        rides under `info`."""
         ts = self._text(
             ["api", self._api(f"issues/{number}/timeline"),
              "--jq", '[.[] | select(.event == "assigned")][-1].created_at'],
         )
-        return {"number": number, "since": ts or None}
+        since = ts or None
+        return {"outcome": cli.OK if since else cli.NOOP,
+                "id": str(number), "info": {"since": since}}
 
     def create_branch_ref(self, branch: str, sha: str) -> dict[str, Any]:
         """Create a branch ref as a compare-and-swap at a commit site.
@@ -687,12 +735,12 @@ class GithubBackend:
         out: list[dict[str, Any]] = []
         for issue in issues:
             number = issue["info"]["number"]
-            since = self.claim_since(number)["since"]
+            since = self.claim_since(number)["info"]["since"]
             if since is None or since >= before:
                 continue
             if self.open_pr_for_issue(number):
                 continue
-            holders = self.claim_holder(number)["holders"]
+            holders = self.claim_holder(number)["info"]["holders"]
             out.append({"number": number, "title": issue.get("title"),
                         "since": since, "holders": holders})
         out.sort(key=lambda i: i["since"])
@@ -809,33 +857,35 @@ def _route(be: GithubBackend, args: argparse.Namespace,
                 be.issue_close(args.id, comment=args.comment), stream=stream)
 
     if group == "relation":
+        # The relation methods return fully contract-shaped results (the act ones
+        # carry their own `outcome`); the dispatcher emits them verbatim.
         if command == "add-sub":
-            return cli.acted(be.add_sub_issue(args.parent, args.child), stream=stream)
-        if command == "list-sub":
-            return cli.present_json(be.list_sub_issues(args.parent), stream=stream)
-        if command == "remove-sub":
-            return cli.acted(be.remove_sub_issue(args.parent, args.child),
-                             stream=stream)
-        if command == "parent":
-            return cli.present_json({"parent": be.parent_of(args.number)},
+            return cli.present_json(be.add_sub_issue(int(args.id), args.child),
                                     stream=stream)
+        if command == "list-sub":
+            return cli.present_json(be.list_sub_issues(int(args.id)), stream=stream)
+        if command == "remove-sub":
+            return cli.present_json(be.remove_sub_issue(int(args.id), args.child),
+                                    stream=stream)
+        if command == "parent":
+            return cli.present_json(be.parent(int(args.id)), stream=stream)
         if command == "add-blocker":
-            return cli.acted(be.add_blocked_by(args.number, args.blocker),
-                             stream=stream)
+            return cli.present_json(be.add_blocked_by(int(args.id), args.blocker),
+                                    stream=stream)
         if command == "list-blockers":
-            return cli.present_json(be.list_blocked_by(args.number), stream=stream)
+            return cli.present_json(be.list_blocked_by(int(args.id)), stream=stream)
         if command == "list-blocking":
-            return cli.present_json(be.list_blocking(args.number), stream=stream)
+            return cli.present_json(be.list_blocking(int(args.id)), stream=stream)
 
     if group == "claim":
         if command == "assign":
-            return cli.acted(be.claim_assign(args.number), stream=stream)
+            return cli.present_json(be.claim_assign(int(args.id)), stream=stream)
         if command == "release":
-            return cli.acted(be.claim_release(args.number), stream=stream)
+            return cli.present_json(be.claim_release(int(args.id)), stream=stream)
         if command == "holder":
-            return cli.present_json(be.claim_holder(args.number), stream=stream)
+            return cli.present_json(be.claim_holder(int(args.id)), stream=stream)
         if command == "since":
-            return cli.present_json(be.claim_since(args.number), stream=stream)
+            return cli.present_json(be.claim_since(int(args.id)), stream=stream)
         if command == "branch-ref":
             return cli.acted(be.create_branch_ref(args.branch, args.sha),
                              stream=stream)
@@ -906,20 +956,22 @@ def _build_parser() -> argparse.ArgumentParser:
     i_close = issue.add_parser("close"); i_close.add_argument("--id", required=True)
     i_close.add_argument("--comment")
 
+    # Relations key on opaque ids (ADR 0009): the subject is `--id`, the related
+    # issue `--child`/`--blocker`; the backend coerces each to the native number.
     rel = groups.add_parser("relation").add_subparsers(dest="command", required=True)
-    r_as = rel.add_parser("add-sub"); r_as.add_argument("--parent", type=int, required=True); r_as.add_argument("--child", type=int, required=True)
-    r_ls = rel.add_parser("list-sub"); r_ls.add_argument("--parent", type=int, required=True)
-    r_rs = rel.add_parser("remove-sub"); r_rs.add_argument("--parent", type=int, required=True); r_rs.add_argument("--child", type=int, required=True)
-    r_p = rel.add_parser("parent"); r_p.add_argument("--number", type=int, required=True)
-    r_ab = rel.add_parser("add-blocker"); r_ab.add_argument("--number", type=int, required=True); r_ab.add_argument("--blocker", type=int, required=True)
-    r_lb = rel.add_parser("list-blockers"); r_lb.add_argument("--number", type=int, required=True)
-    r_lg = rel.add_parser("list-blocking"); r_lg.add_argument("--number", type=int, required=True)
+    r_as = rel.add_parser("add-sub"); r_as.add_argument("--id", required=True); r_as.add_argument("--child", type=int, required=True)
+    r_ls = rel.add_parser("list-sub"); r_ls.add_argument("--id", required=True)
+    r_rs = rel.add_parser("remove-sub"); r_rs.add_argument("--id", required=True); r_rs.add_argument("--child", type=int, required=True)
+    r_p = rel.add_parser("parent"); r_p.add_argument("--id", required=True)
+    r_ab = rel.add_parser("add-blocker"); r_ab.add_argument("--id", required=True); r_ab.add_argument("--blocker", type=int, required=True)
+    r_lb = rel.add_parser("list-blockers"); r_lb.add_argument("--id", required=True)
+    r_lg = rel.add_parser("list-blocking"); r_lg.add_argument("--id", required=True)
 
     claim = groups.add_parser("claim").add_subparsers(dest="command", required=True)
-    c_a = claim.add_parser("assign"); c_a.add_argument("--number", type=int, required=True)
-    c_r = claim.add_parser("release"); c_r.add_argument("--number", type=int, required=True)
-    c_h = claim.add_parser("holder"); c_h.add_argument("--number", type=int, required=True)
-    c_s = claim.add_parser("since"); c_s.add_argument("--number", type=int, required=True)
+    c_a = claim.add_parser("assign"); c_a.add_argument("--id", required=True)
+    c_r = claim.add_parser("release"); c_r.add_argument("--id", required=True)
+    c_h = claim.add_parser("holder"); c_h.add_argument("--id", required=True)
+    c_s = claim.add_parser("since"); c_s.add_argument("--id", required=True)
     c_b = claim.add_parser("branch-ref"); c_b.add_argument("--branch", required=True); c_b.add_argument("--sha", required=True)
 
     pr = groups.add_parser("pr").add_subparsers(dest="command", required=True)
