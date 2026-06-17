@@ -24,7 +24,7 @@ import sys
 import time
 from typing import Any, Callable, Mapping, Sequence, TextIO
 
-from adapter import cli, ghcmd, identity as identity_mod
+from adapter import cli, enums, ghcmd, identity as identity_mod
 
 # How long to wait between stale-`mergeable` re-polls, and the poll cap. The
 # value settles in a few seconds after a base move; the cap stops an UNKNOWN
@@ -62,56 +62,101 @@ class GithubBackend:
         """Resolve an issue's internal id from its number (relations key on id)."""
         return self._text(["api", self._api(f"issues/{number}"), "--jq", ".id"])
 
+    @staticmethod
+    def _neutral_issue(native: Mapping[str, Any]) -> dict[str, Any]:
+        """Project gh's native issue JSON into the neutral two-zone envelope.
+
+        Neutral `id`/`state`/`title`/`labels` sit at the top level — the opaque
+        id is the number as a string, the state goes through the closed-vocab
+        mapper (raising on an unmapped native value), and labels carry across as
+        plain neutral strings. The native number rides in the `info` sidecar,
+        with the url alongside it when the caller fetched it (`issue view` does,
+        per ADR 0009's worked example; `issue list` omits it from its field set).
+        """
+        number = native["number"]
+        info: dict[str, Any] = {}
+        if "url" in native:
+            info["url"] = native["url"]
+        info["number"] = number
+        return {
+            "id": str(number),
+            "state": enums.issue_state(native["state"]),
+            "title": native.get("title"),
+            "labels": [lbl["name"] for lbl in native.get("labels", [])],
+            "info": info,
+        }
+
+    @staticmethod
+    def _number_from_url(url: str) -> int:
+        """The trailing issue/PR number in a gh-returned URL.
+
+        gh returns the created issue's html_url (`.../issues/42`) and a comment's
+        URL (`.../issues/7#issuecomment-…`); the number is the last path segment,
+        before any fragment.
+
+        A URL whose tail is not a number (a malformed or empty gh response) is a
+        clear, contextful failure — raise it as one rather than letting a bare
+        `int()` ValueError escape with no clue what was being parsed.
+        """
+        tail = url.split("#", 1)[0].rstrip("/").rsplit("/", 1)[-1]
+        if not tail.isdigit():
+            raise ValueError(f"no trailing number in gh url: {url!r}")
+        return int(tail)
+
     # -- issues --------------------------------------------------------------
 
-    def issue_create(self, title: str, body: str) -> dict[str, str]:
-        """Create an issue; body on stdin. Returns the new issue's URL."""
+    def issue_create(self, title: str, body: str) -> dict[str, Any]:
+        """Create an issue; body on stdin. Returns the contract envelope: the new
+        issue's opaque id at top level, its url and number in `info`."""
         url = self._text(
             ["issue", "create", "--repo", self.repo, "--title", title,
              "--body-file", "-"],
             input=body,
         )
-        return {"url": url}
+        number = self._number_from_url(url)
+        return {"outcome": cli.OK, "id": str(number),
+                "info": {"url": url, "number": number}}
 
-    def issue_view(self, number: int) -> dict[str, Any]:
-        return self._json(
-            ["issue", "view", str(number), "--repo", self.repo,
-             "--json", "number,title,body,state,labels,assignees,comments"],
+    def issue_view(self, id: str) -> dict[str, Any]:
+        native = self._json(
+            ["issue", "view", str(id), "--repo", self.repo,
+             "--json", "number,url,title,body,state,labels,assignees,comments"],
         )
+        return self._neutral_issue(native)
 
     def issue_list(self, label: str | None = None,
                    state: str = "open") -> list[dict[str, Any]]:
         args = ["issue", "list", "--repo", self.repo, "--state", state,
-                "--json", "number,title,body,labels"]
+                "--json", "number,title,body,state,labels"]
         if label:
             args += ["--label", label]
-        return self._json(args, default=[])
+        return [self._neutral_issue(i) for i in self._json(args, default=[])]
 
-    def issue_comment(self, number: int, body: str) -> dict[str, str]:
+    def issue_comment(self, id: str, body: str) -> dict[str, Any]:
         url = self._text(
-            ["issue", "comment", str(number), "--repo", self.repo,
-             "--body-file", "-"],
+            ["issue", "comment", str(id), "--repo", self.repo, "--body-file", "-"],
             input=body,
         )
-        return {"url": url}
+        return {"outcome": cli.OK, "id": str(id), "info": {"url": url}}
 
-    def issue_label(self, number: int, add: list[str] | None = None,
+    def issue_label(self, id: str, add: list[str] | None = None,
                     remove: list[str] | None = None) -> dict[str, Any]:
-        args = ["issue", "edit", str(number), "--repo", self.repo]
+        args = ["issue", "edit", str(id), "--repo", self.repo]
         for lbl in add or []:
             args += ["--add-label", lbl]
         for lbl in remove or []:
             args += ["--remove-label", lbl]
         self._text(args)
-        return {"number": number, "added": add or [], "removed": remove or []}
+        return {"outcome": cli.OK, "id": str(id),
+                "info": {"added": add or [], "removed": remove or []}}
 
-    def issue_close(self, number: int,
+    def issue_close(self, id: str,
                     comment: str | None = None) -> dict[str, Any]:
-        args = ["issue", "close", str(number), "--repo", self.repo]
+        args = ["issue", "close", str(id), "--repo", self.repo]
         if comment is not None:
             args += ["--comment", comment]
         self._text(args)
-        return {"number": number, "state": "closed"}
+        return {"outcome": cli.OK, "id": str(id), "state": "closed"}
 
     # -- relations -----------------------------------------------------------
 
@@ -576,15 +621,16 @@ def run(argv: Sequence[str], env: Mapping[str, str] | None = None,
 
     tracker_kind = env.get("ISSUE_TRACKER", "github")
     if tracker_kind != "github":
-        return cli.halt(f"unsupported tracker backend: {tracker_kind}",
-                        details={"backend": tracker_kind}, stream=stream)
+        return cli.halt(cli.UNSUPPORTED,
+                        message=f"unsupported tracker backend: {tracker_kind}",
+                        info={"backend": tracker_kind}, stream=stream)
 
     # The identity startup check runs before any gh call — a half-configured
     # state must refuse before the adapter shells out, not after.
     try:
         ident = identity_mod.resolve(env)
     except identity_mod.HalfConfigured as exc:
-        return cli.halt(str(exc), stream=stream)
+        return cli.halt(cli.UNCONFIGURED, message=str(exc), stream=stream)
 
     repo = repo or _resolve_repo(runner)
     be = GithubBackend(identity=ident, repo=repo, runner=runner)
@@ -598,22 +644,26 @@ def _route(be: GithubBackend, args: argparse.Namespace,
     group, command = args.group, args.command
 
     if group == "issue":
+        # The issue methods return fully contract-shaped envelopes (the act ones
+        # carry their own `outcome`); the dispatcher emits them verbatim.
         if command == "view":
-            return cli.present_json(be.issue_view(args.number), stream=stream)
+            return cli.present_json(be.issue_view(args.id), stream=stream)
         if command == "list":
             return cli.present_json(
                 be.issue_list(label=args.label, state=args.state), stream=stream)
         if command == "create":
-            return cli.acted(be.issue_create(args.title, stdin_body), stream=stream)
+            return cli.present_json(be.issue_create(args.title, stdin_body),
+                                    stream=stream)
         if command == "comment":
-            return cli.acted(be.issue_comment(args.number, stdin_body), stream=stream)
+            return cli.present_json(be.issue_comment(args.id, stdin_body),
+                                    stream=stream)
         if command == "label":
-            return cli.acted(
-                be.issue_label(args.number, add=args.add_label,
+            return cli.present_json(
+                be.issue_label(args.id, add=args.add_label,
                                remove=args.remove_label), stream=stream)
         if command == "close":
-            return cli.acted(be.issue_close(args.number, comment=args.comment),
-                             stream=stream)
+            return cli.present_json(
+                be.issue_close(args.id, comment=args.comment), stream=stream)
 
     if group == "relation":
         if command == "add-sub":
@@ -689,7 +739,8 @@ def _route(be: GithubBackend, args: argparse.Namespace,
         if command == "publish":
             return cli.acted(be.release_publish(args.tag, stdin_body), stream=stream)
 
-    return cli.halt(f"unknown command: {group} {command}", stream=stream)
+    return cli.halt(cli.UNSUPPORTED,
+                    message=f"unknown command: {group} {command}", stream=stream)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -699,15 +750,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     groups = parser.add_subparsers(dest="group", required=True)
 
+    # Issues are identified by a single opaque string `--id` (ADR 0009); the
+    # backend coerces it to the native number internally.
     issue = groups.add_parser("issue").add_subparsers(dest="command", required=True)
-    i_view = issue.add_parser("view"); i_view.add_argument("--number", type=int, required=True)
+    i_view = issue.add_parser("view"); i_view.add_argument("--id", required=True)
     i_list = issue.add_parser("list"); i_list.add_argument("--label"); i_list.add_argument("--state", default="open")
     i_create = issue.add_parser("create"); i_create.add_argument("--title", required=True)
-    i_comment = issue.add_parser("comment"); i_comment.add_argument("--number", type=int, required=True)
-    i_label = issue.add_parser("label"); i_label.add_argument("--number", type=int, required=True)
+    i_comment = issue.add_parser("comment"); i_comment.add_argument("--id", required=True)
+    i_label = issue.add_parser("label"); i_label.add_argument("--id", required=True)
     i_label.add_argument("--add-label", action="append", default=[])
     i_label.add_argument("--remove-label", action="append", default=[])
-    i_close = issue.add_parser("close"); i_close.add_argument("--number", type=int, required=True)
+    i_close = issue.add_parser("close"); i_close.add_argument("--id", required=True)
     i_close.add_argument("--comment")
 
     rel = groups.add_parser("relation").add_subparsers(dest="command", required=True)

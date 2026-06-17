@@ -195,8 +195,10 @@ def _epic_close_candidate(be: GithubBackend,
     parent = be.parent_of(closed_issue)
     if parent is None:
         return None
-    epic = be.issue_view(parent)
-    if epic.get("state") != "OPEN":
+    # issue_view now returns the neutral contract envelope (ADR 0009): the state
+    # is the neutral `{open, closed}` token, not gh's native `OPEN`/`CLOSED`.
+    epic = be.issue_view(str(parent))
+    if epic.get("state") != "open":
         return None
     subs = be.list_sub_issues(parent)
     if subs and all(s.get("state") == "closed" for s in subs):
