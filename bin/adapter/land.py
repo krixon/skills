@@ -208,21 +208,32 @@ def _epic_close_candidate(be: GithubBackend,
 
 
 def apply(be: GithubBackend, repo_root: str,
-          pr_number: int | None = None,
+          pr_numbers: Sequence[int],
           teardown: TeardownFn | None = None,
           sync_main: SyncMainFn | None = None,
           worktree_runner: gitcmd.Runner | None = None,
           sleep: Callable[[float], None] | None = None,
           stream: TextIO | None = None) -> int:
-    """Merge each landable PR in turn, then clean up after the sweep.
+    """Merge each PR in the human-confirmed selection in turn, then clean up.
 
-    Per PR: re-check merged-in-UI, then re-check readiness (CLEAN + covers HEAD)
-    — the swept list goes stale when main moves — merge with the discovered
-    linear method, confirm the closing refs, strip `in-progress` on each closed
-    issue, tear down the local worktree when one exists, and collect a parent
-    epic to offer for closing when this child was its last. After all PRs, run
-    sync-main once. A PR with no closing ref and no `No-issue:` marker has its
-    issue left untouched and is reported.
+    `pr_numbers` is the selection `plan` presented and the human confirmed — a
+    **closed allowlist**. apply binds to it: it acts only on these PRs and never
+    re-derives the approved set, so a PR approved between the plan and now cannot
+    enter the batch. This is the present/act contract for an enumerated selection
+    (ADR 0008): act narrows (drops a member that went stale) but never widens.
+    `land plan` re-sweeps because it is read-only; `land apply` must not, because
+    re-sweeping at merge time silently widened the human-confirmed batch.
+
+    Per selected PR, in order: re-check merged-in-UI (clean up only), then
+    re-check readiness (covers HEAD, then CLEAN) — a selection goes stale the
+    moment main moves, so a member that went stale is reported
+    skipped-with-reason, never force-merged. On a landable PR: merge with the
+    discovered linear method, confirm the closing refs, strip `in-progress` on
+    each closed issue, tear down the local worktree when one exists, and collect
+    a parent epic to offer for closing when this child was its last. After all
+    PRs, run sync-main once. A PR with no closing ref and no `No-issue:` marker
+    has its issue left untouched and is reported; a number with no matching PR is
+    reported skipped, not raised.
 
     teardown / sync_main default to the real worktree command functions; they
     are injected as seams for testing. Their JSON envelopes are swallowed (land
@@ -233,21 +244,30 @@ def apply(be: GithubBackend, repo_root: str,
     sync_main = sync_main or worktree.cmd_sync_main
     sink: TextIO = io.StringIO()
 
-    plan_payload = plan_buckets(be, pr_number=pr_number, sleep=sleep)
-    landable = plan_payload["landable"]
-
     results: list[dict[str, Any]] = []
     epic_candidates: list[dict[str, Any]] = []
     seen_epics: set[int] = set()
 
-    for lp in landable:
-        number = lp["number"]
-        head = lp.get("headRefName")
+    for number in pr_numbers:
         result: dict[str, Any] = {"number": number}
+
+        # Source this PR's row by number, never from a sweep — the selection is
+        # the only set apply ever touches. A number with no PR is reported.
+        row = be.pr_fields(number)
+        if row is None:
+            result.update(merged=False, skipped=True, reason="not-found")
+            results.append(result)
+            continue
+        head = row.get("headRefName")
+        # `body` is read here for the no-issue check; `closes` is re-read live
+        # below. This fails safe: a body that gained a `No-issue:` marker since
+        # the plan at worst reports the PR as noLinkedIssue rather than wrongly
+        # stripping a label.
+        body = row.get("body")
 
         already = be.is_merged(number)["merged"]
         if not already:
-            # Re-check readiness at merge time: the swept list goes stale the
+            # Re-check readiness at merge time: the selection goes stale the
             # moment main moves, so a CLEAN+covered PR at plan time may no
             # longer be either. Skip with the reason rather than force-merge.
             if not be.approval_covers_head(number):
@@ -260,10 +280,9 @@ def apply(be: GithubBackend, repo_root: str,
                               reason=f"not-ready: {state.get('mergeStateStatus')}")
                 results.append(result)
                 continue
-            method = lp.get("method")
-            # Defence-in-depth: classify drops a landable PR when merge_method
-            # returns None, so this guard is unreached on the normal path — it
-            # keeps apply safe if a caller hands it a hand-built bucket.
+            method = be.merge_method(row.get("baseRefName", worktree.BASE))
+            # No linear method allowed → skip rather than fall through to a merge
+            # commit (the rule classify enforces for plan, applied here at merge).
             if method is None:
                 result.update(merged=False, skipped=True,
                               reason="no-allowed-merge-method")
@@ -276,11 +295,6 @@ def apply(be: GithubBackend, repo_root: str,
 
         # Confirm the closing refs resolved, then act on the closed issues.
         closes = _closing_numbers(be.closing_refs(number))
-        # `closes` is re-read live; `body` is the plan-time text. This fails
-        # safe: if a body gained a `No-issue:` marker between plan and apply,
-        # the worst case is the PR is reported as noLinkedIssue for the
-        # maintainer rather than a label wrongly stripped.
-        body = lp.get("body")
         if not closes and not _no_issue_declared(body):
             result.update(closedIssues=[], noLinkedIssue=True)
         else:
@@ -307,28 +321,6 @@ def apply(be: GithubBackend, repo_root: str,
 
     return cli.acted({"results": results,
                       "epic_close_candidates": epic_candidates}, stream=stream)
-
-
-def plan_buckets(be: GithubBackend, pr_number: int | None = None,
-                 sleep: Callable[[float], None] | None = None) -> dict[str, Any]:
-    """The classification apply consumes — the landable bucket, each entry
-    carrying the head branch and body apply needs for teardown and the
-    no-issue check (which `plan`'s present payload omits).
-
-    `find_approved`'s rows carry `headRefName`; classify drops it from the
-    present shape, so apply re-derives the bucket here over the same rows and
-    re-attaches head/body per landable PR.
-    """
-    approved = be.find_approved()
-    if pr_number is not None:
-        approved = [p for p in approved if p["number"] == pr_number]
-    by_number = {p["number"]: p for p in approved}
-    buckets = classify(be, approved, sleep=sleep)
-    for lp in buckets["landable"]:
-        src = by_number.get(lp["number"], {})
-        lp["headRefName"] = src.get("headRefName")
-        lp["body"] = src.get("body")
-    return buckets
 
 
 # --- close-epic (human-gated act) -------------------------------------------
@@ -393,7 +385,15 @@ def run(argv: Sequence[str], env: Mapping[str, str] | None = None,
     if args.command == "plan":
         return plan(be, pr_number=args.pr, stream=stream)
     if args.command == "apply":
-        return apply(be, repo_root, pr_number=args.pr, stream=stream)
+        # apply binds to the human-confirmed selection (ADR 0008): a bare apply
+        # has no confirmed set, so it halts rather than sweeping — the wrapper
+        # threads a --pr per PR the human approved in plan.
+        if not args.pr:
+            return cli.halt(
+                "land apply needs an explicit PR selection: pass --pr <n> for "
+                "each confirmed PR (a bare apply has no confirmed set to act on)",
+                stream=stream)
+        return apply(be, repo_root, pr_numbers=args.pr, stream=stream)
     if args.command == "close-epic":
         return close_epic(be, args.number, stream=stream)
     return cli.halt(f"unknown command: {args.command}", stream=stream)
@@ -409,8 +409,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p_plan = sub.add_parser("plan", help="present the classified approved PRs")
     p_plan.add_argument("--pr", type=int, default=None)
 
-    p_apply = sub.add_parser("apply", help="merge the landable PRs and clean up")
-    p_apply.add_argument("--pr", type=int, default=None)
+    p_apply = sub.add_parser("apply", help="merge the confirmed PRs and clean up")
+    # Repeatable: one --pr per PR the human confirmed in plan. The accumulated
+    # list is the closed allowlist apply acts on; no --pr halts (see run).
+    p_apply.add_argument("--pr", type=int, action="append", default=None)
 
     p_close = sub.add_parser("close-epic", help="close a parent epic (human-gated)")
     p_close.add_argument("--number", type=int, required=True)

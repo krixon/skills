@@ -504,6 +504,23 @@ class GithubBackend:
         return {"merged": state.get("state") == "MERGED",
                 "mergedAt": state.get("mergedAt")}
 
+    def pr_fields(self, number: int) -> dict[str, Any] | None:
+        """The branch refs and body of one PR by number — the row `land apply`
+        needs to merge and clean up a single confirmed PR. None when no PR with
+        that number exists.
+
+        apply binds to the human-confirmed selection (ADR 0008): it sources each
+        selected PR's row through this per-number read rather than re-sweeping
+        approved PRs, so a PR approved after the plan can never enter the batch.
+        `check=False` makes an absent number return None (reported, not raised)
+        rather than aborting the whole selection on one bad number.
+        """
+        return self._json(
+            ["pr", "view", str(number), "--repo", self.repo,
+             "--json", "number,headRefName,baseRefName,body"],
+            default=None, check=False,
+        )
+
     def merge_method(self, base: str) -> str | None:
         """Discover the allowed merge method for the base branch.
 

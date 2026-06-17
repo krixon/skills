@@ -255,15 +255,18 @@ def _git_no_worktree() -> Any:
     return runner
 
 
-class TestApply(unittest.TestCase):
-    def _approved(self, number: int, head: str, body: str) -> str:
-        return json.dumps([{"number": number, "title": "t",
-                            "reviewDecision": "APPROVED", "headRefName": head,
-                            "body": body}])
+def _pr_row(number: int, head: str, body: str, base: str = "main") -> str:
+    """The per-number row land.apply sources via pr_fields — the fields it needs
+    to merge and clean up one confirmed PR. apply binds to the selection, so it
+    reads each PR by number rather than sweeping the approved set."""
+    return json.dumps({"number": number, "headRefName": head,
+                       "baseRefName": base, "body": body})
 
+
+class TestApply(unittest.TestCase):
     def test_merge_then_close_strip_teardown_sync(self) -> None:
         runner = ProgrammedRunner({
-            "pr list": [self._approved(5, "feat/5-x", "Closes #42")],
+            "number,headRefName,baseRefName,body": [_pr_row(5, "feat/5-x", "Closes #42")],
             "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
             "headRefOid": [_approval("abc", "abc")],
             "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
@@ -276,13 +279,15 @@ class TestApply(unittest.TestCase):
         be = _backend(runner)
         fw = FakeWorktree()
         out = io.StringIO()
-        rc = land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+        rc = land.apply(be, "/repo", pr_numbers=[5],
+                        teardown=fw.teardown, sync_main=fw.sync_main,
                         worktree_runner=_git_worktree_list("feat/5-x", "/repo/wt"),
                         sleep=lambda _s: None, stream=out)
         self.assertEqual(rc, 0)
         payload = json.loads(out.getvalue())
         res = payload["results"][0]
         self.assertTrue(res["merged"])
+        self.assertEqual(res["method"], "squash")
         self.assertEqual(res["closedIssues"], [42])
         self.assertTrue(res["tornDown"])
         # in-progress was stripped on the closed issue.
@@ -291,17 +296,59 @@ class TestApply(unittest.TestCase):
         self.assertEqual(fw.teardowns[0]["branch"], "feat/5-x")
         self.assertEqual(fw.syncs, 1)
 
-    def test_already_merged_in_ui_skips_merge_goes_to_cleanup(self) -> None:
+    def test_binds_to_selection_never_sweeps_for_unconfirmed(self) -> None:
+        # The widening regression: apply must act only on the passed selection
+        # and never re-derive the approved set. No "pr list" route is provided,
+        # so any sweep would raise — proving apply sources PRs by number and a
+        # PR approved after the plan can never enter the batch.
         runner = ProgrammedRunner({
-            "pr list": [self._approved(5, "feat/5-x", "Closes #42")],
+            "number,headRefName,baseRefName,body": [_pr_row(5, "feat/5-x", "Closes #42")],
+            "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
             "headRefOid": [_approval("abc", "abc")],
             "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
             "rules/branches": [_rules(["squash"])],
-            # is_merged in apply returns merged; classify saw it OPEN at plan.
-            "--json state,mergedAt": [
-                json.dumps({"state": "OPEN"}),   # plan-time read (classify)
-                json.dumps({"state": "MERGED"}), # apply-time re-check
-            ],
+            "closingIssuesReferences": [_closing([42])],
+            "pr merge": ["merged"],
+            "issue edit": ["ok"],
+            "issues/42/parent": [("", 1, "404")],
+        })
+        be = _backend(runner)
+        fw = FakeWorktree()
+        out = io.StringIO()
+        land.apply(be, "/repo", pr_numbers=[5],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
+                   worktree_runner=_git_no_worktree(),
+                   sleep=lambda _s: None, stream=out)
+        payload = json.loads(out.getvalue())
+        # Only the confirmed PR is acted on.
+        self.assertEqual([r["number"] for r in payload["results"]], [5])
+        self.assertTrue(payload["results"][0]["merged"])
+        # find_approved was never consulted — no PR list sweep was issued.
+        self.assertEqual(runner.argvs("pr list"), [])
+
+    def test_unknown_pr_number_reported_not_found(self) -> None:
+        # A number with no matching PR (empty pr_fields read) is reported skipped,
+        # not raised — one bad number must not abort the rest of the selection.
+        runner = ProgrammedRunner({
+            "number,headRefName,baseRefName,body": [""],  # empty -> pr_fields None
+        })
+        be = _backend(runner)
+        fw = FakeWorktree()
+        out = io.StringIO()
+        land.apply(be, "/repo", pr_numbers=[999],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
+                   worktree_runner=_git_no_worktree(),
+                   sleep=lambda _s: None, stream=out)
+        res = json.loads(out.getvalue())["results"][0]
+        self.assertTrue(res["skipped"])
+        self.assertEqual(res["reason"], "not-found")
+        self.assertEqual(runner.argvs("pr merge"), [])
+
+    def test_already_merged_in_ui_skips_merge_goes_to_cleanup(self) -> None:
+        runner = ProgrammedRunner({
+            "number,headRefName,baseRefName,body": [_pr_row(5, "feat/5-x", "Closes #42")],
+            # Merged in the UI before apply ran: the merged-in-UI re-check.
+            "--json state,mergedAt": [json.dumps({"state": "MERGED"})],
             "closingIssuesReferences": [_closing([42])],
             "issue edit": ["ok"],
             "issues/42/parent": [("", 1, "404")],
@@ -309,7 +356,8 @@ class TestApply(unittest.TestCase):
         be = _backend(runner)
         fw = FakeWorktree()
         out = io.StringIO()
-        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+        land.apply(be, "/repo", pr_numbers=[5],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
                    worktree_runner=_git_worktree_list("feat/5-x", "/repo/wt"),
                    sleep=lambda _s: None, stream=out)
         res = json.loads(out.getvalue())["results"][0]
@@ -322,34 +370,30 @@ class TestApply(unittest.TestCase):
         self.assertTrue(res["tornDown"])
 
     def test_gone_stale_at_merge_time_skips_with_reason(self) -> None:
+        # BEHIND when apply re-checks (main moved under the confirmed PR).
         runner = ProgrammedRunner({
-            "pr list": [self._approved(5, "feat/5-x", "Closes #42")],
+            "number,headRefName,baseRefName,body": [_pr_row(5, "feat/5-x", "Closes #42")],
             "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
-            # CLEAN at plan time, then BEHIND when apply re-checks (main moved).
-            "--json mergeable,mergeStateStatus": [
-                _merge_state("MERGEABLE", "CLEAN"),
-                _merge_state("MERGEABLE", "BEHIND"),
-            ],
             "headRefOid": [_approval("abc", "abc")],
-            "rules/branches": [_rules(["squash"])],
-            "closingIssuesReferences": [_closing([42])],
+            "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "BEHIND")],
         })
         be = _backend(runner)
         fw = FakeWorktree()
         out = io.StringIO()
-        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+        land.apply(be, "/repo", pr_numbers=[5],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
                    worktree_runner=_git_no_worktree(),
                    sleep=lambda _s: None, stream=out)
         res = json.loads(out.getvalue())["results"][0]
         self.assertTrue(res["skipped"])
         self.assertIn("not-ready", res["reason"])
         self.assertEqual(runner.argvs("pr merge"), [])
-        # sync still runs once after the sweep.
+        # sync still runs once after the selection.
         self.assertEqual(fw.syncs, 1)
 
     def test_no_issue_no_declaration_leaves_issue_untouched(self) -> None:
         runner = ProgrammedRunner({
-            "pr list": [self._approved(5, "feat/5-x", "no marker, no closes")],
+            "number,headRefName,baseRefName,body": [_pr_row(5, "feat/5-x", "no marker, no closes")],
             "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
             "headRefOid": [_approval("abc", "abc")],
             "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
@@ -360,7 +404,8 @@ class TestApply(unittest.TestCase):
         be = _backend(runner)
         fw = FakeWorktree()
         out = io.StringIO()
-        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+        land.apply(be, "/repo", pr_numbers=[5],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
                    worktree_runner=_git_no_worktree(),
                    sleep=lambda _s: None, stream=out)
         res = json.loads(out.getvalue())["results"][0]
@@ -370,9 +415,36 @@ class TestApply(unittest.TestCase):
         # No issue edit (label strip) was attempted.
         self.assertEqual(runner.argvs("issue edit"), [])
 
+    def test_no_marker_body_from_per_number_row_is_honoured(self) -> None:
+        # The no-issue check reads the body from the per-number row: a body that
+        # leads with `No-issue:` is an intentional issue-less land, not flagged.
+        runner = ProgrammedRunner({
+            "number,headRefName,baseRefName,body": [_pr_row(5, "feat/5-x", "No-issue: a tiny doc fix")],
+            "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
+            "headRefOid": [_approval("abc", "abc")],
+            "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
+            "rules/branches": [_rules(["squash"])],
+            "closingIssuesReferences": [_closing([])],
+            "pr merge": ["merged"],
+        })
+        be = _backend(runner)
+        fw = FakeWorktree()
+        out = io.StringIO()
+        land.apply(be, "/repo", pr_numbers=[5],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
+                   worktree_runner=_git_no_worktree(),
+                   sleep=lambda _s: None, stream=out)
+        res = json.loads(out.getvalue())["results"][0]
+        self.assertTrue(res["merged"])
+        # No-issue: declared, so the absence of a closing ref is intentional —
+        # not flagged noLinkedIssue, and no label strip attempted.
+        self.assertNotIn("noLinkedIssue", res)
+        self.assertEqual(res["closedIssues"], [])
+        self.assertEqual(runner.argvs("issue edit"), [])
+
     def test_no_worktree_skips_teardown_quietly(self) -> None:
         runner = ProgrammedRunner({
-            "pr list": [self._approved(5, "feat/5-x", "Closes #42")],
+            "number,headRefName,baseRefName,body": [_pr_row(5, "feat/5-x", "Closes #42")],
             "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
             "headRefOid": [_approval("abc", "abc")],
             "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
@@ -385,7 +457,8 @@ class TestApply(unittest.TestCase):
         be = _backend(runner)
         fw = FakeWorktree()
         out = io.StringIO()
-        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+        land.apply(be, "/repo", pr_numbers=[5],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
                    worktree_runner=_git_no_worktree(),
                    sleep=lambda _s: None, stream=out)
         res = json.loads(out.getvalue())["results"][0]
@@ -394,7 +467,7 @@ class TestApply(unittest.TestCase):
 
     def test_epic_close_candidate_on_last_child(self) -> None:
         runner = ProgrammedRunner({
-            "pr list": [self._approved(5, "feat/5-x", "Closes #42")],
+            "number,headRefName,baseRefName,body": [_pr_row(5, "feat/5-x", "Closes #42")],
             "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
             "headRefOid": [_approval("abc", "abc")],
             "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
@@ -413,7 +486,8 @@ class TestApply(unittest.TestCase):
         be = _backend(runner)
         fw = FakeWorktree()
         out = io.StringIO()
-        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+        land.apply(be, "/repo", pr_numbers=[5],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
                    worktree_runner=_git_no_worktree(),
                    sleep=lambda _s: None, stream=out)
         payload = json.loads(out.getvalue())
@@ -425,7 +499,7 @@ class TestApply(unittest.TestCase):
 
     def test_epic_not_offered_when_a_child_still_open(self) -> None:
         runner = ProgrammedRunner({
-            "pr list": [self._approved(5, "feat/5-x", "Closes #42")],
+            "number,headRefName,baseRefName,body": [_pr_row(5, "feat/5-x", "Closes #42")],
             "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
             "headRefOid": [_approval("abc", "abc")],
             "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
@@ -444,32 +518,28 @@ class TestApply(unittest.TestCase):
         be = _backend(runner)
         fw = FakeWorktree()
         out = io.StringIO()
-        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+        land.apply(be, "/repo", pr_numbers=[5],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
                    worktree_runner=_git_no_worktree(),
                    sleep=lambda _s: None, stream=out)
         self.assertEqual(json.loads(out.getvalue())["epic_close_candidates"], [])
 
-    def _approved_many(self, prs: list[dict[str, Any]]) -> str:
-        return json.dumps([{"number": p["number"], "title": "t",
-                            "reviewDecision": "APPROVED",
-                            "headRefName": p["head"], "body": p["body"]}
-                           for p in prs])
-
     def test_multi_pr_shared_epic_dedups_to_one_candidate(self) -> None:
-        # Two landable PRs, #5 closing #42 and #6 closing #43, both children of
+        # Two confirmed PRs, #5 closing #42 and #6 closing #43, both children of
         # the same epic #100 which now has only those two closed sub-issues.
         runner = ProgrammedRunner({
-            "pr list": [self._approved_many([
-                {"number": 5, "head": "feat/5-x", "body": "Closes #42"},
-                {"number": 6, "head": "feat/6-y", "body": "Closes #43"},
-            ])],
+            "number,headRefName,baseRefName,body": [
+                _pr_row(5, "feat/5-x", "Closes #42"),
+                _pr_row(6, "feat/6-y", "Closes #43"),
+            ],
             "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
             "headRefOid": [_approval("abc", "abc")],
             "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
             "rules/branches": [_rules(["squash"])],
-            # closing-refs is asked per PR: #5 closes #42, #6 closes #43.
-            "pr view 5 ": [_closing([42])],
-            "pr view 6 ": [_closing([43])],
+            # closing-refs is asked once per PR in selection order: #5 -> #42,
+            # #6 -> #43. Keyed on the field list (not `pr view N`) so it can't
+            # shadow the other per-PR reads by argv substring.
+            "closingIssuesReferences": [_closing([42]), _closing([43])],
             "pr merge": ["merged"],
             "issue edit": ["ok"],
             # both children parent to the same epic #100.
@@ -486,7 +556,8 @@ class TestApply(unittest.TestCase):
         be = _backend(runner)
         fw = FakeWorktree()
         out = io.StringIO()
-        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+        land.apply(be, "/repo", pr_numbers=[5, 6],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
                    worktree_runner=_git_no_worktree(),
                    sleep=lambda _s: None, stream=out)
         payload = json.loads(out.getvalue())
@@ -498,27 +569,24 @@ class TestApply(unittest.TestCase):
         self.assertEqual(len(cands), 1)
         self.assertEqual(cands[0]["number"], 100)
 
-    def test_first_pr_skip_does_not_abort_the_sweep(self) -> None:
-        # #5 goes stale at apply-time re-check (approval no longer covers HEAD);
-        # #6 is still CLEAN+covered. The first PR's skip must not stop the sweep.
+    def test_first_pr_skip_does_not_abort_the_rest(self) -> None:
+        # #5 is stale at merge time (approval no longer covers HEAD); #6 is still
+        # CLEAN+covered. The first PR's skip must not stop the selection.
         runner = ProgrammedRunner({
-            "pr list": [self._approved_many([
-                {"number": 5, "head": "feat/5-x", "body": "Closes #42"},
-                {"number": 6, "head": "feat/6-y", "body": "Closes #43"},
-            ])],
+            "number,headRefName,baseRefName,body": [
+                _pr_row(5, "feat/5-x", "Closes #42"),
+                _pr_row(6, "feat/6-y", "Closes #43"),
+            ],
             "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
-            # approval-covers-HEAD asked: at plan time twice (both covered), then
-            # at apply re-check — #5 stale (False), #6 covered (True).
+            # approval-covers-HEAD asked once per PR: #5 stale, #6 covered.
             "headRefOid": [
-                _approval("abc", "abc"),   # #5 plan-time
-                _approval("def", "def"),   # #6 plan-time
-                _approval("new", "old"),   # #5 apply re-check -> stale
-                _approval("def", "def"),   # #6 apply re-check -> covered
+                _approval("new", "old"),   # #5 -> stale
+                _approval("def", "def"),   # #6 -> covered
             ],
             "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
             "rules/branches": [_rules(["squash"])],
-            "pr view 5 ": [_closing([42])],
-            "pr view 6 ": [_closing([43])],
+            # #5 skips before its closing-refs read; only #6 reaches it (#43).
+            "closingIssuesReferences": [_closing([43])],
             "pr merge": ["merged"],
             "issue edit": ["ok"],
             "issues/43/parent": [("", 1, "404")],
@@ -526,7 +594,8 @@ class TestApply(unittest.TestCase):
         be = _backend(runner)
         fw = FakeWorktree()
         out = io.StringIO()
-        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+        land.apply(be, "/repo", pr_numbers=[5, 6],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
                    worktree_runner=_git_no_worktree(),
                    sleep=lambda _s: None, stream=out)
         payload = json.loads(out.getvalue())
@@ -540,15 +609,12 @@ class TestApply(unittest.TestCase):
         self.assertTrue(second["merged"])
 
     def test_stale_approval_at_merge_time_skips_with_no_merge(self) -> None:
-        # CLEAN + covered at plan time, but approval no longer covers HEAD at the
-        # apply-time re-check: skip with stale-approval, no merge issued.
+        # Approval no longer covers HEAD at merge time: skip stale-approval, no
+        # merge issued.
         runner = ProgrammedRunner({
-            "pr list": [self._approved(5, "feat/5-x", "Closes #42")],
+            "number,headRefName,baseRefName,body": [_pr_row(5, "feat/5-x", "Closes #42")],
             "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
-            "headRefOid": [
-                _approval("abc", "abc"),   # plan-time -> covered
-                _approval("new", "old"),   # apply re-check -> stale
-            ],
+            "headRefOid": [_approval("new", "old")],   # stale
             "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
             "rules/branches": [_rules(["squash"])],
             "closingIssuesReferences": [_closing([42])],
@@ -556,7 +622,8 @@ class TestApply(unittest.TestCase):
         be = _backend(runner)
         fw = FakeWorktree()
         out = io.StringIO()
-        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+        land.apply(be, "/repo", pr_numbers=[5],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
                    worktree_runner=_git_no_worktree(),
                    sleep=lambda _s: None, stream=out)
         res = json.loads(out.getvalue())["results"][0]
@@ -564,11 +631,32 @@ class TestApply(unittest.TestCase):
         self.assertEqual(res["reason"], "stale-approval")
         self.assertEqual(runner.argvs("pr merge"), [])
 
-    def test_no_candidate_when_epic_already_closed(self) -> None:
-        # Like the last-child case, but the parent epic reads CLOSED — the
-        # uppercase issue_view branch of _epic_close_candidate.
+    def test_no_allowed_merge_method_skips_with_reason(self) -> None:
+        # CLEAN + covered, but the base allows only a merge commit: skip rather
+        # than fall through to a non-linear merge.
         runner = ProgrammedRunner({
-            "pr list": [self._approved(5, "feat/5-x", "Closes #42")],
+            "number,headRefName,baseRefName,body": [_pr_row(5, "feat/5-x", "Closes #42")],
+            "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
+            "headRefOid": [_approval("abc", "abc")],
+            "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
+            "rules/branches": [_rules(["merge"])],
+        })
+        be = _backend(runner)
+        fw = FakeWorktree()
+        out = io.StringIO()
+        land.apply(be, "/repo", pr_numbers=[5],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
+                   worktree_runner=_git_no_worktree(),
+                   sleep=lambda _s: None, stream=out)
+        res = json.loads(out.getvalue())["results"][0]
+        self.assertTrue(res["skipped"])
+        self.assertEqual(res["reason"], "no-allowed-merge-method")
+        self.assertEqual(runner.argvs("pr merge"), [])
+
+    def test_no_candidate_when_epic_already_closed(self) -> None:
+        # Like the last-child case, but the parent epic reads closed.
+        runner = ProgrammedRunner({
+            "number,headRefName,baseRefName,body": [_pr_row(5, "feat/5-x", "Closes #42")],
             "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
             "headRefOid": [_approval("abc", "abc")],
             "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
@@ -583,7 +671,8 @@ class TestApply(unittest.TestCase):
         be = _backend(runner)
         fw = FakeWorktree()
         out = io.StringIO()
-        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+        land.apply(be, "/repo", pr_numbers=[5],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
                    worktree_runner=_git_no_worktree(),
                    sleep=lambda _s: None, stream=out)
         self.assertEqual(json.loads(out.getvalue())["epic_close_candidates"], [])
@@ -592,7 +681,7 @@ class TestApply(unittest.TestCase):
         # The parent epic exists and is OPEN, but its sub-issue list is empty:
         # the `if subs and all(...)` guard must not offer a candidate.
         runner = ProgrammedRunner({
-            "pr list": [self._approved(5, "feat/5-x", "Closes #42")],
+            "number,headRefName,baseRefName,body": [_pr_row(5, "feat/5-x", "Closes #42")],
             "--json state,mergedAt": [json.dumps({"state": "OPEN"})],
             "headRefOid": [_approval("abc", "abc")],
             "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "CLEAN")],
@@ -608,7 +697,8 @@ class TestApply(unittest.TestCase):
         be = _backend(runner)
         fw = FakeWorktree()
         out = io.StringIO()
-        land.apply(be, "/repo", teardown=fw.teardown, sync_main=fw.sync_main,
+        land.apply(be, "/repo", pr_numbers=[5],
+                   teardown=fw.teardown, sync_main=fw.sync_main,
                    worktree_runner=_git_no_worktree(),
                    sleep=lambda _s: None, stream=out)
         self.assertEqual(json.loads(out.getvalue())["epic_close_candidates"], [])
@@ -669,6 +759,17 @@ class TestDispatch(unittest.TestCase):
                       stream=out)
         self.assertEqual(rc, 0)
         self.assertEqual(json.loads(out.getvalue())["landable"][0]["number"], 5)
+
+    def test_apply_without_selection_halts(self) -> None:
+        # A bare `apply` has no confirmed selection to act on, so it halts rather
+        # than sweeping — the binary boundary that closes the widening even if a
+        # caller forgets to thread the confirmed --pr numbers.
+        out = io.StringIO()
+        rc = land.run(["apply"], env={"ISSUE_TRACKER": "github"},
+                      runner=ProgrammedRunner({}), repo="x", repo_root="/repo",
+                      stream=out)
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(json.loads(out.getvalue())["status"], "halted")
 
     def test_unknown_command_halts(self) -> None:
         out = io.StringIO()
