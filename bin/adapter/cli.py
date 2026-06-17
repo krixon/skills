@@ -87,6 +87,13 @@ def halt(outcome_or_reason: str, details: dict[str, Any] | None = None,
     making the halt machine-parseable (ADR 0009). Legacy form:
     `halt(reason, details)` emits `{status:"halted", reason, **details}`.
     """
+    # Dual-shape discriminator: membership in OUTCOMES routes to the contract
+    # branch, else the arg is a legacy free-text reason. A legacy reason must
+    # never be a bare outcome token (e.g. "conflict") — it would take the
+    # contract branch and silently drop its `details`. All legacy reasons today
+    # are full sentences, so none collide; this invariant must hold until the
+    # legacy branch is dropped. (`acted` is unaffected: its legacy form passes a
+    # dict, so a str first-arg is unambiguously the contract form.)
     if outcome_or_reason in OUTCOMES:
         payload = _envelope(outcome_or_reason, None, info, message)
     else:

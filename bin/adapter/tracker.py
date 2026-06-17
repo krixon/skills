@@ -69,15 +69,21 @@ class GithubBackend:
         Neutral `id`/`state`/`title`/`labels` sit at the top level — the opaque
         id is the number as a string, the state goes through the closed-vocab
         mapper (raising on an unmapped native value), and labels carry across as
-        plain neutral strings. The native number rides in the `info` sidecar.
+        plain neutral strings. The native number rides in the `info` sidecar,
+        with the url alongside it when the caller fetched it (`issue view` does,
+        per ADR 0009's worked example; `issue list` omits it from its field set).
         """
         number = native["number"]
+        info: dict[str, Any] = {}
+        if "url" in native:
+            info["url"] = native["url"]
+        info["number"] = number
         return {
             "id": str(number),
             "state": enums.issue_state(native["state"]),
             "title": native.get("title"),
             "labels": [lbl["name"] for lbl in native.get("labels", [])],
-            "info": {"number": number},
+            "info": info,
         }
 
     @staticmethod
@@ -87,9 +93,15 @@ class GithubBackend:
         gh returns the created issue's html_url (`.../issues/42`) and a comment's
         URL (`.../issues/7#issuecomment-…`); the number is the last path segment,
         before any fragment.
+
+        A URL whose tail is not a number (a malformed or empty gh response) is a
+        clear, contextful failure — raise it as one rather than letting a bare
+        `int()` ValueError escape with no clue what was being parsed.
         """
-        path = url.split("#", 1)[0].rstrip("/")
-        return int(path.rsplit("/", 1)[-1])
+        tail = url.split("#", 1)[0].rstrip("/").rsplit("/", 1)[-1]
+        if not tail.isdigit():
+            raise ValueError(f"no trailing number in gh url: {url!r}")
+        return int(tail)
 
     # -- issues --------------------------------------------------------------
 
@@ -108,7 +120,7 @@ class GithubBackend:
     def issue_view(self, id: str) -> dict[str, Any]:
         native = self._json(
             ["issue", "view", str(id), "--repo", self.repo,
-             "--json", "number,title,body,state,labels,assignees,comments"],
+             "--json", "number,url,title,body,state,labels,assignees,comments"],
         )
         return self._neutral_issue(native)
 

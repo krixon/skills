@@ -519,8 +519,9 @@ class TestIssueContract(unittest.TestCase):
 
     def test_issue_view_returns_neutral_top_level_with_info_sidecar(self) -> None:
         # gh's native --json output for issue view.
+        url = "https://github.com/krixon/skills/issues/227"
         native = json.dumps({
-            "number": 227, "title": "T", "body": "B", "state": "open",
+            "number": 227, "url": url, "title": "T", "body": "B", "state": "open",
             "labels": [{"id": "L1", "name": "bug"}, {"id": "L2", "name": "p1"}],
             "assignees": [{"login": "human"}],
             "comments": [],
@@ -533,9 +534,23 @@ class TestIssueContract(unittest.TestCase):
         self.assertEqual(result["title"], "T")
         # Labels carry across as plain neutral strings, not {id,name} objects.
         self.assertEqual(result["labels"], ["bug", "p1"])
-        # The native number and url ride in the info sidecar.
+        # AC#1: both url and number ride in the info sidecar — {url, number}.
+        self.assertEqual(result["info"]["url"], url)
         self.assertEqual(result["info"]["number"], 227)
         self.assertNotIn("number", result)
+        self.assertNotIn("url", result)
+
+    def test_issue_view_requests_url_in_json_fields(self) -> None:
+        # AC#1 hinges on gh being asked for `url`; assert it's in the field set.
+        native = json.dumps({
+            "number": 1, "url": "https://github.com/krixon/skills/issues/1",
+            "title": "t", "body": "", "state": "open",
+            "labels": [], "assignees": [], "comments": [],
+        })
+        runner = ScriptedRunner([(native,)])
+        _backend(runner).issue_view("1")
+        json_arg = runner.argv(0)[runner.argv(0).index("--json") + 1]
+        self.assertIn("url", json_arg.split(","))
 
     def test_issue_view_closed_state_maps_to_closed(self) -> None:
         native = json.dumps({"number": 1, "title": "t", "body": "", "state": "closed",
@@ -595,6 +610,16 @@ class TestIssueContract(unittest.TestCase):
         self.assertEqual(result["outcome"], "ok")
         self.assertEqual(result["id"], "7")
         self.assertEqual(result["state"], "closed")
+
+    def test_number_from_url_raises_on_non_numeric_tail(self) -> None:
+        # A malformed/empty gh url surfaces a clear, contextful error rather than
+        # a bare int() ValueError that crashes the command with no clue.
+        for bad in ("https://github.com/krixon/skills/issues/",
+                    "https://github.com/krixon/skills/pulls/abc",
+                    ""):
+            with self.assertRaises(ValueError) as ctx:
+                tracker.GithubBackend._number_from_url(bad)
+            self.assertIn("gh url", str(ctx.exception))
 
     def test_issue_methods_coerce_opaque_id_to_native_number(self) -> None:
         # The id is opaque to the caller; the backend coerces int(id) internally.
