@@ -67,9 +67,12 @@ def find_worktree(repo_root: str, branch: str,
 # --- classification (plan) --------------------------------------------------
 
 def _closing_numbers(refs: dict[str, Any]) -> list[int]:
-    """The issue numbers a PR's body closes on merge, from closingIssuesReferences."""
-    nodes = refs.get("closingIssuesReferences") or []
-    return [n["number"] for n in nodes if "number" in n]
+    """The issue numbers a PR's body closes on merge.
+
+    `closing_refs` now returns the neutral contract result (ADR 0009): the
+    closing issue numbers are the top-level `closes` list (the raw nodes ride
+    `info`), so land reads them straight off `closes`."""
+    return list(refs.get("closes") or [])
 
 
 def _no_issue_declared(body: str | None) -> bool:
@@ -105,7 +108,13 @@ def classify(be: GithubBackend, prs: Sequence[dict[str, Any]],
     merged: list[dict[str, Any]] = []
 
     for pr in prs:
-        number = pr["number"]
+        # find_approved now returns neutral id-keyed select rows (ADR 0009): the
+        # opaque id at the top level, the native headRefName/baseRefName/body
+        # under `info`. land is adapter code on the code-host axis (not a skill),
+        # so reading `info.*` here is legitimate — the no-`info` rule binds
+        # skills, not the adapter's own code-host logic.
+        number = pr["id"]
+        pr_info = pr.get("info", {})
         if be.is_merged(number)["merged"]:
             merged.append({"number": number})
             continue
@@ -114,12 +123,14 @@ def classify(be: GithubBackend, prs: Sequence[dict[str, Any]],
             skip.append({"number": number, "reason": "stale-approval"})
             continue
 
-        state = be.merge_state(number, sleep=sleep)
-        mergeable = state.get("mergeable")
-        status = state.get("mergeStateStatus")
+        st = be.merge_state(number, sleep=sleep)
+        # merge_state returns {state, info:{merge_state_status, mergeable}}: the
+        # neutral `state` decides conflicting; mergeStateStatus (no neutral
+        # 3-token equivalent) routes the CLEAN/BEHIND merge-button readiness.
+        status = st["info"]["merge_state_status"]
 
         if status == "CLEAN":
-            base = pr.get("baseRefName", worktree.BASE)
+            base = pr_info.get("baseRefName", worktree.BASE)
             method = be.merge_method(base)
             if method is None:
                 skip.append({"number": number,
@@ -128,7 +139,7 @@ def classify(be: GithubBackend, prs: Sequence[dict[str, Any]],
             refs = be.closing_refs(number)
             closes = _closing_numbers(refs)
             flags: list[str] = []
-            body = pr.get("body")
+            body = pr_info.get("body")
             if not closes and not _no_issue_declared(body):
                 flags.append("no-issue")
             landable.append({
@@ -137,7 +148,7 @@ def classify(be: GithubBackend, prs: Sequence[dict[str, Any]],
             })
             continue
 
-        if mergeable == "CONFLICTING" or status == "DIRTY":
+        if st["state"] == "conflicting" or status == "DIRTY":
             rework.append({"number": number, "reason": "conflicting"})
             continue
         if status == "BEHIND":
@@ -172,7 +183,9 @@ def plan(be: GithubBackend, pr_number: int | None = None,
     """
     approved = be.find_approved()
     if pr_number is not None:
-        approved = [p for p in approved if p["number"] == pr_number]
+        # find_approved rows are id-keyed (opaque strings); the CLI --pr is an
+        # int, so compare on the string form.
+        approved = [p for p in approved if p["id"] == str(pr_number)]
     return cli.present_json(classify(be, approved, sleep=sleep), stream=stream)
 
 
@@ -274,10 +287,14 @@ def apply(be: GithubBackend, repo_root: str,
                 result.update(merged=False, skipped=True, reason="stale-approval")
                 results.append(result)
                 continue
-            state = be.merge_state(number, sleep=sleep)
-            if state.get("mergeStateStatus") != "CLEAN":
+            # merge_state returns {state, info:{merge_state_status}}. land is
+            # adapter code on the code-host axis (not a skill), so reading
+            # mergeStateStatus from info is legitimate — CLEAN has no neutral
+            # 3-token equivalent, and this is the adapter's own merge logic.
+            status = be.merge_state(number, sleep=sleep)["info"]["merge_state_status"]
+            if status != "CLEAN":
                 result.update(merged=False, skipped=True,
-                              reason=f"not-ready: {state.get('mergeStateStatus')}")
+                              reason=f"not-ready: {status}")
                 results.append(result)
                 continue
             method = be.merge_method(row.get("baseRefName", worktree.BASE))

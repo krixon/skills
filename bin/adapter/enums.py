@@ -28,6 +28,32 @@ _GITHUB_ISSUE_STATE: Mapping[str, str] = {
     "CLOSED": "closed",
 }
 
+# The closed neutral review-decision vocabulary. A PR's aggregate review state
+# is exactly these three tokens — approved, changes requested, or a required
+# review still outstanding (which also covers "only comment-state reviews so
+# far", per GITHUB.md's "no review" glossary entry).
+REVIEW_DECISIONS = frozenset({"approved", "changes_requested", "review_required"})
+
+# GitHub's native `reviewDecision` values → neutral tokens. `None` is handled
+# separately (see review_decision) — it is not a key here.
+_GITHUB_REVIEW_DECISION: Mapping[str, str] = {
+    "APPROVED": "approved",
+    "CHANGES_REQUESTED": "changes_requested",
+    "REVIEW_REQUIRED": "review_required",
+}
+
+# The closed neutral merge-state vocabulary. This maps GitHub's `mergeable`
+# field (a 3-value enum: MERGEABLE/CONFLICTING/UNKNOWN), NOT `mergeStateStatus`
+# (a 7-value merge-button readiness enum — CLEAN/BEHIND/BLOCKED/DIRTY/DRAFT/…
+# — which has no neutral 3-token equivalent and rides `info` instead).
+MERGE_STATES = frozenset({"mergeable", "conflicting", "unknown"})
+
+_GITHUB_MERGE_STATE: Mapping[str, str] = {
+    "MERGEABLE": "mergeable",
+    "CONFLICTING": "conflicting",
+    "UNKNOWN": "unknown",
+}
+
 
 class UnmappedValue(ValueError):
     """A backend produced a native enum value with no neutral mapping.
@@ -59,3 +85,29 @@ def map_enum(mapping: Mapping[str, str], native: str) -> str:
 def issue_state(native: str) -> str:
     """Map a GitHub native issue state to the neutral `{open, closed}` token."""
     return map_enum(_GITHUB_ISSUE_STATE, native)
+
+
+def review_decision(native: str | None) -> str:
+    """Map a GitHub `reviewDecision` to the neutral review-decision token.
+
+    GitHub's `reviewDecision` is `None` when no required review exists, or when
+    only comment-state reviews were left (a `COMMENT` review never produces a
+    decision). The contract reads that absence as `review_required` — the
+    "no review" state in GITHUB.md's glossary. `None` is mapped *before* the
+    table lookup; every other native value goes through `map_enum`, which raises
+    `UnmappedValue` on a miss rather than passing an unknown token through.
+    """
+    if native is None:
+        return "review_required"
+    return map_enum(_GITHUB_REVIEW_DECISION, native)
+
+
+def merge_state(native: str) -> str:
+    """Map a GitHub `mergeable` value to the neutral merge-state token.
+
+    This maps the `mergeable` field (MERGEABLE/CONFLICTING/UNKNOWN), not
+    `mergeStateStatus` — those merge-button readiness tokens (CLEAN/BEHIND/…)
+    have no neutral 3-token equivalent and ride the `info` sidecar. An unmapped
+    value raises `UnmappedValue`.
+    """
+    return map_enum(_GITHUB_MERGE_STATE, native)

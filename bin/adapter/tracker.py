@@ -346,60 +346,94 @@ class GithubBackend:
             check=False,
         )
         if result.returncode == 0:
-            return {"created": True, "branch": branch}
+            return {"outcome": cli.OK, "info": {"branch": branch}}
         # The lost-claim signal is precisely "Reference already exists"; other
         # 422s (a malformed ref, a ref-creation rule) are real failures, not a
-        # lost claim, so they raise rather than read as one.
+        # lost claim, so they raise rather than read as one. The rejection rides
+        # the contract `claim_lost` outcome (ADR 0009) — the same closed code the
+        # CAS claim methods speak — not a free-text `reason`.
         if "already exists" in result.stderr:
-            return {"created": False, "branch": branch, "reason": "claim-lost"}
+            return {"outcome": cli.CLAIM_LOST, "info": {"branch": branch}}
         raise ghcmd.GhError(result.args, result.returncode, result.stderr)
 
     # -- PR mechanics --------------------------------------------------------
 
-    def pr_create(self, title: str, body: str) -> dict[str, str]:
+    def pr_create(self, title: str, body: str) -> dict[str, Any]:
         """Open a PR as the bot (or normal identity when unconfigured).
 
         The body — carrying the closing reference — rides stdin; the token, when
-        configured, rides the child env. Returns the new PR's URL.
+        configured, rides the child env. Returns the contract act envelope (like
+        issue_create): the new PR's opaque id at the top level, its url in the
+        `info` sidecar. The id is the number parsed from the returned html_url.
         """
         result = ghcmd.gh_as_author(
             ["pr", "create", "--repo", self.repo, "--title", title,
              "--body-file", "-"],
             self.identity, runner=self.runner, input=body,
         )
-        return {"url": result.stdout.strip()}
+        url = result.stdout.strip()
+        number = self._number_from_url(url)
+        return {"outcome": cli.OK, "id": str(number), "info": {"url": url}}
 
     def _author_args(self) -> list[str]:
         """The `--author <bot>` filter, or [] when unconfigured (matches any PR)."""
         af = self.identity.author_filter()
         return ["--author", af] if af else []
 
+    @staticmethod
+    def _neutral_select_row(native: Mapping[str, Any]) -> dict[str, Any]:
+        """Project a gh PR list row into the neutral select shape: an opaque
+        string `id` and the `title` at the top level, every native specific
+        (headRefName, baseRefName, reviewDecision, createdAt, …) under `info`.
+
+        The shared shape behind the `select` reads (ADR 0009): a consumer takes
+        the first `id`, never a native `number`. `reviewDecision`, where carried,
+        rides `info` mapped through the closed review-decision vocabulary."""
+        info = {k: v for k, v in native.items()
+                if k not in ("number", "title")}
+        if "reviewDecision" in info:
+            info["reviewDecision"] = enums.review_decision(info["reviewDecision"])
+        return {"id": str(native["number"]), "title": native.get("title"),
+                "info": info}
+
     def find_rework(self) -> list[dict[str, Any]]:
-        """Bot-owned open PRs the maintainer sent back with changes requested."""
+        """Bot-owned open PRs the maintainer sent back with changes requested.
+
+        Returns neutral id-keyed select rows (ADR 0009); the native headRefName
+        and the mapped reviewDecision ride each row's `info` sidecar."""
         prs = self._json(
             ["pr", "list", "--repo", self.repo, "--state", "open",
              *self._author_args(),
              "--json", "number,title,reviewDecision,headRefName,body"],
             default=[],
         )
-        return [p for p in prs if p.get("reviewDecision") == "CHANGES_REQUESTED"]
+        return [self._neutral_select_row(p) for p in prs
+                if p.get("reviewDecision") == "CHANGES_REQUESTED"]
 
-    def merge_state(self, number: int, max_polls: int = _REQUERY_MAX_POLLS,
+    def merge_state(self, id: str, max_polls: int = _REQUERY_MAX_POLLS,
                     sleep: Callable[[float], None] | None = None) -> dict[str, Any]:
-        """Read a PR's `mergeable`/`mergeStateStatus`, re-querying past UNKNOWN.
+        """Read a PR's mergeability, re-querying past UNKNOWN, in the contract shape.
 
         `mergeable` is computed asynchronously: after a push, or when the base
         moves under the PR (a sibling landing), a read returns the value against
         the *old* base — often a stale clean — or UNKNOWN until the recompute
-        finishes. Re-poll until `mergeStateStatus` leaves UNKNOWN before
-        deciding; cap the polls so a never-settling UNKNOWN can't spin forever,
-        returning the last read.
+        finishes. The loop re-polls the raw `mergeable`/`mergeStateStatus` until
+        `mergeStateStatus` leaves UNKNOWN before deciding; the poll cap stops a
+        never-settling UNKNOWN from spinning forever.
+
+        Returns the neutral two-zone envelope (ADR 0009): the neutral `state`
+        maps the `mergeable` field through the closed merge-state vocabulary —
+        and is `"unknown"` when the read never settles (an empty/None mergeable);
+        the raw `mergeable` and `mergeStateStatus` ride the `info` sidecar.
+        `mergeStateStatus` (CLEAN/BEHIND/BLOCKED/DIRTY/DRAFT — the merge-button
+        readiness) has no neutral 3-token equivalent, so it lives in `info` for
+        adapter-internal code (land) to route on; no skill reads it.
         """
         sleep = sleep or time.sleep
-        state = {}
+        raw: dict[str, Any] = {}
         for attempt in range(max_polls):
-            state = self._json(
-                ["pr", "view", str(number), "--repo", self.repo,
+            raw = self._json(
+                ["pr", "view", str(int(id)), "--repo", self.repo,
                  "--json", "mergeable,mergeStateStatus"],
                 default={},
             )
@@ -408,12 +442,18 @@ class GithubBackend:
             # settle while it is still UNKNOWN, and an empty read leaves both
             # None. Treating any of those as settled would let find_conflicting
             # decide off a value that has not resolved.
-            if (state.get("mergeStateStatus") not in (None, "UNKNOWN")
-                    and state.get("mergeable") not in (None, "UNKNOWN")):
-                return state
+            if (raw.get("mergeStateStatus") not in (None, "UNKNOWN")
+                    and raw.get("mergeable") not in (None, "UNKNOWN")):
+                break
             if attempt < max_polls - 1:
                 sleep(_REQUERY_SLEEP)
-        return state
+        mergeable = raw.get("mergeable")
+        # An unsettled/empty read carries no neutral state — report `unknown`
+        # rather than mapping a None (which UNKNOWN already covers in the table).
+        state = enums.merge_state(mergeable) if mergeable else "unknown"
+        return {"state": state,
+                "info": {"mergeable": mergeable,
+                         "merge_state_status": raw.get("mergeStateStatus")}}
 
     def find_conflicting(
             self, sleep: Callable[[float], None] | None = None,
@@ -422,7 +462,8 @@ class GithubBackend:
 
         The list read can report a now-conflicting PR as clean (stale), so each
         candidate is re-queried through merge_state — settling past UNKNOWN —
-        before it is classified.
+        before it is classified. The output is neutral id-keyed select rows
+        (ADR 0009); the settled mergeable/mergeStateStatus ride each row's info.
         """
         # The list's own mergeable/mergeStateStatus are deliberately not fetched:
         # they are the stale values this method exists to defeat. merge_state
@@ -435,19 +476,60 @@ class GithubBackend:
         )
         conflicting = []
         for pr in prs:
-            state = self.merge_state(pr["number"], sleep=sleep)
-            if (state.get("mergeable") == "CONFLICTING"
-                    or state.get("mergeStateStatus") == "DIRTY"):
-                conflicting.append({**pr, **state})
+            st = self.merge_state(pr["number"], sleep=sleep)
+            # Classify on the neutral state, or the DIRTY merge-button status
+            # (which means a conflict the `mergeable` field can lag behind).
+            if (st["state"] == "conflicting"
+                    or st["info"]["merge_state_status"] == "DIRTY"):
+                row = self._neutral_select_row(pr)
+                row["info"].update(st["info"])
+                conflicting.append(row)
         return conflicting
 
-    def read_review(self, number: int) -> dict[str, Any]:
-        return self._json(
-            ["pr", "view", str(number), "--repo", self.repo,
-             "--json", "reviews,comments"],
-        )
+    @staticmethod
+    def _neutral_review(native: Mapping[str, Any]) -> dict[str, Any]:
+        """Project a gh review into the neutral two-zone shape: the author login,
+        body, the review state (lowercased native, e.g. `approved`/`commented`/
+        `changes_requested`), and submit time at the top level; the native id in
+        `info`.
 
-    def approval_covers_head(self, number: int) -> bool:
+        The per-review `state` is NOT the aggregate review *decision* — a single
+        review can be `COMMENTED`, which carries no decision — so it stays a
+        plain lowercased string and is never routed through review_decision
+        (that maps the PR's aggregate `reviewDecision`, surfaced separately)."""
+        author = native.get("author") or {}
+        state = native.get("state")
+        return {
+            "author": author.get("login"),
+            "body": native.get("body"),
+            "state": state.lower() if isinstance(state, str) else state,
+            "submitted_at": native.get("submittedAt"),
+            "info": {"id": native.get("id")},
+        }
+
+    def read_review(self, id: str) -> dict[str, Any]:
+        """Read a PR's review state in the neutral contract shape.
+
+        The aggregate `decision` — the AC's neutral `{approved,
+        changes_requested, review_required}` token — sits at the top level,
+        mapped from gh's `reviewDecision` (None reads as review_required). The
+        review and comment *content* (what the rework brief `pickup` reads) also
+        stays neutral at the top level: `comments` through `_neutral_comment`,
+        `reviews` through `_neutral_review`.
+        """
+        native = self._json(
+            ["pr", "view", str(int(id)), "--repo", self.repo,
+             "--json", "reviewDecision,reviews,comments"],
+        )
+        return {
+            "decision": enums.review_decision(native.get("reviewDecision")),
+            "reviews": [self._neutral_review(r)
+                        for r in native.get("reviews", [])],
+            "comments": [self._neutral_comment(c)
+                         for c in native.get("comments", [])],
+        }
+
+    def approval_covers_head(self, id: str) -> bool:
         """True when the latest approving review covers the PR's HEAD.
 
         A force-push after approval leaves the approval standing against the
@@ -463,7 +545,7 @@ class GithubBackend:
         )
         data = self._json(
             ["api", "graphql", "-f", f"query={query}",
-             "-F", f"owner={owner}", "-F", f"repo={name}", "-F", f"pr={number}"],
+             "-F", f"owner={owner}", "-F", f"repo={name}", "-F", f"pr={int(id)}"],
         )
         pr = data["data"]["repository"]["pullRequest"]
         head = pr["headRefOid"]
@@ -476,14 +558,19 @@ class GithubBackend:
         """Bot-owned open PRs a human has approved (a first cut; the caller
         applies approval_covers_head per PR to reject a stale approval, and
         re-reads readiness via merge_state — so `mergeable` is deliberately not
-        carried here, where the list read would only ever supply a stale one)."""
+        carried here, where the list read would only ever supply a stale one).
+
+        Returns neutral id-keyed select rows (ADR 0009): `id`/`title` at the top
+        level, headRefName/baseRefName and the mapped reviewDecision in `info`.
+        land iterates on `pr["id"]` and re-reads readiness per PR."""
         prs = self._json(
             ["pr", "list", "--repo", self.repo, "--state", "open",
              *self._author_args(),
-             "--json", "number,title,reviewDecision,headRefName"],
+             "--json", "number,title,reviewDecision,headRefName,baseRefName,body"],
             default=[],
         )
-        return [p for p in prs if p.get("reviewDecision") == "APPROVED"]
+        return [self._neutral_select_row(p) for p in prs
+                if p.get("reviewDecision") == "APPROVED"]
 
     def sweep_rework(self) -> list[dict[str, Any]]:
         """Compact per-PR rework state across all open bot PRs in one query.
@@ -522,8 +609,12 @@ class GithubBackend:
                          default=None)
             commits = (node.get("commits") or {}).get("nodes") or []
             head_at = commits[0]["commit"]["committedDate"] if commits else None
+            # The row's signal fields (unresolvedCount/lastReviewState/…) ARE
+            # the neutral data `auto` branches on, so they stay at the top level;
+            # only the identifier changes from a native `number` to the opaque
+            # string `id` (ADR 0009).
             out.append({
-                "number": node["number"],
+                "id": str(node["number"]),
                 "unresolvedCount": unresolved,
                 "lastReviewState": latest["state"] if latest else None,
                 "lastReviewAt": latest["submittedAt"] if latest else None,
@@ -546,21 +637,27 @@ class GithubBackend:
             default=[],
         )
         ready = [
-            {"number": i["number"], "title": i["title"],
-             "createdAt": i["createdAt"]}
+            {"id": str(i["number"]), "title": i["title"],
+             "info": {"created_at": i["createdAt"]}}
             for i in issues
             if not any(l["name"] == "in-progress" for l in i.get("labels", []))
         ]
-        ready.sort(key=lambda i: i["createdAt"])
+        # Already sorted oldest-first (info.created_at); the caller takes the
+        # first `id`. createdAt is a native specific, so it rides info.
+        ready.sort(key=lambda i: i["info"]["created_at"])
         return ready
 
-    def is_merged(self, number: int) -> dict[str, Any]:
+    def is_merged(self, id: str) -> dict[str, Any]:
+        """Whether a PR is merged, in the contract result shape: a coded
+        `outcome`, the opaque `id`, the neutral `merged` bool at the top level
+        (land reads it), and the native merge timestamp under `info`."""
         state = self._json(
-            ["pr", "view", str(number), "--repo", self.repo,
+            ["pr", "view", str(int(id)), "--repo", self.repo,
              "--json", "state,mergedAt"],
         )
-        return {"merged": state.get("state") == "MERGED",
-                "mergedAt": state.get("mergedAt")}
+        return {"outcome": cli.OK, "id": str(id),
+                "merged": state.get("state") == "MERGED",
+                "info": {"merged_at": state.get("mergedAt")}}
 
     def pr_fields(self, number: int) -> dict[str, Any] | None:
         """The branch refs and body of one PR by number — the row `land apply`
@@ -614,23 +711,43 @@ class GithubBackend:
             return "rebase"
         return None
 
-    def merge(self, number: int, method: str,
+    def merge(self, id: str, method: str,
               delete_branch: bool = True) -> dict[str, Any]:
-        args = ["pr", "merge", str(number), "--repo", self.repo, f"--{method}"]
+        """Merge a PR with the discovered method. Contract act envelope: a coded
+        `outcome`, the opaque `id`, the neutral `merged` bool (land reads it),
+        and the merge method under `info`."""
+        args = ["pr", "merge", str(int(id)), "--repo", self.repo, f"--{method}"]
         if delete_branch:
             args.append("--delete-branch")
         self._text(args)
-        return {"number": number, "merged": True, "method": method}
+        return {"outcome": cli.OK, "id": str(id), "merged": True,
+                "info": {"method": method}}
 
-    def closing_refs(self, number: int) -> dict[str, Any]:
-        return self._json(
-            ["pr", "view", str(number), "--repo", self.repo,
+    def closing_refs(self, id: str) -> dict[str, Any]:
+        """The issues a PR closes on merge, in the contract result shape: the
+        neutral `closes` list (the issue numbers) at the top level, the raw
+        `closingIssuesReferences` nodes under `info`. land's apply reads
+        `closes` to drive the in-progress strip."""
+        native = self._json(
+            ["pr", "view", str(int(id)), "--repo", self.repo,
              "--json", "closingIssuesReferences"],
         )
+        nodes = native.get("closingIssuesReferences") or []
+        return {"outcome": cli.OK, "id": str(id),
+                "closes": [n["number"] for n in nodes if "number" in n],
+                "info": {"closingIssuesReferences": nodes}}
 
     # -- review threads ------------------------------------------------------
 
-    def unresolved_threads(self, number: int) -> list[dict[str, Any]]:
+    def unresolved_threads(self, id: str) -> list[dict[str, Any]]:
+        """A PR's unresolved review threads, in the neutral contract shape.
+
+        Each row projects to `{id, comment_id, body, path, author}`: `id` is the
+        thread node id — the opaque thread handle `pickup` hands to reply-resolve
+        — and `comment_id` is the first comment's databaseId (the reply target).
+        `body`/`path`/`author` are neutral review-thread content `pickup` reads
+        to drive `field` and the reply. The raw isResolved/nested gh shape is
+        dropped; only the unresolved threads come back."""
         owner, name = self.repo.split("/", 1)
         query = (
             "query($owner:String!,$repo:String!,$pr:Int!)"
@@ -640,18 +757,32 @@ class GithubBackend:
         )
         data = self._json(
             ["api", "graphql", "-f", f"query={query}",
-             "-F", f"owner={owner}", "-F", f"repo={name}", "-F", f"pr={number}"],
+             "-F", f"owner={owner}", "-F", f"repo={name}", "-F", f"pr={int(id)}"],
         )
         nodes = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
-        return [n for n in nodes if not n["isResolved"]]
+        out = []
+        for node in nodes:
+            if node["isResolved"]:
+                continue
+            comments = (node.get("comments") or {}).get("nodes") or []
+            first = comments[0] if comments else {}
+            author = first.get("author") or {}
+            out.append({
+                "id": node["id"],
+                "comment_id": first.get("databaseId"),
+                "body": first.get("body"),
+                "path": first.get("path"),
+                "author": author.get("login"),
+            })
+        return out
 
-    def _thread_is_resolved(self, number: int, thread_id: str) -> bool:
-        for node in self.unresolved_threads(number):
+    def _thread_is_resolved(self, id: str, thread_id: str) -> bool:
+        for node in self.unresolved_threads(id):
             if node["id"] == thread_id:
                 return False
         return True
 
-    def reply_and_resolve(self, pr: int, comment_id: int, thread_id: str,
+    def reply_and_resolve(self, pr: str, comment_id: int, thread_id: str,
                           body: str) -> dict[str, Any]:
         """Post the converged answer to a review thread, then resolve it.
 
@@ -659,9 +790,13 @@ class GithubBackend:
         bot) → confirm the reply's id → re-read the thread's isResolved → resolve
         only while it is still false. A failed reply raises (no resolve fires);
         an already-resolved thread is skipped, never re-resolved.
+
+        `pr` is the opaque PR id (coerced at the gh boundary); `comment_id` and
+        `thread_id` are gh-native handles, kept as-is. Returns the contract act
+        envelope: a coded `outcome`, the reply/resolve/skip flags under `info`.
         """
         reply = ghcmd.gh_as_author(
-            ["api", self._api(f"pulls/{pr}/comments/{comment_id}/replies"),
+            ["api", self._api(f"pulls/{int(pr)}/comments/{comment_id}/replies"),
              "-F", "body=@-", "--jq", ".id"],
             self.identity, runner=self.runner, input=body,
         )
@@ -670,8 +805,9 @@ class GithubBackend:
             raise ghcmd.GhError(reply.args, 1, "reply posted no id")
 
         if self._thread_is_resolved(pr, thread_id):
-            return {"replied": True, "reply_id": reply_id, "resolved": False,
-                    "skipped": True}
+            return {"outcome": cli.OK,
+                    "info": {"replied": True, "reply_id": reply_id,
+                             "resolved": False, "skipped": True}}
 
         mutation = ("mutation($id:ID!){resolveReviewThread(input:{threadId:$id})"
                     "{thread{isResolved}}}")
@@ -679,8 +815,9 @@ class GithubBackend:
             ["api", "graphql", "-f", f"query={mutation}", "-F", f"id={thread_id}"],
             self.identity, runner=self.runner,
         )
-        return {"replied": True, "reply_id": reply_id, "resolved": True,
-                "skipped": False}
+        return {"outcome": cli.OK,
+                "info": {"replied": True, "reply_id": reply_id,
+                         "resolved": True, "skipped": False}}
 
     # -- staleness selection (reap) ------------------------------------------
 
@@ -897,34 +1034,42 @@ def _route(be: GithubBackend, args: argparse.Namespace,
         if command == "since":
             return cli.present_json(be.claim_since(args.id), stream=stream)
         if command == "branch-ref":
-            return cli.acted(be.create_branch_ref(args.branch, args.sha),
-                             stream=stream)
+            # The method carries its own outcome (ok / claim_lost), so the
+            # dispatcher emits it verbatim — matching the CAS claim methods.
+            return cli.present_json(be.create_branch_ref(args.branch, args.sha),
+                                    stream=stream)
 
     if group == "pr":
+        # The PR methods that self-code their outcome are emitted verbatim via
+        # present_json; the two bool/str methods (approval-covers-head,
+        # merge-method) are wrapped into a contract envelope here.
         if command == "create":
-            return cli.acted(be.pr_create(args.title, stdin_body), stream=stream)
+            return cli.present_json(be.pr_create(args.title, stdin_body),
+                                    stream=stream)
         if command == "review":
-            return cli.present_json(be.read_review(args.number), stream=stream)
+            return cli.present_json(be.read_review(args.id), stream=stream)
         if command == "merged":
-            return cli.present_json(be.is_merged(args.number), stream=stream)
+            return cli.present_json(be.is_merged(args.id), stream=stream)
         if command == "closing-refs":
-            return cli.present_json(be.closing_refs(args.number), stream=stream)
+            return cli.present_json(be.closing_refs(args.id), stream=stream)
         if command == "merge-state":
-            return cli.present_json(be.merge_state(args.number), stream=stream)
+            return cli.present_json(be.merge_state(args.id), stream=stream)
         if command == "approval-covers-head":
             return cli.present_json(
-                {"covered": be.approval_covers_head(args.number)}, stream=stream)
+                {"outcome": cli.OK, "id": str(args.id),
+                 "covered": be.approval_covers_head(args.id)}, stream=stream)
         if command == "merge-method":
-            return cli.present_json({"method": be.merge_method(args.base)},
-                                    stream=stream)
+            return cli.present_json(
+                {"outcome": cli.OK, "method": be.merge_method(args.base)},
+                stream=stream)
         if command == "merge":
-            return cli.acted(be.merge(args.number, args.method), stream=stream)
+            return cli.present_json(be.merge(args.id, args.method), stream=stream)
         if command == "reply-resolve":
-            return cli.acted(
-                be.reply_and_resolve(args.number, args.comment_id, args.thread_id,
+            return cli.present_json(
+                be.reply_and_resolve(args.id, args.comment_id, args.thread_id,
                                      stdin_body), stream=stream)
         if command == "unresolved-threads":
-            return cli.present_json(be.unresolved_threads(args.number), stream=stream)
+            return cli.present_json(be.unresolved_threads(args.id), stream=stream)
 
     if group == "select":
         if command == "rework":
@@ -984,18 +1129,22 @@ def _build_parser() -> argparse.ArgumentParser:
     c_s = claim.add_parser("since"); c_s.add_argument("--id", required=True)
     c_b = claim.add_parser("branch-ref"); c_b.add_argument("--branch", required=True); c_b.add_argument("--sha", required=True)
 
+    # PRs are identified by a single opaque string `--id` (ADR 0009), like
+    # issues; the backend coerces it to the native number at the gh boundary.
+    # `--base` is a branch name (not an id); `--comment-id`/`--thread-id` are
+    # gh-native review-thread handles, not the opaque PR id.
     pr = groups.add_parser("pr").add_subparsers(dest="command", required=True)
     p_c = pr.add_parser("create"); p_c.add_argument("--title", required=True)
-    p_rv = pr.add_parser("review"); p_rv.add_argument("--number", type=int, required=True)
-    p_m = pr.add_parser("merged"); p_m.add_argument("--number", type=int, required=True)
-    p_cr = pr.add_parser("closing-refs"); p_cr.add_argument("--number", type=int, required=True)
-    p_ms = pr.add_parser("merge-state"); p_ms.add_argument("--number", type=int, required=True)
-    p_ach = pr.add_parser("approval-covers-head"); p_ach.add_argument("--number", type=int, required=True)
+    p_rv = pr.add_parser("review"); p_rv.add_argument("--id", required=True)
+    p_m = pr.add_parser("merged"); p_m.add_argument("--id", required=True)
+    p_cr = pr.add_parser("closing-refs"); p_cr.add_argument("--id", required=True)
+    p_ms = pr.add_parser("merge-state"); p_ms.add_argument("--id", required=True)
+    p_ach = pr.add_parser("approval-covers-head"); p_ach.add_argument("--id", required=True)
     p_mm = pr.add_parser("merge-method"); p_mm.add_argument("--base", required=True)
-    p_mg = pr.add_parser("merge"); p_mg.add_argument("--number", type=int, required=True); p_mg.add_argument("--method", required=True)
-    p_rr = pr.add_parser("reply-resolve"); p_rr.add_argument("--number", type=int, required=True)
+    p_mg = pr.add_parser("merge"); p_mg.add_argument("--id", required=True); p_mg.add_argument("--method", required=True)
+    p_rr = pr.add_parser("reply-resolve"); p_rr.add_argument("--id", required=True)
     p_rr.add_argument("--comment-id", type=int, required=True); p_rr.add_argument("--thread-id", required=True)
-    p_ut = pr.add_parser("unresolved-threads"); p_ut.add_argument("--number", type=int, required=True)
+    p_ut = pr.add_parser("unresolved-threads"); p_ut.add_argument("--id", required=True)
 
     sel = groups.add_parser("select").add_subparsers(dest="command", required=True)
     sel.add_parser("rework"); sel.add_parser("conflicting"); sel.add_parser("approved")
