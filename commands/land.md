@@ -34,7 +34,9 @@ A maintainer who already said to land without asking waives even these.
 
 ## Apply
 
-On confirmation (or straight away when nothing is unusual), run `bin/land apply` — `${CLAUDE_PLUGIN_ROOT}/bin/land apply`, or `--pr <n>` for one PR. It merges each landable PR (re-checking readiness and approval-covers-HEAD at merge time, since a swept list goes stale the moment `main` moves), confirms the closing references, strips `in-progress` on each closed issue, tears down the local worktree and branch where one exists, and fast-forwards local `main` once.
+On confirmation (or straight away when nothing is unusual), run `bin/land apply` with a `--pr <n>` for **each** PR the maintainer confirmed in plan — `${CLAUDE_PLUGIN_ROOT}/bin/land apply --pr <n> [--pr <n> …]`. Pass the numbers on every path, including the single landable PR; `apply` binds to exactly the PRs you pass — a closed allowlist. It re-checks readiness and approval-covers-HEAD at merge time (the selection goes stale the moment `main` moves) and drops any PR that went stale with a reason, confirms the closing references, strips `in-progress` on each closed issue, tears down the local worktree and branch where one exists, and fast-forwards local `main` once.
+
+Never run a bare `bin/land apply`: with no `--pr` it halts. `apply` acts only on the numbers you confirmed and never re-derives the approved set, so a PR approved between plan and apply can't slip into the batch — the merge stays bound to what the human saw.
 
 Render its `results`: per PR, merged or skipped-with-reason, the issues closed, whether the worktree was torn down. A PR that landed with no linked issue and no `No-issue:` marker is reported, its issue left for the maintainer.
 

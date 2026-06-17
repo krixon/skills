@@ -6,6 +6,8 @@ Accepted.
 
 Consolidates and replaces the earlier tracker-binding, Jira-binding, and bot-identity ADRs, removed in the same change because they record state this decision retires — hence the gaps at 0004, 0006, and 0007 in the sequence. The context worth keeping from them is captured below. The standing decisions they don't touch survive: native issue relations (0001), the release policy (0002), the untrusted-content security boundary (0003), and the dogfood symlink farm (0005); the adapter *implements* the first two, it does not obsolete them.
 
+**Amended 2026-06-17.** The present/act contract was underspecified: it said *act* carries the lone human decision but never said *act binds to the set present showed*. `land apply` re-derived its landable set with a fresh sweep at merge time, so a PR approved between `land plan` and `land apply` silently entered a human-confirmed batch — a two-PR confirmation merged three. The fix sharpened the contract into the *selection-shaped vs standing-intent-shaped* distinction below (*Commands present or act*) and bound `land apply` to its passed selection. Recorded here rather than as a new ADR because it corrects an existing clause, not a new axis.
+
 ## Context
 
 The workflow skills are mostly deterministic mechanics wrapped around a thin judgment core, and the mechanics are expressed as **prose the model must re-read and obey every run** rather than code that is simply correct. Three costs follow.
@@ -48,6 +50,13 @@ Three command groups, invoked by absolute path under `${CLAUDE_PLUGIN_ROOT}/bin/
 ### Commands present or act; they never prompt
 
 Every command is one of two stdin-free shapes: **present** (emit options as JSON/text, exit) or **act** (perform one mutation, exit). Interactivity is never the binary's job — it has no TTY in any agent context. Bodies always pass via stdin (`--body-file -`), so the security boundary's out-of-band rule becomes the only calling convention instead of a rule the model applies.
+
+**Act binds to what present showed; it never re-derives a wider set.** present and act are separate stateless processes, so the human's selection has to cross the boundary as an argument to *act* — and *act* must treat it as a **closed allowlist**. There are two shapes, and the distinction is load-bearing:
+
+- **Selection-shaped** — *present* emits an *enumerated set* the human picks from (the landable PRs). *act* takes the confirmed numbers and acts only on those: it re-validates each at act time (so a member that went stale is **dropped** with a reason — narrowing is correct), but it never sweeps for new members. `land apply` is selection-shaped; it takes a `--pr` per confirmed PR and a bare invocation (no selection) **halts** rather than sweeping. The reference pattern is `reap`: each act targets one explicit item by id and re-validates with a compare-and-swap guard, never re-sweeping to act.
+- **Standing-intent-shaped** — *present* describes a *single act over live state* and the human's decision is "do it now," not "do exactly these." *act* re-deriving against live state is then **correct**: the release path's `version apply` re-derives the version bump against live `origin/main` precisely so it never tags a stale tip.
+
+The failure this guards: a selection-shaped *act* that re-derives by sweeping (as `land apply` first did) silently **widens** the batch past what the human confirmed — a PR approved between present and act gets merged unseen. For an outward-facing, hard-to-reverse act gated on human approval, widening is the exact thing the gate exists to prevent. The rule: selection-shaped acts narrow, never widen; only standing-intent-shaped acts re-derive.
 
 A pure command (the bucket-(1)/(2) commands below) **halts at synthesis** — on reaching a state only a model can resolve, it presents the blocker and exits; it never silently degrades into doing the synthesis, and it never spawns to cover it. That keeps `land` honestly a pure command: it merges what GitHub will merge (ready-to-merge, approval-covers-HEAD, bot-owned) and **never rebases** — rebasing a moved base is rework, owned solely by `pickup`, so `land` has no conflict trapdoor to meet. A clean, approved PR that is *behind and blocked* under up-to-date-required protection is therefore a **rework trigger** (alongside CONFLICTING/DIRTY), routed to `pickup`, not rebased in place by `land`. Only the designated commands (next section) spawn; the rest halt.
 
