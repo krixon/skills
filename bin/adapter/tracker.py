@@ -63,28 +63,50 @@ class GithubBackend:
         return self._text(["api", self._api(f"issues/{number}"), "--jq", ".id"])
 
     @staticmethod
+    def _neutral_comment(native: Mapping[str, Any]) -> dict[str, Any]:
+        """Project a gh comment into the neutral two-zone shape: the author
+        login, body text, and creation time at the top level; the native id and
+        url ride in the `info` sidecar."""
+        author = native.get("author") or {}
+        return {
+            "author": author.get("login"),
+            "body": native.get("body"),
+            "created_at": native.get("createdAt"),
+            "info": {"id": native.get("id"), "url": native.get("url")},
+        }
+
+    @staticmethod
     def _neutral_issue(native: Mapping[str, Any]) -> dict[str, Any]:
         """Project gh's native issue JSON into the neutral two-zone envelope.
 
         Neutral `id`/`state`/`title`/`labels` sit at the top level — the opaque
         id is the number as a string, the state goes through the closed-vocab
         mapper (raising on an unmapped native value), and labels carry across as
-        plain neutral strings. The native number rides in the `info` sidecar,
-        with the url alongside it when the caller fetched it (`issue view` does,
-        per ADR 0009's worked example; `issue list` omits it from its field set).
+        plain neutral strings. `body` and `comments` are neutral issue content
+        (an agent brief lives in one or the other), so they surface at the top
+        level whenever the caller fetched them — `issue view` does; `issue list`
+        omits both from its field set to stay a lean summary. The native number
+        rides in the `info` sidecar, with the url alongside it when fetched.
         """
         number = native["number"]
         info: dict[str, Any] = {}
         if "url" in native:
             info["url"] = native["url"]
         info["number"] = number
-        return {
+        neutral: dict[str, Any] = {
             "id": str(number),
             "state": enums.issue_state(native["state"]),
             "title": native.get("title"),
             "labels": [lbl["name"] for lbl in native.get("labels", [])],
             "info": info,
         }
+        if "body" in native:
+            neutral["body"] = native["body"]
+        if "comments" in native:
+            neutral["comments"] = [
+                GithubBackend._neutral_comment(c) for c in native["comments"]
+            ]
+        return neutral
 
     @staticmethod
     def _number_from_url(url: str) -> int:
@@ -127,7 +149,7 @@ class GithubBackend:
     def issue_list(self, label: str | None = None,
                    state: str = "open") -> list[dict[str, Any]]:
         args = ["issue", "list", "--repo", self.repo, "--state", state,
-                "--json", "number,title,body,state,labels"]
+                "--json", "number,title,state,labels"]
         if label:
             args += ["--label", label]
         return [self._neutral_issue(i) for i in self._json(args, default=[])]
@@ -647,7 +669,7 @@ class GithubBackend:
         issues = self.issue_list(label="in-progress", state="open")
         out: list[dict[str, Any]] = []
         for issue in issues:
-            number = issue["number"]
+            number = issue["info"]["number"]
             since = self.claim_since(number)["since"]
             if since is None or since >= before:
                 continue
@@ -664,7 +686,7 @@ class GithubBackend:
         issues = self.issue_list(label="needs-info", state="open")
         out: list[dict[str, Any]] = []
         for issue in issues:
-            number = issue["number"]
+            number = issue["info"]["number"]
             updated = self.issue_updated_at(number)
             if updated is None or updated >= before:
                 continue
@@ -682,7 +704,7 @@ class GithubBackend:
         epics = self.issue_list(label="epic", state="open")
         out: list[dict[str, Any]] = []
         for epic in epics:
-            number = epic["number"]
+            number = epic["info"]["number"]
             subs = self.list_sub_issues(number)
             if subs and all(s.get("state") == "closed" for s in subs):
                 out.append({"number": number, "title": epic.get("title"),
