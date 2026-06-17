@@ -45,5 +45,46 @@ class TestIssueState(unittest.TestCase):
             enums.issue_state("MERGED")
 
 
+class TestReviewDecision(unittest.TestCase):
+    def test_approved_maps_through(self) -> None:
+        self.assertEqual(enums.review_decision("APPROVED"), "approved")
+
+    def test_changes_requested_maps_through(self) -> None:
+        self.assertEqual(enums.review_decision("CHANGES_REQUESTED"),
+                         "changes_requested")
+
+    def test_explicit_review_required_maps_through(self) -> None:
+        self.assertEqual(enums.review_decision("REVIEW_REQUIRED"),
+                         "review_required")
+
+    def test_none_maps_to_review_required(self) -> None:
+        # gh's reviewDecision is None when no required review exists or only
+        # comment-state reviews were left — the contract reads that as
+        # review_required (GITHUB.md glossary: "no review").
+        self.assertEqual(enums.review_decision(None), "review_required")
+
+    def test_unmapped_value_raises(self) -> None:
+        # Any other native value is an error, never passed through.
+        with self.assertRaises(enums.UnmappedValue):
+            enums.review_decision("DISMISSED")
+
+
+class TestMergeState(unittest.TestCase):
+    def test_mergeable_maps_to_mergeable(self) -> None:
+        self.assertEqual(enums.merge_state("MERGEABLE"), "mergeable")
+
+    def test_conflicting_maps_to_conflicting(self) -> None:
+        self.assertEqual(enums.merge_state("CONFLICTING"), "conflicting")
+
+    def test_unknown_maps_to_unknown(self) -> None:
+        self.assertEqual(enums.merge_state("UNKNOWN"), "unknown")
+
+    def test_unmapped_value_raises(self) -> None:
+        # mergeStateStatus tokens (CLEAN/BEHIND/…) are NOT mergeable values —
+        # they have no neutral 3-token mapping here and must raise.
+        with self.assertRaises(enums.UnmappedValue):
+            enums.merge_state("CLEAN")
+
+
 if __name__ == "__main__":
     unittest.main()

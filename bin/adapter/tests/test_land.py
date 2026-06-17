@@ -84,6 +84,17 @@ def _closing(numbers: list[int]) -> str:
     return json.dumps({"closingIssuesReferences": [{"number": n} for n in numbers]})
 
 
+def _approved_row(number: int, title: str = "t", base: str = "main",
+                  body: str | None = None) -> dict[str, Any]:
+    """A neutral id-keyed select row as find_approved now returns it (ADR 0009):
+    the opaque id and title at the top level, the native baseRefName/body in
+    info. classify iterates on `id` and reads base/body from info."""
+    info: dict[str, Any] = {"headRefName": f"feat/{number}-x", "baseRefName": base}
+    if body is not None:
+        info["body"] = body
+    return {"id": str(number), "title": title, "info": info}
+
+
 # --- classification (plan) buckets ------------------------------------------
 
 class TestClassify(unittest.TestCase):
@@ -96,8 +107,8 @@ class TestClassify(unittest.TestCase):
             "closingIssuesReferences": [_closing([42])],
         })
         be = _backend(runner)
-        out = land.classify(be, [{"number": 5, "title": "t", "baseRefName": "main",
-                                  "body": "Closes #42"}], sleep=lambda _s: None)
+        out = land.classify(be, [_approved_row(5, base="main", body="Closes #42")],
+                            sleep=lambda _s: None)
         self.assertEqual(len(out["landable"]), 1)
         lp = out["landable"][0]
         self.assertEqual(lp["method"], "squash")
@@ -111,8 +122,8 @@ class TestClassify(unittest.TestCase):
             "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "BEHIND")],
         })
         be = _backend(runner)
-        out = land.classify(be, [{"number": 6, "title": "t"}], sleep=lambda _s: None)
-        self.assertEqual(out["rework"], [{"number": 6, "reason": "behind"}])
+        out = land.classify(be, [_approved_row(6)], sleep=lambda _s: None)
+        self.assertEqual(out["rework"], [{"number": "6", "reason": "behind"}])
 
     def test_rework_conflicting(self) -> None:
         runner = ProgrammedRunner({
@@ -121,8 +132,8 @@ class TestClassify(unittest.TestCase):
             "--json mergeable,mergeStateStatus": [_merge_state("CONFLICTING", "DIRTY")],
         })
         be = _backend(runner)
-        out = land.classify(be, [{"number": 7, "title": "t"}], sleep=lambda _s: None)
-        self.assertEqual(out["rework"], [{"number": 7, "reason": "conflicting"}])
+        out = land.classify(be, [_approved_row(7)], sleep=lambda _s: None)
+        self.assertEqual(out["rework"], [{"number": "7", "reason": "conflicting"}])
 
     def test_skip_stale_approval(self) -> None:
         runner = ProgrammedRunner({
@@ -130,8 +141,8 @@ class TestClassify(unittest.TestCase):
             "headRefOid": [_approval("newhead", "oldcommit")],
         })
         be = _backend(runner)
-        out = land.classify(be, [{"number": 8, "title": "t"}], sleep=lambda _s: None)
-        self.assertEqual(out["skip"], [{"number": 8, "reason": "stale-approval"}])
+        out = land.classify(be, [_approved_row(8)], sleep=lambda _s: None)
+        self.assertEqual(out["skip"], [{"number": "8", "reason": "stale-approval"}])
 
     def test_skip_not_ready(self) -> None:
         runner = ProgrammedRunner({
@@ -140,8 +151,8 @@ class TestClassify(unittest.TestCase):
             "--json mergeable,mergeStateStatus": [_merge_state("MERGEABLE", "BLOCKED")],
         })
         be = _backend(runner)
-        out = land.classify(be, [{"number": 9, "title": "t"}], sleep=lambda _s: None)
-        self.assertEqual(out["skip"], [{"number": 9, "reason": "not-ready: BLOCKED"}])
+        out = land.classify(be, [_approved_row(9)], sleep=lambda _s: None)
+        self.assertEqual(out["skip"], [{"number": "9", "reason": "not-ready: BLOCKED"}])
 
     def test_merged_bucket(self) -> None:
         runner = ProgrammedRunner({
@@ -149,8 +160,8 @@ class TestClassify(unittest.TestCase):
                                                   "mergedAt": "2026-06-01T00:00:00Z"})],
         })
         be = _backend(runner)
-        out = land.classify(be, [{"number": 10, "title": "t"}], sleep=lambda _s: None)
-        self.assertEqual(out["merged"], [{"number": 10}])
+        out = land.classify(be, [_approved_row(10)], sleep=lambda _s: None)
+        self.assertEqual(out["merged"], [{"number": "10"}])
 
     def test_skip_no_allowed_method(self) -> None:
         runner = ProgrammedRunner({
@@ -160,9 +171,9 @@ class TestClassify(unittest.TestCase):
             "rules/branches": [_rules(["merge"])],  # only a merge commit allowed
         })
         be = _backend(runner)
-        out = land.classify(be, [{"number": 11, "title": "t", "baseRefName": "main"}],
+        out = land.classify(be, [_approved_row(11, base="main")],
                             sleep=lambda _s: None)
-        self.assertEqual(out["skip"], [{"number": 11, "reason": "no-allowed-merge-method"}])
+        self.assertEqual(out["skip"], [{"number": "11", "reason": "no-allowed-merge-method"}])
 
     def test_no_issue_flag_when_no_closing_ref_and_no_marker(self) -> None:
         runner = ProgrammedRunner({
@@ -173,8 +184,8 @@ class TestClassify(unittest.TestCase):
             "closingIssuesReferences": [_closing([])],
         })
         be = _backend(runner)
-        out = land.classify(be, [{"number": 12, "title": "t", "baseRefName": "main",
-                                  "body": "no marker here"}], sleep=lambda _s: None)
+        out = land.classify(be, [_approved_row(12, base="main", body="no marker here")],
+                            sleep=lambda _s: None)
         self.assertIn("no-issue", out["landable"][0]["flags"])
         self.assertIn("no-issue", out["unusual"])
 
@@ -187,8 +198,8 @@ class TestClassify(unittest.TestCase):
             "closingIssuesReferences": [_closing([])],
         })
         be = _backend(runner)
-        out = land.classify(be, [{"number": 13, "title": "t", "baseRefName": "main",
-                                  "body": "No-issue: a tiny doc fix"}],
+        out = land.classify(be, [_approved_row(13, base="main",
+                                               body="No-issue: a tiny doc fix")],
                             sleep=lambda _s: None)
         self.assertEqual(out["landable"][0]["flags"], [])
         self.assertNotIn("no-issue", out["unusual"])
@@ -203,8 +214,8 @@ class TestClassify(unittest.TestCase):
         })
         be = _backend(runner)
         out = land.classify(be, [
-            {"number": 1, "title": "a", "baseRefName": "main", "body": "Closes #1"},
-            {"number": 2, "title": "b", "baseRefName": "main", "body": "Closes #1"},
+            _approved_row(1, title="a", base="main", body="Closes #1"),
+            _approved_row(2, title="b", base="main", body="Closes #1"),
         ], sleep=lambda _s: None)
         self.assertIn("multi-pr", out["unusual"])
 
@@ -759,7 +770,8 @@ class TestDispatch(unittest.TestCase):
                       runner=runner, repo="krixon/skills", repo_root="/repo",
                       stream=out)
         self.assertEqual(rc, 0)
-        self.assertEqual(json.loads(out.getvalue())["landable"][0]["number"], 5)
+        # The landable bucket's `number` field now carries the opaque string id.
+        self.assertEqual(json.loads(out.getvalue())["landable"][0]["number"], "5")
 
     def test_apply_without_selection_halts(self) -> None:
         # A bare `apply` has no confirmed selection to act on, so it halts rather

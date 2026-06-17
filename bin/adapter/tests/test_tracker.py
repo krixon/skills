@@ -75,8 +75,10 @@ class TestStaleMergeableRequery(unittest.TestCase):
         ])
         be = _backend(runner)
         state = be.merge_state(7, sleep=lambda _s: None)
-        self.assertEqual(state["mergeStateStatus"], "DIRTY")
-        self.assertEqual(state["mergeable"], "CONFLICTING")
+        # The neutral envelope: mergeStateStatus rides info; state maps mergeable.
+        self.assertEqual(state["info"]["merge_state_status"], "DIRTY")
+        self.assertEqual(state["info"]["mergeable"], "CONFLICTING")
+        self.assertEqual(state["state"], "conflicting")
         # It polled three times — it did not decide on the first UNKNOWN read.
         self.assertEqual(len(runner.calls), 3)
 
@@ -86,7 +88,8 @@ class TestStaleMergeableRequery(unittest.TestCase):
         ])
         be = _backend(runner)
         state = be.merge_state(7, sleep=lambda _s: None)
-        self.assertEqual(state["mergeStateStatus"], "CLEAN")
+        self.assertEqual(state["info"]["merge_state_status"], "CLEAN")
+        self.assertEqual(state["state"], "mergeable")
         self.assertEqual(len(runner.calls), 1)
 
     def test_gives_up_after_max_polls_returning_last(self) -> None:
@@ -97,7 +100,8 @@ class TestStaleMergeableRequery(unittest.TestCase):
         state = be.merge_state(7, max_polls=4, sleep=lambda _s: None)
         # It stopped at the cap rather than spinning forever.
         self.assertEqual(len(runner.calls), 4)
-        self.assertEqual(state["mergeStateStatus"], "UNKNOWN")
+        self.assertEqual(state["info"]["merge_state_status"], "UNKNOWN")
+        self.assertEqual(state["state"], "unknown")
 
     def test_repolls_while_mergeable_unknown_though_status_settled(self) -> None:
         # mergeStateStatus can settle (BLOCKED) while mergeable is still being
@@ -108,7 +112,8 @@ class TestStaleMergeableRequery(unittest.TestCase):
         ])
         be = _backend(runner)
         state = be.merge_state(7, sleep=lambda _s: None)
-        self.assertEqual(state["mergeable"], "MERGEABLE")
+        self.assertEqual(state["info"]["mergeable"], "MERGEABLE")
+        self.assertEqual(state["state"], "mergeable")
         self.assertEqual(len(runner.calls), 2)
 
     def test_empty_read_is_not_treated_as_settled(self) -> None:
@@ -118,14 +123,16 @@ class TestStaleMergeableRequery(unittest.TestCase):
         be = _backend(runner)
         state = be.merge_state(7, max_polls=3, sleep=lambda _s: None)
         self.assertEqual(len(runner.calls), 3)
-        self.assertEqual(state, {})
+        # An unsettled read carries no neutral state: it reads unknown, raw None.
+        self.assertEqual(state["state"], "unknown")
+        self.assertIsNone(state["info"]["mergeable"])
+        self.assertIsNone(state["info"]["merge_state_status"])
 
     def test_find_conflicting_requeries_each_candidate(self) -> None:
         # The list read reports one PR clean (stale); the per-PR re-query
         # settles it to CONFLICTING, so it is reported as conflicting.
         list_payload = json.dumps([
-            {"number": 12, "title": "x", "mergeable": "MERGEABLE",
-             "mergeStateStatus": "CLEAN", "headRefName": "feat/12-x",
+            {"number": 12, "title": "x", "headRefName": "feat/12-x",
              "baseRefName": "main"},
         ])
         runner = ScriptedRunner([
@@ -134,7 +141,9 @@ class TestStaleMergeableRequery(unittest.TestCase):
         ])
         be = _backend(runner)
         out = be.find_conflicting(sleep=lambda _s: None)
-        self.assertEqual([p["number"] for p in out], [12])
+        # find_conflicting now returns neutral id-keyed select rows.
+        self.assertEqual([p["id"] for p in out], ["12"])
+        self.assertEqual(out[0]["info"]["merge_state_status"], "DIRTY")
 
 
 # --- merge-method discovery (named criterion) -------------------------------
@@ -533,7 +542,9 @@ class TestBranchRefCas(unittest.TestCase):
         runner = ScriptedRunner([(json.dumps({"ref": "refs/heads/feat/1-x"}),)])
         be = _backend(runner)
         result = be.create_branch_ref("feat/1-x", "deadbeef")
-        self.assertTrue(result["created"])
+        # The contract act envelope: a coded `ok`, the branch under info.
+        self.assertEqual(result["outcome"], "ok")
+        self.assertEqual(result["info"]["branch"], "feat/1-x")
         post_argv = runner.argv(0)
         self.assertIn("POST", post_argv)
         self.assertIn("repos/krixon/skills/git/refs", post_argv)
@@ -545,9 +556,10 @@ class TestBranchRefCas(unittest.TestCase):
         ])
         be = _backend(runner)
         result = be.create_branch_ref("feat/1-x", "deadbeef")
-        # The lost-claim signal is the write's own rejection — not an exception.
-        self.assertFalse(result["created"])
-        self.assertEqual(result["reason"], "claim-lost")
+        # The lost-claim signal is the write's own rejection — the contract
+        # `claim_lost` outcome, not an exception, not a free-text reason.
+        self.assertEqual(result["outcome"], "claim_lost")
+        self.assertEqual(result["info"]["branch"], "feat/1-x")
 
     def test_other_failure_still_raises(self) -> None:
         runner = ScriptedRunner([("", 1, "gh: Server Error (HTTP 500)")])
@@ -594,7 +606,10 @@ class TestSelectionAuthorFilter(unittest.TestCase):
         runner = ScriptedRunner([(payload,)])
         be = _backend(runner)
         out = be.find_rework()
-        self.assertEqual([p["number"] for p in out], [1])
+        # Neutral id-keyed select rows; the mapped reviewDecision rides info.
+        self.assertEqual([p["id"] for p in out], ["1"])
+        self.assertEqual(out[0]["info"]["reviewDecision"], "changes_requested")
+        self.assertNotIn("number", out[0])
 
     def test_find_approved_keeps_only_approved(self) -> None:
         payload = json.dumps([
@@ -604,7 +619,8 @@ class TestSelectionAuthorFilter(unittest.TestCase):
         runner = ScriptedRunner([(payload,)])
         be = _backend(runner)
         out = be.find_approved()
-        self.assertEqual([p["number"] for p in out], [1])
+        self.assertEqual([p["id"] for p in out], ["1"])
+        self.assertEqual(out[0]["info"]["reviewDecision"], "approved")
 
 
 # --- selection: sweep-stale (the per-PR rework-state scan) ------------------
@@ -631,7 +647,10 @@ class TestSweepRework(unittest.TestCase):
         out = be.sweep_rework()
         self.assertEqual(len(out), 1)
         row = out[0]
-        self.assertEqual(row["number"], 5)
+        # The identifier is the opaque string id; the signal fields stay neutral
+        # at the top level (auto branches on them).
+        self.assertEqual(row["id"], "5")
+        self.assertNotIn("number", row)
         self.assertEqual(row["unresolvedCount"], 2)
         # Latest review is the one with the most recent submittedAt.
         self.assertEqual(row["lastReviewState"], "CHANGES_REQUESTED")
@@ -695,8 +714,10 @@ class TestFindNext(unittest.TestCase):
         runner = ScriptedRunner([(self._issues(),)])
         be = _backend(runner)
         out = be.find_next("ready-for-agent")
-        # #2 is in-progress (claimed) — dropped; the rest oldest-first.
-        self.assertEqual([i["number"] for i in out], [1, 3])
+        # #2 is in-progress (claimed) — dropped; the rest oldest-first by id.
+        self.assertEqual([i["id"] for i in out], ["1", "3"])
+        self.assertNotIn("number", out[0])
+        self.assertEqual(out[0]["info"]["created_at"], "2026-06-01T00:00:00Z")
 
     def test_filters_on_the_given_label(self) -> None:
         runner = ScriptedRunner([("[]",)])
@@ -745,7 +766,9 @@ class TestReviewThread(unittest.TestCase):
                                                 token_cmd="printf t"))
         result = be.reply_and_resolve(pr=3, comment_id=99, thread_id="THREAD",
                                       body="answer")
-        self.assertTrue(result["resolved"])
+        # The contract act envelope: a coded ok, the reply/resolve flags in info.
+        self.assertEqual(result["outcome"], "ok")
+        self.assertTrue(result["info"]["resolved"])
         # The reply body went out-of-band on stdin.
         self.assertEqual(runner.calls[0]["input"], "answer")
 
@@ -770,9 +793,217 @@ class TestReviewThread(unittest.TestCase):
                                                 token_cmd="printf t"))
         result = be.reply_and_resolve(pr=3, comment_id=99, thread_id="THREAD",
                                       body="answer")
-        self.assertTrue(result["skipped"])
+        self.assertTrue(result["info"]["skipped"])
         # Reply + re-read only; no resolve mutation issued.
         self.assertEqual(len(runner.calls), 2)
+
+
+# --- PR contract projection (ADR 0009, code-host axis #231) -----------------
+
+class TestPrContract(unittest.TestCase):
+    """The code-host PR methods speak the neutral contract: `pr review` surfaces
+    a neutral aggregate `decision`; merge-state maps the `mergeable` field to a
+    neutral enum with mergeStateStatus quarantined under info; merged/merge/
+    closing-refs/create carry coded outcomes and opaque ids; unresolved threads
+    project to a neutral row keyed on the thread handle."""
+
+    def test_read_review_surfaces_neutral_decision_and_content(self) -> None:
+        native = json.dumps({
+            "reviewDecision": "CHANGES_REQUESTED",
+            "reviews": [
+                {"id": "R1", "author": {"login": "human"}, "body": "fix this",
+                 "state": "CHANGES_REQUESTED", "submittedAt": "2026-06-01T00:00:00Z"},
+                {"id": "R2", "author": {"login": "human"}, "body": "thoughts?",
+                 "state": "COMMENTED", "submittedAt": "2026-06-02T00:00:00Z"},
+            ],
+            "comments": [
+                {"id": "C1", "url": "u", "author": {"login": "human"},
+                 "body": "a note", "createdAt": "2026-06-01T00:00:00Z"},
+            ],
+        })
+        be = _backend(ScriptedRunner([(native,)]))
+        out = be.read_review("5")
+        # The AC: a neutral aggregate decision at the top level.
+        self.assertEqual(out["decision"], "changes_requested")
+        # Per-review state is the plain lowercased native, NOT the decision enum
+        # — a COMMENTED review carries no decision.
+        self.assertEqual(out["reviews"][0]["state"], "changes_requested")
+        self.assertEqual(out["reviews"][1]["state"], "commented")
+        self.assertEqual(out["reviews"][0]["author"], "human")
+        self.assertEqual(out["reviews"][0]["info"]["id"], "R1")
+        # Comments project through the neutral comment helper.
+        self.assertEqual(out["comments"][0]["author"], "human")
+        self.assertEqual(out["comments"][0]["body"], "a note")
+
+    def test_read_review_null_decision_reads_review_required(self) -> None:
+        # Only comment-state reviews → gh's reviewDecision is None → the contract
+        # reads that as review_required (GITHUB.md "no review").
+        native = json.dumps({"reviewDecision": None, "reviews": [], "comments": []})
+        be = _backend(ScriptedRunner([(native,)]))
+        self.assertEqual(be.read_review("5")["decision"], "review_required")
+
+    def test_read_review_requests_review_decision_field(self) -> None:
+        native = json.dumps({"reviewDecision": "APPROVED", "reviews": [],
+                             "comments": []})
+        runner = ScriptedRunner([(native,)])
+        _backend(runner).read_review("5")
+        fields = runner.argv(0)[runner.argv(0).index("--json") + 1].split(",")
+        self.assertIn("reviewDecision", fields)
+
+    def test_merge_state_maps_mergeable_to_neutral_state(self) -> None:
+        runner = ScriptedRunner([
+            (json.dumps({"mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN"}),),
+        ])
+        out = _backend(runner).merge_state("5", sleep=lambda _s: None)
+        self.assertEqual(out["state"], "mergeable")
+        # mergeStateStatus has no neutral 3-token equivalent → rides info.
+        self.assertEqual(out["info"]["merge_state_status"], "CLEAN")
+        self.assertNotIn("mergeStateStatus", out)
+
+    def test_is_merged_is_contract_result_with_neutral_bool(self) -> None:
+        runner = ScriptedRunner([
+            (json.dumps({"state": "MERGED", "mergedAt": "2026-06-01T00:00:00Z"}),),
+        ])
+        out = _backend(runner).is_merged("5")
+        self.assertEqual(out["outcome"], "ok")
+        self.assertEqual(out["id"], "5")
+        self.assertTrue(out["merged"])  # land reads ["merged"]
+        self.assertEqual(out["info"]["merged_at"], "2026-06-01T00:00:00Z")
+
+    def test_merge_is_contract_act_with_neutral_merged_bool(self) -> None:
+        out = _backend(ScriptedRunner([("",)])).merge("5", "squash")
+        self.assertEqual(out["outcome"], "ok")
+        self.assertEqual(out["id"], "5")
+        self.assertTrue(out["merged"])  # land reads ["merged"]
+        self.assertEqual(out["info"]["method"], "squash")
+
+    def test_closing_refs_surfaces_neutral_closes_list(self) -> None:
+        runner = ScriptedRunner([(_closing_payload([42, 43]),)])
+        out = _backend(runner).closing_refs("5")
+        self.assertEqual(out["outcome"], "ok")
+        self.assertEqual(out["closes"], [42, 43])
+        # The raw nodes ride info for adapter-internal callers.
+        self.assertEqual(len(out["info"]["closingIssuesReferences"]), 2)
+
+    def test_pr_create_returns_opaque_id_with_url_in_info(self) -> None:
+        url = "https://github.com/krixon/skills/pull/9"
+        out = _backend(ScriptedRunner([(url,)])).pr_create("feat: x", "Closes #1")
+        self.assertEqual(out["outcome"], "ok")
+        self.assertEqual(out["id"], "9")
+        self.assertEqual(out["info"]["url"], url)
+        self.assertNotIn("url", out)
+
+    def test_unresolved_threads_project_to_neutral_thread_rows(self) -> None:
+        native = json.dumps({"data": {"repository": {"pullRequest": {
+            "reviewThreads": {"nodes": [
+                {"id": "PRRT_1", "isResolved": False, "comments": {"nodes": [
+                    {"databaseId": 555, "body": "needs work", "path": "a.py",
+                     "author": {"login": "human"}}]}},
+                {"id": "PRRT_2", "isResolved": True, "comments": {"nodes": [
+                    {"databaseId": 556, "body": "done", "path": "b.py",
+                     "author": {"login": "human"}}]}},
+            ]}}}}})
+        out = _backend(ScriptedRunner([(native,)])).unresolved_threads("5")
+        # Only the unresolved thread; id is the thread handle, comment_id the
+        # reply target, body/path/author the neutral content pickup reads.
+        self.assertEqual(len(out), 1)
+        row = out[0]
+        self.assertEqual(row["id"], "PRRT_1")
+        self.assertEqual(row["comment_id"], 555)
+        self.assertEqual(row["body"], "needs work")
+        self.assertEqual(row["path"], "a.py")
+        self.assertEqual(row["author"], "human")
+        # The raw isResolved/nested shape is dropped.
+        self.assertNotIn("isResolved", row)
+
+
+def _closing_payload(numbers: list[int]) -> str:
+    return json.dumps(
+        {"closingIssuesReferences": [{"number": n} for n in numbers]})
+
+
+# --- PR dispatch envelopes (ADR 0009) ---------------------------------------
+
+class TestPrDispatch(unittest.TestCase):
+    def test_pr_review_dispatch_emits_decision(self) -> None:
+        native = json.dumps({"reviewDecision": "APPROVED",
+                             "reviews": [], "comments": []})
+        out = io.StringIO()
+        rc = tracker.run(
+            ["pr", "review", "--id", "5"],
+            env={"ISSUE_TRACKER": "github"},
+            runner=ScriptedRunner([(native,)]), repo="krixon/skills", stream=out)
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(out.getvalue())["decision"], "approved")
+
+    def test_pr_merge_state_dispatch_emits_neutral_envelope(self) -> None:
+        native = json.dumps({"mergeable": "CONFLICTING", "mergeStateStatus": "DIRTY"})
+        out = io.StringIO()
+        rc = tracker.run(
+            ["pr", "merge-state", "--id", "5"],
+            env={"ISSUE_TRACKER": "github"},
+            runner=ScriptedRunner([(native,)]), repo="krixon/skills", stream=out)
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["state"], "conflicting")
+        self.assertEqual(payload["info"]["merge_state_status"], "DIRTY")
+
+    def test_approval_covers_head_dispatch_is_contract_envelope(self) -> None:
+        native = json.dumps({"data": {"repository": {"pullRequest": {
+            "headRefOid": "abc", "latestReviews": {"nodes": [
+                {"state": "APPROVED", "author": {"login": "h"},
+                 "commit": {"oid": "abc"}}]}}}}})
+        out = io.StringIO()
+        rc = tracker.run(
+            ["pr", "approval-covers-head", "--id", "5"],
+            env={"ISSUE_TRACKER": "github"},
+            runner=ScriptedRunner([(native,)]), repo="krixon/skills", stream=out)
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["outcome"], "ok")
+        self.assertEqual(payload["id"], "5")
+        self.assertTrue(payload["covered"])
+
+    def test_merge_method_dispatch_is_contract_envelope(self) -> None:
+        rules = json.dumps([{"type": "pull_request",
+                            "parameters": {"allowed_merge_methods": ["squash"]}}])
+        out = io.StringIO()
+        rc = tracker.run(
+            ["pr", "merge-method", "--base", "main"],
+            env={"ISSUE_TRACKER": "github"},
+            runner=ScriptedRunner([(rules,)]), repo="krixon/skills", stream=out)
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["outcome"], "ok")
+        self.assertEqual(payload["method"], "squash")
+
+    def test_branch_ref_collision_dispatch_emits_claim_lost(self) -> None:
+        runner = ScriptedRunner([("", 1, "gh: Reference already exists (HTTP 422)")])
+        out = io.StringIO()
+        rc = tracker.run(
+            ["claim", "branch-ref", "--branch", "feat/1-x", "--sha", "deadbeef"],
+            env={"ISSUE_TRACKER": "github"},
+            runner=runner, repo="krixon/skills", stream=out)
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(out.getvalue())["outcome"], "claim_lost")
+
+    def test_pr_command_passes_opaque_non_numeric_id_through(self) -> None:
+        # A Jira-style key clears the PR parser and dispatch un-coerced — the
+        # int() narrowing happens only at the gh boundary (#232 guard).
+        captured: dict[str, Any] = {}
+
+        class CapturingBackend(tracker.GithubBackend):
+            def is_merged(self, id: str) -> dict[str, Any]:
+                captured["id"] = id
+                return {"outcome": "ok", "id": id, "merged": False, "info": {}}
+
+        be = CapturingBackend(identity=Identity(), repo="krixon/skills",
+                              runner=ScriptedRunner([("",)]))
+        args = tracker._build_parser().parse_args(
+            ["pr", "merged", "--id", "ORPL-123"])
+        rc = tracker._route(be, args, stream=io.StringIO(), stdin_body=None)
+        self.assertEqual(rc, 0)
+        self.assertEqual(captured["id"], "ORPL-123")
 
 
 # --- issue contract projection (ADR 0009) -----------------------------------
@@ -1026,7 +1257,7 @@ class TestDispatchAndShapes(unittest.TestCase):
             runner=ScriptedRunner([(issues,)]), repo="krixon/skills", stream=out,
         )
         self.assertEqual(rc, 0)
-        self.assertEqual(json.loads(out.getvalue())[0]["number"], 4)
+        self.assertEqual(json.loads(out.getvalue())[0]["id"], "4")
 
     def test_unknown_tracker_halts(self) -> None:
         out = io.StringIO()
