@@ -45,3 +45,16 @@ done
 
 echo "relinked $(find "$farm" -maxdepth 1 -type l | wc -l | tr -d ' ') skills into $farm"
 echo "relinked $(find "$cmd_farm" -maxdepth 1 -type l | wc -l | tr -d ' ') commands into $cmd_farm"
+
+# Provision CLAUDE_PLUGIN_ROOT for dev. The collapsed pure commands (commands/*.md,
+# ADR 0008) invoke ${CLAUDE_PLUGIN_ROOT}/bin/<name>. The harness sets that variable
+# for a marketplace install, but the dogfood farm above loads the same wrappers with
+# it unset, so the substitution collapses to /bin/<name>. We already know the value —
+# it is this repo root — so write it into the machine-local settings on the same run
+# that wires the farms. Merge into the gitignored settings.local.json (which carries
+# other env), never overwrite.
+local_settings="$root/.claude/settings.local.json"
+[ -f "$local_settings" ] || echo '{}' > "$local_settings"
+tmp="$(mktemp)"
+jq --arg root "$root" '.env.CLAUDE_PLUGIN_ROOT = $root' "$local_settings" > "$tmp" && mv "$tmp" "$local_settings"
+echo "set CLAUDE_PLUGIN_ROOT=$root in $local_settings"
