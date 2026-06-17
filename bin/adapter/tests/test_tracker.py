@@ -539,6 +539,47 @@ class TestIssueContract(unittest.TestCase):
         self.assertEqual(result["info"]["number"], 227)
         self.assertNotIn("number", result)
         self.assertNotIn("url", result)
+        # Body is neutral issue content (an agent brief lives here) — surfaced
+        # at the top level, not dropped.
+        self.assertEqual(result["body"], "B")
+
+    def test_issue_view_projects_comments_into_neutral_shape(self) -> None:
+        # A triage-promoted brief lives in a comment, so view must surface them.
+        curl = "https://github.com/krixon/skills/issues/227#issuecomment-9"
+        native = json.dumps({
+            "number": 227, "url": "https://github.com/krixon/skills/issues/227",
+            "title": "T", "body": "B", "state": "open", "labels": [],
+            "assignees": [],
+            "comments": [{
+                "id": "IC_1", "url": curl, "author": {"login": "krixon"},
+                "body": "## Agent Brief", "createdAt": "2026-06-16T12:33:14Z",
+                "authorAssociation": "OWNER",
+            }],
+        })
+        be = _backend(ScriptedRunner([(native,)]))
+        comments = be.issue_view("227")["comments"]
+        self.assertEqual(len(comments), 1)
+        c = comments[0]
+        # Neutral comment: author login, body, created_at at the top level.
+        self.assertEqual(c["author"], "krixon")
+        self.assertEqual(c["body"], "## Agent Brief")
+        self.assertEqual(c["created_at"], "2026-06-16T12:33:14Z")
+        # Native id and url quarantined in the comment's info sidecar.
+        self.assertEqual(c["info"]["id"], "IC_1")
+        self.assertEqual(c["info"]["url"], curl)
+
+    def test_issue_view_requests_body_and_comments_in_json_fields(self) -> None:
+        # Brief-readers depend on gh being asked for body and comments.
+        native = json.dumps({
+            "number": 1, "url": "https://github.com/krixon/skills/issues/1",
+            "title": "t", "body": "", "state": "open",
+            "labels": [], "assignees": [], "comments": [],
+        })
+        runner = ScriptedRunner([(native,)])
+        _backend(runner).issue_view("1")
+        fields = runner.argv(0)[runner.argv(0).index("--json") + 1].split(",")
+        self.assertIn("body", fields)
+        self.assertIn("comments", fields)
 
     def test_issue_view_requests_url_in_json_fields(self) -> None:
         # AC#1 hinges on gh being asked for `url`; assert it's in the field set.
@@ -579,7 +620,7 @@ class TestIssueContract(unittest.TestCase):
 
     def test_issue_list_returns_neutral_issue_shape(self) -> None:
         native = json.dumps([
-            {"number": 3, "title": "c", "body": "", "state": "open",
+            {"number": 3, "title": "c", "state": "open",
              "labels": [{"id": "L", "name": "ready"}]},
         ])
         be = _backend(ScriptedRunner([(native,)]))
@@ -588,6 +629,20 @@ class TestIssueContract(unittest.TestCase):
         self.assertEqual(out[0]["state"], "open")
         self.assertEqual(out[0]["labels"], ["ready"])
         self.assertEqual(out[0]["info"]["number"], 3)
+
+    def test_issue_list_stays_a_lean_summary(self) -> None:
+        # list is a summary: it neither fetches nor surfaces body/comments — the
+        # detail read (issue view) carries those.
+        native = json.dumps([
+            {"number": 3, "title": "c", "state": "open", "labels": []},
+        ])
+        runner = ScriptedRunner([(native,)])
+        out = _backend(runner).issue_list()
+        self.assertNotIn("body", out[0])
+        self.assertNotIn("comments", out[0])
+        fields = runner.argv(0)[runner.argv(0).index("--json") + 1].split(",")
+        self.assertNotIn("body", fields)
+        self.assertNotIn("comments", fields)
 
     def test_issue_comment_is_act_shaped_with_outcome(self) -> None:
         url = "https://github.com/krixon/skills/issues/7#issuecomment-1"

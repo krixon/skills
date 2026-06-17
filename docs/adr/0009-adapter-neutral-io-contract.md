@@ -27,6 +27,8 @@ A single opaque string `id` is the only identifier in or out. The input argument
 
 Each result is two zones. Neutral contract fields sit at the **top level**. All adapter-specific data sits under one reserved key, **`info`**, and is informational — nothing branches on it. So GitHub `issue view` returns `{"id": "227", "state": "open", "title": …, "labels": […], "info": {"url": …, "number": 227}}` and Jira the same shape with `key` and `issue_type` under `info`. The neutral path stays terse, and `info` is read for display only, never branched on.
 
+Issue *content* is neutral and sits at the top level too: `body`, and `comments` on a detail read (`issue view`), are where an agent brief lives, so they are contract fields, not `info` — each comment a neutral `{author, body, created_at}` with its native id/url quarantined in a per-comment `info`. A summary read (`issue list`) omits both to stay lean; the detail read carries them.
+
 ### Two axes, selected independently
 
 "Tracker" conflates two backends. The **issue-tracker axis** (GitHub Issues vs Jira) owns issues, relations, labels, and issue state; the **code-host axis** (GitHub PRs vs a future host) owns PRs, reviews, the branch-ref claim, and merge. They are selected independently: `$ISSUE_TRACKER` drives only the tracker axis. A repo tracking issues in Jira still raises PRs on GitHub, so a PR's contract is neutral across *code hosts* and does not vary with `$ISSUE_TRACKER`; Jira implements the tracker axis only. Neutrality is claimed per axis.

@@ -71,7 +71,10 @@ def _backend(runner: Any) -> GithubBackend:
 
 
 def _issue_list(rows: list[dict[str, Any]]) -> str:
-    return json.dumps(rows)
+    # issue_list always requests `state` from gh, and the neutral projection
+    # (ADR 0009) maps it through the closed vocabulary, so every native row
+    # carries one. Default it here; a row may override.
+    return json.dumps([{"state": "open", **row} for row in rows])
 
 
 # --- pure: duration parsing and cutoff --------------------------------------
