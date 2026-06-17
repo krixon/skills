@@ -310,6 +310,39 @@ def cmd_apply(args):
     return 0
 
 
+def _tracker_bin():
+    """The distributable `tracker` binary, the single namer of the release publish.
+
+    version is repo-local (ADR 0005) and orchestrates the publish through the
+    shipped `bin/tracker` rather than re-rolling the `gh release` call — the same
+    way it shells `git`. The path is computed relative to this script's home
+    (`.claude/skills/release/scripts/version` → repo-root `bin/tracker`), so it
+    resolves wherever the repo is checked out.
+    """
+    here = Path(__file__).resolve()
+    # scripts/ -> release/ -> skills/ -> .claude/ -> repo root
+    repo_root = here.parents[4]
+    return repo_root / "bin" / "tracker"
+
+
+def cmd_publish(args):
+    """ACT: publish a GitHub release for the pushed tag, notes on stdin.
+
+    The tag and bump already stand on main (cmd_apply pushed them); this is the
+    separate, human-confirmed publish. Delegates to `bin/tracker release publish`
+    — the single namer of `gh` and the bot identity — passing the notes
+    out-of-band on stdin so an embedded backtick or `$(…)` can never execute.
+    """
+    notes = sys.stdin.read()
+    result = subprocess.run(
+        [sys.executable, str(_tracker_bin()), "release", "publish",
+         "--tag", args.tag],
+        input=notes,
+        text=True,
+    )
+    return result.returncode
+
+
 def _repo_from_cwd():
     """The enclosing repository's root, or None when run outside one."""
     try:
@@ -341,6 +374,12 @@ def main(argv=None):
 
     p_apply = sub.add_parser("apply", help="bump, tag, and push the release")
     p_apply.set_defaults(func=cmd_apply)
+
+    p_publish = sub.add_parser(
+        "publish", help="publish a GitHub release for the pushed tag (notes on stdin)"
+    )
+    p_publish.add_argument("--tag", required=True, help="the pushed tag, e.g. v1.2.0")
+    p_publish.set_defaults(func=cmd_publish)
 
     args = parser.parse_args(argv)
     if args.repo is None:

@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import os
 import subprocess
@@ -327,6 +328,55 @@ class ApplyTest(unittest.TestCase):
         _commit(self.repo, "chore: noise")
         rc = version.cmd_apply(_ApplyArgs(self.repo))
         self.assertEqual(rc, 1)
+
+
+class _PublishArgs:
+    def __init__(self, tag):
+        self.tag = tag
+
+
+class PublishTest(unittest.TestCase):
+    """publish delegates the GitHub release to bin/tracker, naming no gh itself.
+
+    The repo-local version script owns no GitHub mechanics — publish shells the
+    distributable tracker binary, passing the tag as an argument and the notes
+    out-of-band on stdin. The test stubs subprocess.run and stdin to assert that
+    contract without a real tracker or network.
+    """
+
+    def test_publish_shells_tracker_with_tag_and_notes_on_stdin(self):
+        calls = {}
+
+        def fake_run(argv, input=None, text=None):
+            calls["argv"] = argv
+            calls["input"] = input
+
+            class _R:
+                returncode = 0
+            return _R()
+
+        orig_run = version.subprocess.run
+        orig_stdin = version.sys.stdin
+        version.subprocess.run = fake_run
+        version.sys.stdin = io.StringIO("v1.2.0\n\nfeat: a thing\n")
+        try:
+            rc = version.cmd_publish(_PublishArgs("v1.2.0"))
+        finally:
+            version.subprocess.run = orig_run
+            version.sys.stdin = orig_stdin
+
+        self.assertEqual(rc, 0)
+        argv = calls["argv"]
+        # shells the distributable tracker binary's release publish, with the tag
+        self.assertIn("tracker", str(argv[1]))
+        self.assertEqual(argv[2:], ["release", "publish", "--tag", "v1.2.0"])
+        # notes ride stdin, never argv
+        self.assertEqual(calls["input"], "v1.2.0\n\nfeat: a thing\n")
+
+    def test_tracker_bin_path_resolves_to_repo_root_bin(self):
+        path = version._tracker_bin()
+        self.assertEqual(path.name, "tracker")
+        self.assertEqual(path.parent.name, "bin")
 
 
 if __name__ == "__main__":

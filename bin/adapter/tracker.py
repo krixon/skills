@@ -540,6 +540,110 @@ class GithubBackend:
         return {"replied": True, "reply_id": reply_id, "resolved": True,
                 "skipped": False}
 
+    # -- staleness selection (reap) ------------------------------------------
+
+    def open_pr_for_issue(self, number: int) -> bool:
+        """True when an open PR cross-references this issue.
+
+        An issue with an open PR is in review, not abandoned (reap step 1): read
+        the issue's timeline for a cross-reference from an open pull request. The
+        link is the same signal `closingIssuesReferences` reports on a merge,
+        read here from the issue's side while the PR is still open.
+        """
+        count = self._json(
+            ["api", self._api(f"issues/{number}/timeline"),
+             "--jq", '[.[] | select(.event == "cross-referenced") '
+             '| .source.issue | select(.pull_request != null) '
+             '| select(.state == "open")] | length'],
+            default=0,
+        )
+        return int(count or 0) > 0
+
+    def issue_updated_at(self, number: int) -> str | None:
+        """The issue's last-update timestamp (ISO 8601), for the quiet check."""
+        ts = self._text(
+            ["issue", "view", str(number), "--repo", self.repo,
+             "--json", "updatedAt", "--jq", ".updatedAt"],
+        )
+        return ts or None
+
+    def pr_for_branch(self, branch: str) -> dict[str, Any] | None:
+        """The PR opened from `branch` and its state, or None when none exists.
+
+        reap matches an orphaned worktree to its PR by the head branch `pickup`
+        derived. A branch with no PR reads as None; the caller then decides on
+        the remote-existence signal instead. State is lower-snake (`open`,
+        `merged`, `closed`).
+        """
+        prs = self._json(
+            ["pr", "list", "--repo", self.repo, "--state", "all",
+             "--head", branch, "--json", "number,state"],
+            default=[],
+        )
+        if not prs:
+            return None
+        # A head branch carries at most one open PR; with several historical
+        # ones, the open one (if any) decides, else the first listed.
+        for pr in prs:
+            if pr.get("state") == "OPEN":
+                return {"number": pr["number"], "state": "open"}
+        pr = prs[0]
+        return {"number": pr["number"], "state": pr.get("state", "").lower()}
+
+    def find_stale_claims(self, before: str) -> list[dict[str, Any]]:
+        """Claimed issues abandoned by a crashed run, oldest claim first.
+
+        A candidate carries `in-progress`, has no open PR referencing it, and
+        was claimed before `before` (an ISO 8601 cutoff the caller derives from
+        the threshold). An issue with an open PR is in review — never a
+        candidate. Skips ones with no claim timestamp: the label without an
+        assignment is a different anomaly, not an abandoned claim.
+        """
+        issues = self.issue_list(label="in-progress", state="open")
+        out: list[dict[str, Any]] = []
+        for issue in issues:
+            number = issue["number"]
+            since = self.claim_since(number)["since"]
+            if since is None or since >= before:
+                continue
+            if self.open_pr_for_issue(number):
+                continue
+            holders = self.claim_holder(number)["holders"]
+            out.append({"number": number, "title": issue.get("title"),
+                        "since": since, "holders": holders})
+        out.sort(key=lambda i: i["since"])
+        return out
+
+    def find_quiet_needs_info(self, before: str) -> list[dict[str, Any]]:
+        """Open needs-info issues whose last activity predates `before`."""
+        issues = self.issue_list(label="needs-info", state="open")
+        out: list[dict[str, Any]] = []
+        for issue in issues:
+            number = issue["number"]
+            updated = self.issue_updated_at(number)
+            if updated is None or updated >= before:
+                continue
+            out.append({"number": number, "title": issue.get("title"),
+                        "updatedAt": updated})
+        out.sort(key=lambda i: i["updatedAt"])
+        return out
+
+    def find_stale_epics(self) -> list[dict[str, Any]]:
+        """Open epics every one of whose sub-issues is now closed.
+
+        An epic with no children, or any open child, is not a candidate; the
+        sub-issue list is carried so the caller can show the evidence.
+        """
+        epics = self.issue_list(label="epic", state="open")
+        out: list[dict[str, Any]] = []
+        for epic in epics:
+            number = epic["number"]
+            subs = self.list_sub_issues(number)
+            if subs and all(s.get("state") == "closed" for s in subs):
+                out.append({"number": number, "title": epic.get("title"),
+                            "subIssues": subs})
+        return out
+
     # -- release -------------------------------------------------------------
 
     def release_publish(self, tag: str, notes: str) -> dict[str, str]:
