@@ -87,6 +87,18 @@ def issue_state(native: str) -> str:
     return map_enum(_GITHUB_ISSUE_STATE, native)
 
 
+def jira_issue_state(category: str | None) -> str:
+    """Map a Jira status category key to the neutral `{open, closed}` token.
+
+    Jira's status carries a platform-stable `statusCategory.key` — `new` /
+    `indeterminate` / `done` — rather than two states. Only `done` is closure;
+    every other category (and an absent one) is open work still in flight. This
+    is the read half of the same category invariant the close path writes by:
+    keyed on the stable category, never a renameable status name.
+    """
+    return "closed" if category == "done" else "open"
+
+
 def review_decision(native: str | None) -> str:
     """Map a GitHub `reviewDecision` to the neutral review-decision token.
 

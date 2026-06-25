@@ -2,9 +2,12 @@
 
 Sibling of the `GithubBackend` in `tracker.py` and symmetric with it: the same
 tracker-neutral concept surface, mapped to Jira primitives rather than GitHub
-ones. It shells out to `acli jira` for everything acli can do, and makes exactly
-one urllib REST call — `aclicmd.fetch_transitions` — for the one thing acli
-cannot: enumerate an issue's reachable transitions.
+ones. It shells out to `acli jira` for the reads and the create/comment/label
+writes acli handles, and drives the close path entirely over REST through the
+`curl` seam (`jiracmd`) — the one thing acli cannot do without falling over
+enterprise TLS interception: enumerate an issue's reachable transitions and POST
+the one carrying the done category, attaching a resolution only when the
+transition requires it.
 
 The concept→primitive map (ADR 0008): category and structure labels become Jira
 issue types, the workflow/triage state labels carry across as Jira labels, and
@@ -17,9 +20,10 @@ backend, not by the mechanics here.
 The category invariant (ADR 0008): a status is *read* by its
 `statusCategory.key` (`new` / `indeterminate` / `done`), never by name, because
 the key is platform-stable while a project can rename "In Progress" freely. A
-status *transition* resolves the target category to a concrete reachable status
-name at call time via the /transitions fetch, then transitions by that name —
-so a workflow rename can never break the binding to a hard-coded name.
+status *transition* resolves the target category to a concrete reachable
+transition at call time via the REST `GET /transitions`, then POSTs that
+transition's id — so a workflow rename, which leaves the category and the
+transition id intact, can never break the binding to a hard-coded name.
 """
 
 from __future__ import annotations
@@ -29,7 +33,13 @@ import os
 import tempfile
 from typing import Any, Callable, Iterator, Sequence
 
-from adapter import aclicmd
+from adapter import aclicmd, cli, enums, jiracmd
+
+# The default resolution attached when a done transition requires one. Jira
+# rejects a transition with a mandatory Resolution field unset; the operator
+# overrides the name via JIRA_DONE_RESOLUTION when the project renames it.
+_DONE_RESOLUTION_VAR = "JIRA_DONE_RESOLUTION"
+_DEFAULT_DONE_RESOLUTION = "Done"
 
 # Category/structure label → Jira issue type. The two category labels (bug,
 # enhancement) and the one structure label (epic) name a kind of work; Jira
@@ -110,20 +120,37 @@ class JiraBackend:
     """The `acli`-backed implementation of the tracker concepts.
 
     `project` is the Jira project key (e.g. `PROJ`); `credential` is the single
-    `(site, email, api_token)` source the /transitions fetch authenticates with;
+    `(site, email, api_token)` source the REST close path authenticates with;
     `runner` is the acli subprocess seam (defaults to the real one).
-    `transitions_fetcher` is the urllib /transitions seam, injected so the
-    call-time category→status-name resolution is unit-tested offline.
+    `curl_runner` is the REST seam (defaults to `jiracmd.run_curl`) and
+    `token_evaluator` the api_token-command seam, both injected so the close
+    path's transitions GET and POST are unit-tested offline with no network and
+    no token spawn. `done_resolution` is the resolution name attached when a
+    done transition requires one (default `Done`, overridable per project).
     """
+
+    @classmethod
+    def done_resolution_from(cls, env: Any) -> str:
+        """The done resolution name from the environment, defaulting to `Done`.
+
+        The operator names their project's terminal resolution via
+        `JIRA_DONE_RESOLUTION` (e.g. `Fixed`); absent or empty falls back to the
+        Jira default `Done`. The single read point so dispatch and the backend
+        agree on the var name.
+        """
+        return env.get(_DONE_RESOLUTION_VAR) or _DEFAULT_DONE_RESOLUTION
 
     def __init__(self, credential: aclicmd.JiraCredential, project: str,
                  runner: aclicmd.Runner | None = None,
-                 transitions_fetcher: Callable[..., list[dict[str, str]]] | None
-                 = None) -> None:
+                 curl_runner: jiracmd.Runner | None = None,
+                 token_evaluator: Callable[[str], str] | None = None,
+                 done_resolution: str = _DEFAULT_DONE_RESOLUTION) -> None:
         self.credential = credential
         self.project = project
         self.runner = runner or aclicmd.run_acli
-        self._fetch_transitions = transitions_fetcher or aclicmd.fetch_transitions
+        self._curl_runner = curl_runner or jiracmd.run_curl
+        self._token_evaluator = token_evaluator or aclicmd.eval_token
+        self.done_resolution = done_resolution
 
     # -- internal helpers ----------------------------------------------------
 
@@ -160,56 +187,111 @@ class JiraBackend:
         """
         return self.status_category(key) == CATEGORY_DONE
 
+    # -- the all-REST curl close path ----------------------------------------
+
+    def _config(self) -> str:
+        """The `curl -K -` config carrying the Basic credential for this site.
+
+        Evaluates the api_token from the credential's command once and base64-
+        encodes it into the config's Authorization header, so the token rides
+        the stdin config channel and never argv (SECURITY.md).
+        """
+        return jiracmd.config_for(self.credential,
+                                  token_evaluator=self._token_evaluator)
+
+    def _transitions_url(self, key: str) -> str:
+        return f"{self.credential.site}/rest/api/3/issue/{key}/transitions"
+
     def transition_to_category(self, key: str,
                                target_category: str) -> dict[str, Any]:
-        """Transition the issue to a status carrying `target_category`.
+        """Transition the issue to a status carrying `target_category`, all-REST.
 
-        The category invariant's write half. `acli` transitions only by status
-        name and cannot enumerate transitions, so the concrete target name is
-        resolved *at call time*: fetch the reachable transitions, pick the one
-        whose target status carries `target_category`, then
-        `acli jira workitem transition <KEY> --status <that name>`. Nothing is
-        hard-coded, so a project renaming its workflow statuses cannot break the
-        binding.
+        The category invariant's write half, over the `curl` REST seam. The
+        target is resolved *at call time*: `GET /transitions` enumerates the
+        reachable transitions, the one whose `to.statusCategory.key` carries
+        `target_category` is picked by its id, and `POST /transitions` performs
+        it — attaching a `resolution` field (name from `done_resolution`) only
+        when that transition's `fields.resolution.required` is set. Nothing is
+        keyed on a status name, so a project renaming its workflow cannot break
+        the binding, and the REST path honours the OS trust store where the old
+        urllib GET fell over enterprise TLS interception.
 
         Short-circuits as a no-op when the issue is already in the target
-        category (the already-done check). Raises NoSuchTransition when no
-        reachable transition carries the category — a real blocker, not a guess.
+        category (the already-done check, still an acli read). Raises
+        NoSuchTransition when no reachable transition carries the category — a
+        real blocker, not a guess.
         """
         if self.status_category(key) == target_category:
             return {"key": key, "category": target_category, "noop": True}
 
-        transitions = self._fetch_transitions(self.credential, key)
+        config = self._config()
+        url = self._transitions_url(key)
+        payload = jiracmd.request_json("GET", url, config,
+                                       runner=self._curl_runner, default={})
+        transitions = payload.get("transitions") or []
         match = next(
-            (t for t in transitions if t.get("category") == target_category),
+            (t for t in transitions
+             if ((t.get("to") or {}).get("statusCategory") or {}).get("key")
+             == target_category),
             None)
         if match is None:
             raise NoSuchTransition(
                 f"no reachable transition to a {target_category!r} status for "
                 f"{key} (reachable: "
-                f"{[t.get('name') for t in transitions]})")
+                f"{[(t.get('to') or {}).get('name') for t in transitions]})")
 
-        name = match["name"]
-        # acli identifies the work item by `--key` (not positionally, unlike
-        # `view`) and prompts for confirmation unless `--yes` is given — the
-        # binary has no TTY, so the prompt would hang.
-        self._text(["jira", "workitem", "transition", "--key", key,
-                    "--status", name, "--yes"])
-        return {"key": key, "category": target_category, "status": name,
-                "noop": False}
+        body: dict[str, Any] = {"transition": {"id": match["id"]}}
+        # Attach a resolution only when this transition's screen requires the
+        # field — an unrequired resolution is rejected, a required one omitted is
+        # rejected; #233 owns the broader needs-a-field decision, this case is
+        # the mandatory-Resolution one the close path must handle itself.
+        if self._requires_resolution(match):
+            body["fields"] = {"resolution": {"name": self.done_resolution}}
+        # The POST returns 204 No Content on success (no body to parse).
+        jiracmd.request("POST", url, config,
+                        payload=body, runner=self._curl_runner)
+        return {"key": key, "category": target_category,
+                "transition_id": match["id"], "noop": False}
+
+    @staticmethod
+    def _requires_resolution(transition: dict[str, Any]) -> bool:
+        """Whether a transition's screen marks the `resolution` field required.
+
+        The transition's `fields.resolution.required` flag, read defensively: a
+        transition with no fields block (the common case) requires nothing.
+        """
+        resolution = (transition.get("fields") or {}).get("resolution") or {}
+        return bool(resolution.get("required"))
 
     # -- issues --------------------------------------------------------------
 
     def issue_view(self, key: str) -> dict[str, Any]:
-        """Read an issue (work item) with all fields, in JSON.
+        """Read an issue and project it into the neutral two-zone envelope.
 
-        The same `--fields '*all'` view status_category reads, returned whole so
-        the caller sees summary, status, labels, and the rest in one read.
+        Reads the same `--fields '*all'` view status_category reads, then shapes
+        it to the contract (ADR 0009): the opaque Jira key is the neutral `id`,
+        the neutral `state` resolves from `statusCategory.key` (`done`→`closed`,
+        else `open`), and `title`/`labels` carry across at the top level. The
+        Jira key and the issue url ride the `info` sidecar — the adapter-
+        specific data nothing branches on.
         """
-        return self._json(
+        native = self._json(
             ["jira", "workitem", "view", key, "--json", "--fields", "*all"],
             default={},
         )
+        fields = native.get("fields") or {}
+        category = ((fields.get("status") or {}).get("statusCategory") or {}
+                    ).get("key")
+        info: dict[str, Any] = {"key": native.get("key", key)}
+        if "url" in native:
+            info["url"] = native["url"]
+        return {
+            "id": native.get("key", key),
+            "state": enums.jira_issue_state(category),
+            "title": fields.get("summary"),
+            "labels": fields.get("labels") or [],
+            "info": info,
+        }
 
     def issue_create(self, title: str, body: str,
                      category: str) -> dict[str, Any]:
@@ -262,10 +344,15 @@ class JiraBackend:
         return {"key": key, "added": add or [], "removed": remove or []}
 
     def issue_close(self, key: str) -> dict[str, Any]:
-        """Close an issue by transitioning it to the done category.
+        """Close an issue by transitioning it to the done category, all-REST.
 
         Closure is a status move resolved by category, not a status name —
-        delegates to transition_to_category, which short-circuits when the issue
-        is already done.
+        delegates to transition_to_category (the curl GET/POST), which short-
+        circuits when the issue is already done. Returns the contract act
+        envelope: a coded `outcome`, the opaque `id`, and the neutral `closed`
+        state; the transition id (or the noop flag) rides the `info` sidecar.
         """
-        return self.transition_to_category(key, CATEGORY_DONE)
+        result = self.transition_to_category(key, CATEGORY_DONE)
+        info = {k: v for k, v in result.items()
+                if k not in ("key", "category")}
+        return {"outcome": cli.OK, "id": key, "state": "closed", "info": info}

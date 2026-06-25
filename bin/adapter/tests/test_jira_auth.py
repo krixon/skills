@@ -51,7 +51,7 @@ class TestCredentialResolution(unittest.TestCase):
     def test_all_unset_is_refused(self) -> None:
         # Unlike the GitHub identity (where unconfigured is a valid solo-dev
         # state), the Jira backend has no unconfigured mode: the api_token is the
-        # shared source for both acli and the urllib /transitions call.
+        # shared source for both acli and the curl REST close path.
         with self.assertRaises(aclicmd.CredentialIncomplete):
             _resolve()
 
