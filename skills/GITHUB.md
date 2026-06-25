@@ -40,6 +40,11 @@ One execution **state** label (`pickup` owns it):
 
 - `in-progress` — claimed by `pickup`, implementation underway
 
+Two **priority** labels (`triage` owns them, set at promotion):
+
+- `priority:high` — higher priority tier
+- `priority:low` — lower priority tier
+
 There is **no** review-state label. A claimed issue (`in-progress`) with an open PR *is* "in review"; once a human requests changes the PR carries that signal (see *Rework* below).
 
 ## Glossary — workflow concepts
@@ -68,6 +73,20 @@ Skills express the workflow in the tracker-neutral concepts below; this table is
 - **Comment**: `gh issue comment <n> --body "..."`.
 - **Label**: `gh issue edit <n> --add-label "..."` / `--remove-label "..."`.
 - **Close**: `gh issue close <n> --comment "..."`.
+
+## New-work selection
+
+The query `pickup` uses for new-work selection. Query one pool at a time, excluding claimed work, then sort by tier and age in `jq`. Substitute `ready-for-human` to drain the second pool only once the first is empty:
+
+```
+gh issue list --state open --label ready-for-agent --json number,title,labels,createdAt \
+  --jq 'map(.names = [.labels[].name])
+        | map(select(.names | index("in-progress") | not))
+        | map(.tier = (if (.names | index("priority:high")) then 0 elif (.names | index("priority:low")) then 2 else 1 end))
+        | sort_by(.tier, .createdAt)'
+```
+
+`tier` is `0` high / `1` unlabelled / `2` low, so `sort_by(.tier, .createdAt)` yields high-then-unlabelled-then-low, oldest first within each. The query carries no pool ordering itself — that lives in the two-step "drain `ready-for-agent` first" above.
 
 ## Issue relations
 
