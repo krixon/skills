@@ -50,7 +50,7 @@ Commit (per [../../WRITING.md](../../WRITING.md)), push, open a PR **as the bot,
 No-issue: <one-line reason this ships without a tracked issue>
 ```
 
-`land` reads that marker and treats the missing issue as **expected**. Write the rest of the body per [../GITHUB.md](../GITHUB.md). Then leave it: a human reviews and lands. Do **not** merge.
+`land` reads that marker and treats the missing issue as **expected**. Write the rest of the body per [../GITHUB.md](../GITHUB.md), and carry the **degraded review-aid** section per [../REVIEW-AID.md](../REVIEW-AID.md) — residual risk and gate disposition only, no acceptance-criterion part, since a patch ships from the conversation with no brief to map. Then leave it: a human reviews and lands. Do **not** merge.
 
 ## Handover
 

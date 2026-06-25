@@ -105,7 +105,7 @@ They differ only by what they look for:
 
 ### pickup
 
-**What it does.** Claims a triaged issue and implements it, routing by artifact kind — code goes to `tdd` or `diagnose`, a skill to `write-skill`, docs to authoring, config to `update-config`. It works on a branch and opens a PR. AFK (`ready-for-agent`) issues run unattended; HITL (`ready-for-human`) issues are driven with you.
+**What it does.** Claims a triaged issue and implements it, routing by artifact kind — code goes to `tdd` or `diagnose`, a skill to `write-skill`, docs to authoring, config to `update-config`. It works on a branch and opens a PR carrying the full [review-aid](../skills/REVIEW-AID.md) summary — per-acceptance-criterion coverage with `file:line` evidence, residual risk, and the review-gate disposition — refreshed in place on each rework round. AFK (`ready-for-agent`) issues run unattended; HITL (`ready-for-human`) issues are driven with you.
 
 **When to reach for it.** A ready issue is on the tracker and you want it implemented.
 
@@ -115,7 +115,7 @@ They differ only by what they look for:
 
 ### patch
 
-**What it does.** Ships a small, obvious fix straight from the conversation with no tracked issue: a worktree branch through the review gate to a no-issue PR (body led by `No-issue:`) that a human lands. Human-invoked only.
+**What it does.** Ships a small, obvious fix straight from the conversation with no tracked issue: a worktree branch through the review gate to a no-issue PR (body led by `No-issue:`, carrying the degraded [review-aid](../skills/REVIEW-AID.md) summary — residual risk and gate disposition, no acceptance-criteria part) that a human lands. Human-invoked only.
 
 **When to reach for it.** The fix is too small to be worth filing an issue — a typo, a doc correction, a one-line config tweak, a comment cleanup. For anything needing a decision use `design`; for work worth tracking use `slice`; for an issue already on the tracker use `pickup`.
 
