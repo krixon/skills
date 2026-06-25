@@ -19,7 +19,7 @@ import json
 import unittest
 from typing import Any, Sequence
 
-from adapter import aclicmd, jira, jiracmd, tracker
+from adapter import aclicmd, cli, jira, jiracmd, tracker
 from adapter.jiracmd import CurlResult
 
 
@@ -293,6 +293,175 @@ class TestRestClose(unittest.TestCase):
         self.assertIn(expected, curl.calls[0]["config"])
 
 
+# --- AC1/2/3: backend-mandated required fields on create (#233) -------------
+
+class TestRequiredFieldsConfig(unittest.TestCase):
+    """The operator config naming required-field identities per issue type and
+    the deployment-wide fixed values, read from the environment."""
+
+    def test_required_fields_parses_per_type_mapping(self) -> None:
+        env = {"JIRA_REQUIRED_FIELDS":
+               '{"Epic": ["customfield_10100"], "Bug": ["customfield_10200"]}'}
+        rf = jira.JiraBackend.required_fields_from(env)
+        self.assertEqual(rf["Epic"], ["customfield_10100"])
+        self.assertEqual(rf["Bug"], ["customfield_10200"])
+
+    def test_required_fields_absent_is_empty(self) -> None:
+        self.assertEqual(jira.JiraBackend.required_fields_from({}), {})
+
+    def test_field_values_parses_fixed_value_mapping(self) -> None:
+        env = {"JIRA_FIELD_VALUES": '{"customfield_10100": "Run the Business"}'}
+        fv = jira.JiraBackend.field_values_from(env)
+        self.assertEqual(fv["customfield_10100"], "Run the Business")
+
+    def test_field_values_absent_is_empty(self) -> None:
+        self.assertEqual(jira.JiraBackend.field_values_from({}), {})
+
+
+def _create_backend(runner: Any, *, curl: Any = None,
+                    required_fields: Any = None,
+                    field_values: Any = None) -> jira.JiraBackend:
+    return jira.JiraBackend(
+        credential=_cred(), project="PROJ", runner=runner, curl_runner=curl,
+        token_evaluator=lambda cmd: "tok",
+        required_fields=required_fields or {},
+        field_values=field_values or {})
+
+
+class TestRequiredFieldCreate(unittest.TestCase):
+    """The three-class handling of backend-mandated non-neutral create fields.
+
+    A type with no mandated field creates through the unchanged acli path; a
+    type with one drives the REST create over the curl seam so the field rides
+    the create. Fixed values come from config; a decided value with no `--set`
+    halts with `needs_decision` (allowed values discovered over REST); a `--set`
+    value is forwarded verbatim.
+    """
+
+    @staticmethod
+    def _createmeta(field_id: str, *, allowed: list[str]) -> str:
+        # GET createmeta payload: the mandated field with its allowedValues,
+        # shaped as the Jira createmeta REST endpoint returns them.
+        return json.dumps({"fields": [
+            {"fieldId": field_id, "name": "Investment Category",
+             "required": True,
+             "allowedValues": [{"value": v} for v in allowed]}]})
+
+    # AC1 -- a mandated fixed-value field is set from config on create.
+    def test_fixed_value_field_set_from_config(self) -> None:
+        curl = ScriptedCurl([(json.dumps({"key": "PROJ-9"}), 201)])  # POST create
+        be = _create_backend(ScriptedRunner(["{}"]), curl=curl,
+                             required_fields={"Epic": ["customfield_10100"]},
+                             field_values={"customfield_10100": "Run"})
+        out = be.issue_create(title="an epic", body="b", category="epic")
+        self.assertEqual(out["outcome"], "ok")
+        self.assertEqual(out["key"], "PROJ-9")
+        # One REST POST to the create endpoint, carrying the fixed field value.
+        self.assertEqual(len(curl.calls), 1)
+        post = curl.calls[0]
+        self.assertEqual(post["method"], "POST")
+        self.assertIn("/rest/api/3/issue", post["url"])
+        payload = json.loads(post["payload"])
+        self.assertEqual(payload["fields"]["customfield_10100"], "Run")
+        # The neutral fields ride the same REST payload — type, project, summary.
+        self.assertEqual(payload["fields"]["issuetype"]["name"], "Epic")
+        self.assertEqual(payload["fields"]["project"]["key"], "PROJ")
+        self.assertEqual(payload["fields"]["summary"], "an epic")
+
+    # AC2 -- a mandated decided-value field with no --set halts needs_decision.
+    def test_decided_field_without_set_halts_needs_decision(self) -> None:
+        # GET createmeta (discovery) only; no POST — the create never fires.
+        curl = ScriptedCurl([
+            self._createmeta("customfield_10100", allowed=["Run", "Grow"])])
+        be = _create_backend(ScriptedRunner(["{}"]), curl=curl,
+                             required_fields={"Epic": ["customfield_10100"]})
+        out = be.issue_create(title="an epic", body="b", category="epic")
+        self.assertEqual(out["outcome"], "needs_decision")
+        # The field identity, discovered allowed values, and a prompt ride info.
+        info = out["info"]
+        self.assertEqual(info["field"], "customfield_10100")
+        self.assertEqual(info["allowed_values"], ["Run", "Grow"])
+        self.assertIn("message", out)
+        # Discovery GET ran; the create POST never did.
+        self.assertEqual(len(curl.calls), 1)
+        self.assertEqual(curl.calls[0]["method"], "GET")
+
+    def test_discovery_url_percent_encodes_a_multiword_issue_type(self) -> None:
+        # A mandated decided field on a space-bearing type ("User Story") must
+        # still build a well-formed createmeta URL — the space is encoded, never
+        # left raw on curl's argv.
+        curl = ScriptedCurl([
+            self._createmeta("customfield_10100", allowed=["Run"])])
+        be = _create_backend(ScriptedRunner(["{}"]), curl=curl,
+                             required_fields={"User Story": ["customfield_10100"]})
+        be.issue_create(title="t", body="b", category="User Story")
+        url = curl.calls[0]["url"]
+        self.assertNotIn("User Story", url)
+        self.assertIn("issuetypeNames=User+Story", url)
+
+    def test_needs_decision_never_invents_a_value(self) -> None:
+        # No POST means no create with a guessed value — the halt is terminal.
+        curl = ScriptedCurl([
+            self._createmeta("customfield_10100", allowed=["Run", "Grow"])])
+        be = _create_backend(ScriptedRunner(["{}"]), curl=curl,
+                             required_fields={"Epic": ["customfield_10100"]})
+        be.issue_create(title="t", body="b", category="epic")
+        self.assertTrue(all(c["method"] != "POST" for c in curl.calls))
+
+    # AC3 -- re-invoking with --set forwards the chosen value verbatim.
+    def test_set_value_forwarded_verbatim_on_create(self) -> None:
+        curl = ScriptedCurl([(json.dumps({"key": "PROJ-9"}), 201)])
+        be = _create_backend(ScriptedRunner(["{}"]), curl=curl,
+                             required_fields={"Epic": ["customfield_10100"]})
+        out = be.issue_create(title="t", body="b", category="epic",
+                              set_fields={"customfield_10100": "Grow"})
+        self.assertEqual(out["outcome"], "ok")
+        payload = json.loads(curl.calls[0]["payload"])
+        # The supplied value rides the create verbatim — no discovery GET fired.
+        self.assertEqual(payload["fields"]["customfield_10100"], "Grow")
+        self.assertTrue(all(c["method"] != "GET" for c in curl.calls))
+
+    def test_set_overrides_a_configured_fixed_value(self) -> None:
+        curl = ScriptedCurl([(json.dumps({"key": "PROJ-9"}), 201)])
+        be = _create_backend(ScriptedRunner(["{}"]), curl=curl,
+                             required_fields={"Epic": ["customfield_10100"]},
+                             field_values={"customfield_10100": "Run"})
+        be.issue_create(title="t", body="b", category="epic",
+                        set_fields={"customfield_10100": "Grow"})
+        payload = json.loads(curl.calls[0]["payload"])
+        self.assertEqual(payload["fields"]["customfield_10100"], "Grow")
+
+    def test_no_mandated_field_uses_unchanged_acli_create(self) -> None:
+        # A type with no configured required field takes the acli create path —
+        # no REST POST, the body still rides a temp file path.
+        runner = ScriptedRunner([(json.dumps({"key": "PROJ-9"}),)])
+        curl = ScriptedCurl([("", 200)])
+        be = _create_backend(runner, curl=curl)
+        out = be.issue_create(title="t", body="b", category="enhancement")
+        self.assertEqual(out["key"], "PROJ-9")
+        self.assertEqual(len(curl.calls), 0)
+        self.assertEqual(runner.argv(0)[:3], ["jira", "workitem", "create"])
+
+    def test_rest_create_keeps_body_and_token_off_argv(self) -> None:
+        # The description rides the REST JSON payload (the stdin config channel),
+        # and the token rides the curl config — neither lands on argv.
+        curl = ScriptedCurl([(json.dumps({"key": "PROJ-9"}), 201)])
+        be = jira.JiraBackend(
+            credential=_cred(), project="PROJ", runner=ScriptedRunner(["{}"]),
+            curl_runner=curl, token_evaluator=lambda cmd: "s3cr3t",
+            required_fields={"Epic": ["customfield_10100"]},
+            field_values={"customfield_10100": "Run"})
+        be.issue_create(title="t", body="secret body", category="epic")
+        post = curl.calls[0]
+        self.assertNotIn("s3cr3t", post["url"])
+        expected = base64.b64encode(b"bot@acme.io:s3cr3t").decode()
+        self.assertIn(expected, post["config"])
+        # The body is in the payload, not the URL.
+        self.assertNotIn("secret body", post["url"])
+        self.assertEqual(json.loads(post["payload"])["fields"]["description"],
+                         "secret body")
+
+
 # --- issue concept methods (the dispatched surface) -------------------------
 
 class TestIssueConcepts(unittest.TestCase):
@@ -457,6 +626,66 @@ class TestJiraDispatch(unittest.TestCase):
         payload = json.loads(out.getvalue())
         self.assertEqual(payload["id"], "PROJ-7")
         self.assertEqual(payload["info"]["key"], "PROJ-7")
+
+    def test_create_halts_needs_decision_through_dispatch(self) -> None:
+        # AC2/AC4: a mandated decided-value field with no --set halts at the
+        # human gate — a non-zero exit carrying the needs_decision outcome and
+        # the discovered allowed values, wired from JIRA_REQUIRED_FIELDS.
+        meta = json.dumps({"fields": [
+            {"fieldId": "customfield_10100", "name": "Investment Category",
+             "required": True,
+             "allowedValues": [{"value": "Run"}, {"value": "Grow"}]}]})
+        runner = ScriptedRunner([(self._AUTHED,)])
+        curl = ScriptedCurl([meta])
+        env = dict(self._ENV,
+                   JIRA_REQUIRED_FIELDS='{"Epic": ["customfield_10100"]}')
+        out = io.StringIO()
+        rc = tracker.run(
+            ["issue", "create", "--title", "an epic", "--category", "epic"],
+            env=env, runner=runner, jira_curl_runner=curl, stream=out,
+            stdin_body="the brief",
+        )
+        self.assertEqual(rc, cli.HALT_EXIT)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["outcome"], "needs_decision")
+        self.assertEqual(payload["info"]["allowed_values"], ["Run", "Grow"])
+
+    def test_create_with_set_forwards_value_through_dispatch(self) -> None:
+        # AC3: --set on the create command couriers the chosen value to the REST
+        # create verbatim, wired from JIRA_REQUIRED_FIELDS through dispatch.
+        runner = ScriptedRunner([(self._AUTHED,)])
+        curl = ScriptedCurl([(json.dumps({"key": "PROJ-9"}), 201)])
+        env = dict(self._ENV,
+                   JIRA_REQUIRED_FIELDS='{"Epic": ["customfield_10100"]}')
+        out = io.StringIO()
+        rc = tracker.run(
+            ["issue", "create", "--title", "t", "--category", "epic",
+             "--set", "customfield_10100=Grow"],
+            env=env, runner=runner, jira_curl_runner=curl, stream=out,
+            stdin_body="the brief",
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(out.getvalue())["outcome"], "ok")
+        payload = json.loads(curl.calls[-1]["payload"])
+        self.assertEqual(payload["fields"]["customfield_10100"], "Grow")
+
+    def test_create_sets_fixed_value_through_dispatch(self) -> None:
+        # AC1: a fixed value from JIRA_FIELD_VALUES is set on the REST create
+        # with no --set and no halt.
+        runner = ScriptedRunner([(self._AUTHED,)])
+        curl = ScriptedCurl([(json.dumps({"key": "PROJ-9"}), 201)])
+        env = dict(self._ENV,
+                   JIRA_REQUIRED_FIELDS='{"Epic": ["customfield_10100"]}',
+                   JIRA_FIELD_VALUES='{"customfield_10100": "Run"}')
+        out = io.StringIO()
+        rc = tracker.run(
+            ["issue", "create", "--title", "t", "--category", "epic"],
+            env=env, runner=runner, jira_curl_runner=curl, stream=out,
+            stdin_body="the brief",
+        )
+        self.assertEqual(rc, 0)
+        payload = json.loads(curl.calls[-1]["payload"])
+        self.assertEqual(payload["fields"]["customfield_10100"], "Run")
 
     def test_issue_close_dispatches_through_the_curl_seam(self) -> None:
         view = json.dumps({"fields": {"status": {
