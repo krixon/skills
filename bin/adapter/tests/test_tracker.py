@@ -1114,6 +1114,18 @@ class TestIssueContract(unittest.TestCase):
         # Not the bare native {url}.
         self.assertNotIn("url", result)
 
+    def test_issue_create_applies_labels_in_the_same_call(self) -> None:
+        url = "https://github.com/krixon/skills/issues/43"
+        runner = ScriptedRunner([(url,)])
+        be = _backend(runner)
+        result = be.issue_create(title="T", body="B",
+                                 labels=["needs-triage", "enhancement"])
+        self.assertEqual(result["id"], "43")
+        argv = runner.argv(0)
+        self.assertEqual(argv.count("--label"), 2)
+        self.assertIn("needs-triage", argv)
+        self.assertIn("enhancement", argv)
+
     def test_issue_list_returns_neutral_issue_shape(self) -> None:
         native = json.dumps([
             {"number": 3, "title": "c", "state": "open",

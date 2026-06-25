@@ -134,14 +134,16 @@ class GithubBackend:
 
     # -- issues --------------------------------------------------------------
 
-    def issue_create(self, title: str, body: str) -> dict[str, Any]:
-        """Create an issue; body on stdin. Returns the contract envelope: the new
-        issue's opaque id at top level, its url and number in `info`."""
-        url = self._text(
-            ["issue", "create", "--repo", self.repo, "--title", title,
-             "--body-file", "-"],
-            input=body,
-        )
+    def issue_create(self, title: str, body: str,
+                     labels: list[str] | None = None) -> dict[str, Any]:
+        """Create an issue; body on stdin, with optional labels applied in the
+        same call. Returns the contract envelope: the new issue's opaque id at top
+        level, its url and number in `info`."""
+        args = ["issue", "create", "--repo", self.repo, "--title", title,
+                "--body-file", "-"]
+        for label in labels or []:
+            args += ["--label", label]
+        url = self._text(args, input=body)
         number = self._number_from_url(url)
         return {"outcome": cli.OK, "id": str(number),
                 "info": {"url": url, "number": number}}

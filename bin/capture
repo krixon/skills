@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""Entry point for the `capture` command group.
+
+Invoked by absolute path under ${CLAUDE_PLUGIN_ROOT}/bin/ (ADR 0008), not via
+PATH. This stays thin: it puts the adapter package on the path, runs the
+substrate preflight, and hands argv to adapter.capture.main, which holds the
+present/act orchestration. capture only touches the tracker (gh) — it files
+issues and reads open ones for dedupe — and owns no git isolation (its synthesis
+shapes findings, it writes no code), so it requires only gh. Sibling of bin/land
+and bin/reap over the same bin/adapter substrate.
+"""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from adapter.preflight import preflight
+from adapter.capture import main
+
+if __name__ == "__main__":
+    rc = preflight(required=("gh",))
+    if rc != 0:
+        sys.exit(rc)
+    sys.exit(main())
