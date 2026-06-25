@@ -1028,7 +1028,9 @@ def _run_jira(argv: Sequence[str], env: Mapping[str, str],
     be = jira_mod.JiraBackend(
         credential=credential, project=project, runner=runner,
         curl_runner=curl_runner,
-        done_resolution=jira_mod.JiraBackend.done_resolution_from(env))
+        done_resolution=jira_mod.JiraBackend.done_resolution_from(env),
+        required_fields=jira_mod.JiraBackend.required_fields_from(env),
+        field_values=jira_mod.JiraBackend.field_values_from(env))
     args = _build_jira_parser().parse_args(argv)
     return _route_jira(be, args, stream=stream, stdin_body=stdin_body)
 
@@ -1213,6 +1215,22 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _parse_set_fields(raw: Sequence[str] | None) -> dict[str, str]:
+    """Parse repeated `--set FIELD=VALUE` into a `{field: value}` map (#233).
+
+    Each entry splits on the first `=`, so a value may itself contain `=`. The
+    value is forwarded verbatim — the adapter never interprets the field, it
+    only couriers the operator's chosen string onto the create.
+    """
+    fields: dict[str, str] = {}
+    for entry in raw or []:
+        if "=" not in entry:
+            raise ValueError(f"--set expects FIELD=VALUE, got {entry!r}")
+        field, value = entry.split("=", 1)
+        fields[field] = value
+    return fields
+
+
 def _route_jira(be: jira_mod.JiraBackend, args: argparse.Namespace,
                 stream: TextIO | None, stdin_body: str | None) -> int:
     """Route a parsed command to the Jira backend.
@@ -1226,9 +1244,17 @@ def _route_jira(be: jira_mod.JiraBackend, args: argparse.Namespace,
         if command == "view":
             return cli.present_json(be.issue_view(args.key), stream=stream)
         if command == "create":
-            return cli.acted(
-                be.issue_create(args.title, stdin_body, category=args.category),
-                stream=stream)
+            result = be.issue_create(
+                args.title, stdin_body, category=args.category,
+                set_fields=_parse_set_fields(args.set_fields))
+            # A decided required field with no chosen value halts at the human
+            # gate (#233): present the field, its allowed values, and the prompt
+            # as a non-zero halt, so `auto` stops here rather than guessing.
+            if result.get("outcome") == cli.NEEDS_DECISION:
+                return cli.halt(cli.NEEDS_DECISION,
+                                info=result.get("info"),
+                                message=result.get("message"), stream=stream)
+            return cli.acted(result, stream=stream)
         if command == "comment":
             return cli.acted(be.issue_comment(args.key, stdin_body), stream=stream)
         if command == "label":
@@ -1254,6 +1280,11 @@ def _build_jira_parser() -> argparse.ArgumentParser:
     i_view = issue.add_parser("view"); i_view.add_argument("--key", required=True)
     i_create = issue.add_parser("create"); i_create.add_argument("--title", required=True)
     i_create.add_argument("--category", required=True)
+    # The opaque required-field channel (#233): a repeatable `--set <id>=<value>`
+    # the caller couriers a chosen value through; the adapter forwards it verbatim
+    # and never interprets the field.
+    i_create.add_argument("--set", action="append", default=[], dest="set_fields",
+                          metavar="FIELD=VALUE")
     i_comment = issue.add_parser("comment"); i_comment.add_argument("--key", required=True)
     i_label = issue.add_parser("label"); i_label.add_argument("--key", required=True)
     i_label.add_argument("--add-label", action="append", default=[])

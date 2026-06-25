@@ -29,9 +29,11 @@ transition id intact, can never break the binding to a hard-coded name.
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import tempfile
-from typing import Any, Callable, Iterator, Sequence
+import urllib.parse
+from typing import Any, Callable, Iterator, Mapping, Sequence
 
 from adapter import aclicmd, cli, enums, jiracmd
 
@@ -40,6 +42,15 @@ from adapter import aclicmd, cli, enums, jiracmd
 # overrides the name via JIRA_DONE_RESOLUTION when the project renames it.
 _DONE_RESOLUTION_VAR = "JIRA_DONE_RESOLUTION"
 _DEFAULT_DONE_RESOLUTION = "Done"
+
+# The operator config for backend-mandated non-neutral create fields (#233).
+# JIRA_REQUIRED_FIELDS names, per issue type, the field identities a deployment
+# mandates (a JSON `{"Epic": ["customfield_10100"]}` map); JIRA_FIELD_VALUES
+# carries the deployment-wide fixed value for a field (a JSON
+# `{"customfield_10100": "Run"}` map). A mandated field with a fixed value is
+# set from config; one without is decided per case and halts for a value.
+_REQUIRED_FIELDS_VAR = "JIRA_REQUIRED_FIELDS"
+_FIELD_VALUES_VAR = "JIRA_FIELD_VALUES"
 
 # Category/structure label → Jira issue type. The two category labels (bug,
 # enhancement) and the one structure label (epic) name a kind of work; Jira
@@ -105,6 +116,44 @@ def _body_file(body: str) -> Iterator[str]:
         os.unlink(path)
 
 
+def _find_field(meta: Any, field_id: str) -> dict[str, Any]:
+    """Locate one field's create-screen metadata in a createmeta response.
+
+    Tolerates the shapes Jira's createmeta returns across versions: a flat
+    `{"fields": [{"fieldId": …}]}` list, a `{"fields": {field_id: {…}}}` dict
+    keyed by id, and the nested `projects[].issuetypes[].fields` form. Returns
+    the field's metadata dict, or an empty dict when the field is absent (a
+    free-text required field the human still supplies, with no enumerated
+    choices).
+    """
+    for fields in _iter_field_blocks(meta):
+        if isinstance(fields, dict):
+            if field_id in fields:
+                return fields[field_id]
+            for fid, spec in fields.items():
+                if isinstance(spec, dict) and spec.get("fieldId") == field_id:
+                    return spec
+        elif isinstance(fields, list):
+            for spec in fields:
+                if isinstance(spec, dict) and (
+                        spec.get("fieldId") == field_id
+                        or spec.get("key") == field_id):
+                    return spec
+    return {}
+
+
+def _iter_field_blocks(meta: Any) -> Iterator[Any]:
+    """Yield each candidate `fields` block from a createmeta response shape."""
+    if not isinstance(meta, dict):
+        return
+    if "fields" in meta:
+        yield meta["fields"]
+    for project in meta.get("projects") or []:
+        for issuetype in (project.get("issuetypes") or []):
+            if "fields" in issuetype:
+                yield issuetype["fields"]
+
+
 def label_for(label: str) -> str:
     """The Jira label for a workflow/triage state label.
 
@@ -140,17 +189,48 @@ class JiraBackend:
         """
         return env.get(_DONE_RESOLUTION_VAR) or _DEFAULT_DONE_RESOLUTION
 
+    @classmethod
+    def required_fields_from(cls, env: Mapping[str, str]) -> dict[str, list[str]]:
+        """The per-issue-type mandated field identities from the environment.
+
+        Parses `JIRA_REQUIRED_FIELDS` — a JSON `{issue_type: [field_id, …]}`
+        map naming which custom fields a deployment mandates on which type.
+        Absent or empty yields no mandated fields, so the common create path is
+        untouched. The single read point so dispatch and the backend agree on
+        the var name and shape.
+        """
+        raw = env.get(_REQUIRED_FIELDS_VAR)
+        return json.loads(raw) if raw else {}
+
+    @classmethod
+    def field_values_from(cls, env: Mapping[str, str]) -> dict[str, str]:
+        """The deployment-wide fixed field values from the environment.
+
+        Parses `JIRA_FIELD_VALUES` — a JSON `{field_id: value}` map carrying the
+        same-everywhere value for a mandated field. A mandated field absent from
+        this map is decided per case (it halts for a value); one present is set
+        from config. Absent or empty yields no fixed values.
+        """
+        raw = env.get(_FIELD_VALUES_VAR)
+        return json.loads(raw) if raw else {}
+
     def __init__(self, credential: aclicmd.JiraCredential, project: str,
                  runner: aclicmd.Runner | None = None,
                  curl_runner: jiracmd.Runner | None = None,
                  token_evaluator: Callable[[str], str] | None = None,
-                 done_resolution: str = _DEFAULT_DONE_RESOLUTION) -> None:
+                 done_resolution: str = _DEFAULT_DONE_RESOLUTION,
+                 required_fields: dict[str, list[str]] | None = None,
+                 field_values: dict[str, str] | None = None) -> None:
         self.credential = credential
         self.project = project
         self.runner = runner or aclicmd.run_acli
         self._curl_runner = curl_runner or jiracmd.run_curl
         self._token_evaluator = token_evaluator or aclicmd.eval_token
         self.done_resolution = done_resolution
+        # Mandated non-neutral create fields (#233): the per-type field
+        # identities and the deployment-wide fixed values, both from config.
+        self.required_fields = required_fields or {}
+        self.field_values = field_values or {}
 
     # -- internal helpers ----------------------------------------------------
 
@@ -293,15 +373,46 @@ class JiraBackend:
             "info": info,
         }
 
-    def issue_create(self, title: str, body: str,
-                     category: str) -> dict[str, Any]:
-        """Create an issue in the project. Returns the new key.
+    def issue_create(self, title: str, body: str, category: str,
+                     set_fields: Mapping[str, str] | None = None
+                     ) -> dict[str, Any]:
+        """Create an issue in the project, honouring backend-mandated fields.
 
         The category label resolves to a Jira issue type (the concept→primitive
-        map); the untrusted body reaches acli via a temp file path
-        (`--description-file <path>`), never argv (SECURITY.md, `_body_file`).
+        map). When the deployment mandates no extra field on that type, the
+        create takes the unchanged acli path — the untrusted body rides a temp
+        file path (`--description-file`), never argv (SECURITY.md).
+
+        When config mandates fields on the type (#233), the create runs all-REST
+        over the curl seam — the same path the close path took when acli could
+        not attach a required field. Each mandated field's value is resolved in
+        order: an explicit `--set` value (verbatim) wins, else the configured
+        fixed value, else the field is *decided per case*. A decided field with
+        no value HALTS the create — `outcome: needs_decision` carrying the field,
+        the allowed values discovered over REST, and a human prompt — rather than
+        inventing one. The body rides the REST JSON payload (the stdin config
+        channel), never argv.
         """
         issue_type = issue_type_for(category) or category
+        mandated = self.required_fields.get(issue_type) or []
+        if not mandated:
+            return self._acli_create(title, body, issue_type)
+
+        set_fields = dict(set_fields or {})
+        fields: dict[str, Any] = {}
+        for field_id in mandated:
+            if field_id in set_fields:
+                fields[field_id] = set_fields[field_id]
+            elif field_id in self.field_values:
+                fields[field_id] = self.field_values[field_id]
+            else:
+                # A decided field with no chosen value: halt rather than guess.
+                return self._needs_decision(issue_type, field_id)
+        return self._rest_create(title, body, issue_type, fields)
+
+    def _acli_create(self, title: str, body: str,
+                     issue_type: str) -> dict[str, Any]:
+        """The unchanged acli create for a type with no mandated fields."""
         with _body_file(body) as path:
             out = self._json(
                 ["jira", "workitem", "create", "--project", self.project,
@@ -309,7 +420,83 @@ class JiraBackend:
                  "--description-file", path, "--json"],
                 default={},
             )
-        return {"key": out.get("key")}
+        return {"outcome": cli.OK, "key": out.get("key")}
+
+    def _create_url(self) -> str:
+        return f"{self.credential.site}/rest/api/3/issue"
+
+    def _createmeta_url(self, issue_type: str) -> str:
+        # The create-screen field metadata for one type. projectKeys/issuetypeNames
+        # scope the response to the fields (and their allowedValues) on this type's
+        # create screen — the discovery source for a decided field's choices. The
+        # project key and issue type name are percent-encoded into the query so a
+        # multi-word type ("User Story") or one carrying a URL metacharacter still
+        # produces a well-formed URL on curl's argv (urllib.parse.quote is pure
+        # string encoding — it makes no network call, so the no-urllib-network
+        # discipline that drove the curl seam does not bar it).
+        query = urllib.parse.urlencode({
+            "projectKeys": self.project,
+            "issuetypeNames": issue_type,
+            "expand": "projects.issuetypes.fields",
+        })
+        return f"{self.credential.site}/rest/api/3/issue/createmeta?{query}"
+
+    def _rest_create(self, title: str, body: str, issue_type: str,
+                     fields: Mapping[str, Any]) -> dict[str, Any]:
+        """POST a create over REST with the neutral fields plus the mandated ones.
+
+        The neutral summary/description/issuetype/project ride the same `fields`
+        block as the mandated custom fields, so the body travels the REST payload
+        (the stdin config channel) and never argv (SECURITY.md). Returns the
+        contract act envelope with the new key.
+        """
+        payload = {"fields": {
+            "project": {"key": self.project},
+            "issuetype": {"name": issue_type},
+            "summary": title,
+            "description": body,
+            **fields,
+        }}
+        out = jiracmd.request_json("POST", self._create_url(), self._config(),
+                                   payload=payload, runner=self._curl_runner,
+                                   default={})
+        return {"outcome": cli.OK, "key": (out or {}).get("key")}
+
+    def _needs_decision(self, issue_type: str,
+                        field_id: str) -> dict[str, Any]:
+        """Halt the create on a decided field, carrying its discovered choices.
+
+        Reads the create-screen metadata over REST, finds the mandated field's
+        `allowedValues`, and shapes the `needs_decision` result: the field id,
+        its human name, the allowed values, and a prompt — the payload the
+        caller couriers a chosen value back through `--set`. It never picks a
+        value itself; the choice is the human's.
+        """
+        name, allowed = self._discover_allowed_values(issue_type, field_id)
+        return {
+            "outcome": cli.NEEDS_DECISION,
+            "field": field_id,
+            "info": {"field": field_id, "field_name": name,
+                     "allowed_values": allowed, "issue_type": issue_type},
+            "message": (
+                f"{issue_type} requires a value for {name or field_id!r}. "
+                f"Choose one of {allowed} and retry with "
+                f"--set {field_id}=<value>."),
+        }
+
+    def _discover_allowed_values(self, issue_type: str,
+                                 field_id: str) -> tuple[str | None, list[Any]]:
+        """The (name, allowed values) for a mandated field on a type's create
+        screen, read over REST. Empty list when the field declares no enumerated
+        values (a free-text required field the human still supplies)."""
+        meta = jiracmd.request_json("GET", self._createmeta_url(issue_type),
+                                    self._config(), runner=self._curl_runner,
+                                    default={})
+        field = _find_field(meta, field_id)
+        name = field.get("name")
+        allowed = [v.get("value", v) if isinstance(v, dict) else v
+                   for v in (field.get("allowedValues") or [])]
+        return name, allowed
 
     def issue_comment(self, key: str, body: str) -> dict[str, Any]:
         """Comment on an issue.
