@@ -8,7 +8,7 @@ Write every prose field per [../../WRITING.md](../../WRITING.md) → *Issues & f
 
 ## Fields
 
-Every finding carries exactly these six fields:
+Every finding carries exactly these seven fields:
 
 - **Title** — one-line problem statement. Becomes the issue title.
 - **Dimension** — which audit surfaced it: `test-gap`, `architecture`, `security`, `docs-drift`, `dead-code`, `debt`, … Drives grouping and, downstream, labels.
