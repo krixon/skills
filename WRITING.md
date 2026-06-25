@@ -58,6 +58,7 @@ The cut removed hedges (*appears / may / potentially*), filler (*actually / basi
 - Record the tradeoff and the rejected alternatives, not a justification of the winner. The value of an ADR is knowing *why not the other thing*.
 - Past tense for the decision once made ("We chose X"); present for the standing consequence.
 - Don't sell. An ADR documents a choice for the next reader; it isn't persuasion.
+- Reflect current reality, short and simple. An ADR is a standing record, not a changelog: when a decision changes, **revise the affected section in place** so it reads as the truth now — never append a dated "Amended on X / previously we did Y" note narrating the edit (that history is git's, per the current-truth rule above). Keep a past state only when it is *materially* relevant to understanding the present decision — a tradeoff that still binds, a failure mode the rule now prevents — and fold it into the reasoning as live context, not as an edit log. If a change leaves the ADR no longer describing reality, rewrite it; if it only adds a wrinkle, sharpen the existing prose.
 
 ## Docs
 

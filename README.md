@@ -90,7 +90,6 @@ Each skill below links to its fuller entry in the [skills reference](docs/skills
 
 ### Issue tracking
 - **[triage](docs/skills-reference.md#triage)** — drive issues through a triage state machine by label.
-- **[capture](docs/skills-reference.md#capture)** — turn audit findings or ad-hoc observations into needs-triage issues, deduped and culled.
 
 ### Audits
 - **[audit-coverage](docs/skills-reference.md#audits)** — audit for high-risk untested paths; static-first, surfaces findings to `capture`.
@@ -113,10 +112,11 @@ Each skill below links to its fuller entry in the [skills reference](docs/skills
 
 ### Commands
 
-Collapsed pure commands ([ADR 0008](docs/adr/0008-deterministic-mechanics-code-adapter.md)) — thin wrappers over the `bin/` adapter, not agent-native skills. Invoked the same way (`/land`).
+Commands are the entry points over the `bin/` adapter ([ADR 0008](docs/adr/0008-deterministic-mechanics-code-adapter.md)) — thin wrappers that hold no mechanics, invoked the same way as a skill (`/land`). Two shapes: **pure commands** that never launch an agent (`land`, `reap`), and **command-launches-agent** that reach a synthesis step handed to an agent — in-session by the host agent, or a subagent under `auto` (`capture`).
 
-- **[land](docs/skills-reference.md#land)** — merge approved PRs, strip `in-progress`, and tear down the branch/worktree; human-invoked only.
-- **[reap](docs/skills-reference.md#reap)** — sweep workflow state for staleness — abandoned claims, quiet `needs-info`, orphaned worktrees/branches, emptied epics — and clean each up one human-confirmed action at a time; human-invoked only.
+- **[capture](docs/skills-reference.md#capture)** — turn audit findings or ad-hoc observations into deduped `needs-triage` issues: the dedupe and filing run in `bin/capture`, an agent shapes raw observations into findings where the input isn't already shaped (command-launches-agent).
+- **[land](docs/skills-reference.md#land)** — merge approved PRs, strip `in-progress`, and tear down the branch/worktree; pure command, human-invoked only.
+- **[reap](docs/skills-reference.md#reap)** — sweep workflow state for staleness — abandoned claims, quiet `needs-info`, orphaned worktrees/branches, emptied epics — and clean each up one human-confirmed action at a time; pure command, human-invoked only.
 
 ### Meta & session
 - **[auto](docs/skills-reference.md#auto)** — run a skill workflow unattended, walking the handover chain until the first human gate.

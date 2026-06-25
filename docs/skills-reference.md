@@ -58,16 +58,6 @@ Each entry names its default handover hop — the recommended next skill — on 
 
 **Chains to.** Terminal — the maintainer decides promotion; `pickup` is an alternative for an issue promoted to a `ready-*` label.
 
-### capture
-
-**What it does.** Turns audit findings or ad-hoc observations into `needs-triage` issues on the tracker, deduped against open issues and culled so the queue isn't flooded with noise. It never designs work — it files what was observed for a human to triage.
-
-**When to reach for it.** An audit produced findings, or you've listed problems you want tracked. For designed work use `slice`; to promote the resulting issues use `triage`.
-
-**Example.** `/capture` the findings from an `audit-security` run as deduped `needs-triage` issues.
-
-**Chains to.** `triage` — promote them out of `needs-triage`.
-
 ## Audits
 
 The nine `audit-*` skills are one method applied through nine risk lenses. Each is a static-first sweep — it reasons from the code, tests, and prose already in the tree, never requiring an instrumented run or a scanner (the shared method is in [skills/AUDIT-METHOD.md](../skills/AUDIT-METHOD.md)). Each maps risk through its lens, scores observations into findings carrying a severity and confidence, and hands them off identically: findings → `capture` → `needs-triage` → `triage`. None files issues itself.
@@ -145,7 +135,17 @@ They differ only by what they look for:
 
 ## Commands
 
-Collapsed pure commands ([ADR 0008](adr/0008-deterministic-mechanics-code-adapter.md)) — thin in-session wrappers over the `bin/` adapter rather than agent-native skills. The mechanics live in tested code; the wrapper carries only the human decision and names only the binary.
+Commands are the entry points over the `bin/` adapter ([ADR 0008](adr/0008-deterministic-mechanics-code-adapter.md)) — thin in-session wrappers rather than agent-native skills, with the mechanics in tested code and only the binary named. Two shapes: **pure commands** (`land`, `reap`) that never launch an agent, and **command-launches-agent** (`capture`) that reach a synthesis step handed to an agent — the host agent in-session, or a subagent under `auto`.
+
+### capture
+
+**What it does.** Turns audit findings or ad-hoc observations into `needs-triage` issues on the tracker, deduped against open issues and culled so the queue isn't flooded. The dedupe, the body render, and the filing run in the `bin/capture` adapter command (present/act); the one model step — shaping raw observations into findings and the clustering judgment — sits before present and is reached by the host agent in-session, a subagent under `auto`, or skipped entirely when findings arrive pre-shaped from an audit. It never designs work — it files what was observed for a human to triage. This is the reference flip for the command-launches-agent shape (`triage`/`pickup` copy its present→synthesis boundary).
+
+**When to reach for it.** An audit produced findings, or you've listed problems you want tracked. For designed work use `slice`; to promote the resulting issues use `triage`.
+
+**Example.** `/capture` the findings from an `audit-security` run as deduped `needs-triage` issues.
+
+**Chains to.** `triage` — promote them out of `needs-triage`.
 
 ### land
 
