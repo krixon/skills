@@ -33,7 +33,7 @@ There is no review-state label: a claimed issue with an open PR *is* in review.
 
 Every triaged issue ends with one category label and one of the five maintainer-owned state labels. A `ready-for-*` label alongside `in-progress` is a claimed issue, not a conflict. Two maintainer-owned state labels at once *is* a conflict: flag it and ask the maintainer before doing anything else.
 
-A `ready-for-*` issue may also carry a **priority** label (`priority:high` / `priority:low`) that tips `pickup`'s new-work order within its state pool — see [../GITHUB.md](../GITHUB.md) → *Labels*. The default is **unlabelled** (the middle tier); add one only on the maintainer's call. **At most one** per issue — both at once is a conflict, the priority analogue of the exactly-one state rule: flag it and ask before proceeding.
+A `ready-for-*` issue may also carry a **priority** label (`priority:high` / `priority:low`) that tips `pickup`'s new-work order within its state pool — see [../pickup/SKILL.md](../pickup/SKILL.md) step 1. The default is **unlabelled** (the middle tier); add one only on the maintainer's call. **At most one** per issue — both at once is a conflict, the priority analogue of the exactly-one state rule: flag it and ask before proceeding.
 
 State transitions: an unlabeled issue normally goes to `needs-triage` first; from there it moves to `needs-info`, `ready-for-agent`, `ready-for-human`, or `wontfix`. `needs-info` returns to `needs-triage` once the reporter replies. A walled `pickup` also returns an issue to `needs-triage`, with an attempt report — the circuit-breaker that lands it back at the human gate rather than retrying forever. The maintainer can override at any time — flag transitions that look unusual and ask before proceeding.
 

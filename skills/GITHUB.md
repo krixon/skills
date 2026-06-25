@@ -40,12 +40,12 @@ One execution **state** label (`pickup` owns it):
 
 - `in-progress` — claimed by `pickup`, implementation underway
 
-Two **priority** labels — deviation-only signals on a `ready-for-*` issue, set at promotion (`triage` owns them):
+Two **priority** labels (`triage` owns them, set at promotion):
 
-- `priority:high` — pick up ahead of unlabelled work in the same state pool
-- `priority:low` — pick up after unlabelled work in the same state pool
+- `priority:high` — higher priority tier
+- `priority:low` — lower priority tier
 
-Most issues carry neither: **unlabelled is the default tier**, the middle of high → unlabelled → low. The labels deviate from age-ordering; they don't impose a total order. **At most one** per issue — `priority:high` and `priority:low` together is a conflict (the priority analogue of the exactly-one rule on state labels): flag it and ask the maintainer before selecting against it. Priority sorts **only within a state pool** — it never crosses the `ready-for-agent`-before-`ready-for-human` boundary (see *New-work selection* below).
+The tier model — default unlabelled, the at-most-one rule, how the tiers order selection — lives in the skills (`triage` sets them, `pickup` step 1 selects by them), not here.
 
 There is **no** review-state label. A claimed issue (`in-progress`) with an open PR *is* "in review"; once a human requests changes the PR carries that signal (see *Rework* below).
 
@@ -78,9 +78,7 @@ Skills express the workflow in the tracker-neutral concepts below; this table is
 
 ## New-work selection
 
-`pickup`'s new-work order once no owned PR is in rework (rework outranks all new work — *PRs and rework* below). Selection is **state pool → priority tier → oldest within tier**: drain the `ready-for-agent` pool fully before touching `ready-for-human`, and within a pool take `priority:high` before unlabelled before `priority:low`, oldest first inside each tier. State precedence is **absolute** — the tier sort never crosses the pool boundary, so a `priority:high` `ready-for-human` issue never outranks an unlabelled `ready-for-agent` one.
-
-Query one pool at a time, excluding claimed work, then sort by tier and age in `jq`. Substitute `ready-for-human` to drain the second pool only once the first is empty:
+The query behind `pickup`'s new-work selection — the ordering model (state pool → tier → age, absolute state precedence) lives in `pickup` step 1. Query one pool at a time, excluding claimed work, then sort by tier and age in `jq`. Substitute `ready-for-human` to drain the second pool only once the first is empty:
 
 ```
 gh issue list --state open --label ready-for-agent --json number,title,labels,createdAt \
@@ -90,7 +88,7 @@ gh issue list --state open --label ready-for-agent --json number,title,labels,cr
         | sort_by(.tier, .createdAt)'
 ```
 
-`tier` is `0` high / `1` unlabelled / `2` low, so `sort_by(.tier, .createdAt)` yields high-then-unlabelled-then-low, oldest first within each. The query carries no pool ordering itself — that lives in the two-step "drain `ready-for-agent` first" above. An issue carrying both priority labels is the at-most-one conflict (*Labels* above): surface it rather than selecting against it.
+`tier` is `0` high / `1` unlabelled / `2` low, so `sort_by(.tier, .createdAt)` yields high-then-unlabelled-then-low, oldest first within each. The query carries no pool ordering itself — that lives in the two-step "drain `ready-for-agent` first" above.
 
 ## Issue relations
 
