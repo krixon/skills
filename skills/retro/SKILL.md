@@ -6,7 +6,7 @@ argument-hint: "[the landed issue, or its merged PR]"
 
 # Retro
 
-Run a post-merge **work retro** on a single landed item. Read the original agent brief against what actually shipped, find where brief and reality diverged, and route the divergences worth acting on to the tracker — where they re-enter the machinery that writes the next brief. Most lands teach nothing worth filing; finishing clean having filed nothing is the **common, first-class outcome** — never manufacture filler.
+Run a post-merge **work retro** on a single landed item. Read the original agent brief against what shipped, find where brief and reality diverged, and route the divergences worth acting on to the tracker — where they re-enter the machinery that writes the next brief. Most lands teach nothing worth filing; finishing clean having filed nothing is the **common, first-class outcome** — never manufacture filler.
 
 Reached as an alternative hop from `land`'s handover, after a successful land that closed a brief-carrying issue. Because the implement loop halts before `land` and `land` is human-invoked only, `retro` only ever runs interactively — it never reaches `auto`.
 
@@ -14,7 +14,7 @@ Reached as an alternative hop from `land`'s handover, after a successful land th
 
 `retro` harvests **process feedback only**: a brief-vs-reality gap that suggests improving the brief-writing machinery — the [agent-brief contract](../contracts/agent-brief.md), a skill, or the triage step. A worth-filing learning reads like *"the agent-brief contract should require X — the brief for #N missed it and the work had to backfill."*
 
-It does **not** harvest durable knowledge — facts about the user, the project, or how to work. That is a separate, already-rejected concern ([ADR 0010](../../docs/adr/0010-retro-harvests-process-learnings-to-the-tracker.md)): context must not be machine-confined, so there is no memory sink here. Keeping `retro` to process feedback is what makes it distinct. Do not let it drift into a general knowledge harvester — a gap that teaches *the project* something, not *the brief machinery* something, is out of scope.
+It does **not** harvest durable knowledge — facts about the user, the project, or how to work. That is a separate, already-rejected concern ([ADR 0010](../../docs/adr/0010-retro-harvests-process-learnings-to-the-tracker.md)): context must not be machine-confined, so there is no memory sink here. Keeping `retro` to process feedback is what makes it distinct. Do not let it drift into a general knowledge harvester — a gap that teaches *the project* something, not *the brief-writing machinery* something, is out of scope.
 
 ## Process
 
@@ -23,7 +23,7 @@ It does **not** harvest durable knowledge — facts about the user, the project,
 `land` tears the worktree down before this handover, so `retro` sources everything from the tracker and code host — **never the filesystem**. There is no local checkout to read.
 
 - **The original brief.** For a triage-promoted issue, the brief is the agent-brief comment on the now-closed issue; for a sliced issue, it is the issue body. Read the closed issue with its comments ([../GITHUB.md](../GITHUB.md) → *Issues*).
-- **What shipped.** The merged PR's **diff** and its **review** — read through the code host ([../GITHUB.md](../GITHUB.md) → *PRs and rework*). The diff is what the work actually did; the review is where a human already flagged a gap.
+- **What shipped.** The merged PR's **diff** and its **review** — read through the code host ([../GITHUB.md](../GITHUB.md) → *PRs and rework*). The diff is what the work did; the review is where a human already flagged a gap.
 
 If invoked without a landed, brief-carrying item, stop and say so — there is nothing to retro on an item that carried no brief.
 
@@ -37,7 +37,7 @@ Read the brief as the contract it was, then read the diff and review as the verd
 
 ### 3. Keep only the process-feedback gaps
 
-Filter every divergence through the scope boundary above. A gap survives only if acting on it improves the **brief machinery** — the agent-brief contract, a skill, or triage. Discard the rest: a one-off implementation detail, a fact about the project, anything that teaches no repeatable lesson about how the next brief should be written. Most divergences die here, and that is correct.
+Filter every divergence through the scope boundary above. A gap survives only if acting on it improves the **brief-writing machinery** — the agent-brief contract, a skill, or triage. Discard the rest: a one-off implementation detail, a fact about the project, anything that teaches no repeatable lesson about how the next brief should be written. Most divergences die here, and that is correct.
 
 ### 4. Decide what clears the bar — the synthesis
 
@@ -49,8 +49,9 @@ For each surviving gap, judge whether it is worth a tracked process-improvement 
 
 Shape each surviving learning as a **finding** ([../contracts/finding.md](../contracts/finding.md)) and hand it to `capture` — reuse the capture path; never reimplement issue creation.
 
+- **Title** — the one-line process problem; becomes the issue title.
 - **Dimension** — `process`.
-- **Where** — the brief machinery the gap points at: the agent-brief contract, the named skill, or the triage step (not a code location).
+- **Where** — the brief-writing machinery the gap points at: the agent-brief contract, the named skill, or the triage step (the `process` dimension's target, not a code location — see [../contracts/finding.md](../contracts/finding.md)).
 - **Evidence** — the brief-vs-reality gap, naming the landed item (*"the brief for #N …"*) and what the work had to backfill or rework as a result.
 - **Suggested category** — `enhancement` (a process improvement); **Severity** / **Confidence** per the finding contract.
 - **Source** — `retro`.

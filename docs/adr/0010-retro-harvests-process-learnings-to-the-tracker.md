@@ -16,7 +16,7 @@ A post-merge **work retro** reads a landed item's original brief against the mer
 
 Three decisions, each against a real alternative:
 
-**What it harvests — process feedback only, not durable knowledge.** `retro` harvests *brief-vs-reality gaps that should improve the brief-writing machinery* — and nothing else. It explicitly does **not** harvest durable knowledge (facts about the user, the project, or how to work). That second concern is #183, and it was rejected: its sink was a machine-local memory, and context must not be machine-confined. Folding durable-knowledge harvesting into `retro` would resurrect the rejected shape under a new name. Keeping `retro` to process feedback is what makes it a distinct, accepted thing rather than #183 in disguise.
+**What it harvests — process feedback only, not durable knowledge.** `retro` harvests *brief-vs-reality gaps that should improve the brief-writing machinery* — and nothing else. It explicitly does **not** harvest durable knowledge (facts about the user, the project, or how to work): that is #183, rejected because its sink was machine-confined (see *Considered Options*). Keeping `retro` to process feedback is what keeps it a distinct, accepted thing rather than #183 in disguise.
 
 **Sink — the tracker.** A worth-filing learning lands as a `needs-triage` item, re-entering the same flow that writes future briefs.
 

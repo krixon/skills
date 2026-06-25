@@ -12,7 +12,7 @@ Every finding carries exactly these seven fields:
 
 - **Title** — one-line problem statement. Becomes the issue title.
 - **Dimension** — which audit surfaced it: `test-gap`, `architecture`, `security`, `docs-drift`, `dead-code`, `debt`, … Drives grouping and, downstream, labels.
-- **Where** — the location, named by **module / type / function**, never by line number (it goes stale — same rule as `agent-brief.md`). A file path is allowed only as an "as-of-audit" pointer in parentheses, not as the anchor.
+- **Where** — the location, named by **module / type / function**, never by line number (it goes stale — same rule as `agent-brief.md`). A file path is allowed only as an "as-of-audit" pointer in parentheses, not as the anchor. A non-code dimension names its own target instead — the `process` dimension (`retro`) points at the brief-writing machinery it would improve (the agent-brief contract, a skill, or the triage step), not a code location.
 - **Evidence** — what was observed that makes this a real, worth-tracking problem: the untested high-risk path, the missing error case, the smell. This justifies the finding during the cull. A one-line *direction* may be appended, but not a full solution.
 - **Suggested category** — `bug` or `enhancement`, mapping straight onto `triage`'s category roles.
 - **Severity** — does it matter: `low` / `medium` / `high`.
