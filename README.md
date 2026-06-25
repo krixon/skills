@@ -60,8 +60,8 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 | Audit third-party dependency health | `/audit-deps` | findings → `capture` → `needs-triage` |
 | File findings or observations as issues | `/capture` | deduped `needs-triage` issues for a human to `triage` |
 | Triage incoming issues | `/triage` | each routed to `ready-for-agent`, `ready-for-human`, `needs-info`, or `wontfix` |
-| Start implementing a ready issue | `/pickup` | claims it → routes by kind to `tdd` / `diagnose` / `write-skill` / docs / config → review gate → opens a PR |
-| Ship a small fix with no tracked issue | `/patch` | branch in a worktree → review gate → a no-issue PR (body led by `No-issue:`) a human lands; human-invoked, for fixes too small to file |
+| Start implementing a ready issue | `/pickup` | claims it → routes by kind to `tdd` / `diagnose` / `write-skill` / docs / config → review gate → opens a PR carrying a [review-aid](skills/REVIEW-AID.md) coverage summary |
+| Ship a small fix with no tracked issue | `/patch` | branch in a worktree → review gate → a no-issue PR (body led by `No-issue:`, with a degraded [review-aid](skills/REVIEW-AID.md) summary) a human lands; human-invoked, for fixes too small to file |
 | Build a feature test-first | `/tdd` | red-green-refactor loop (usually reached via `pickup`) |
 | Debug a hard bug or perf regression | `/diagnose` | reproduce → minimise → fix → regression test (usually reached via `pickup`) |
 | Ask questions on a PR review (not just request changes) | Comment them on the PR, then `/pickup` | `pickup`'s rework query catches the unresolved thread → routes the questions to `field`, where the agent works each to a converged answer with you → the answers post back to the thread |
@@ -106,8 +106,8 @@ Each skill below links to its fuller entry in the [skills reference](docs/skills
 - **[deepen](docs/skills-reference.md#deepen)** — find architecture/refactoring opportunities informed by the project's domain language and recorded decisions.
 
 ### Build & fix
-- **[pickup](docs/skills-reference.md#pickup)** — claim a ready issue and implement it, routing by artifact kind through the review gate to an open PR.
-- **[patch](docs/skills-reference.md#patch)** — ship a small fix straight from a conversation, no tracked issue: worktree branch → review gate → a no-issue PR (`No-issue:` marker) a human lands; human-invoked.
+- **[pickup](docs/skills-reference.md#pickup)** — claim a ready issue and implement it, routing by artifact kind through the review gate to an open PR carrying a [review-aid](skills/REVIEW-AID.md) coverage summary.
+- **[patch](docs/skills-reference.md#patch)** — ship a small fix straight from a conversation, no tracked issue: worktree branch → review gate → a no-issue PR (`No-issue:` marker, degraded [review-aid](skills/REVIEW-AID.md) summary) a human lands; human-invoked.
 - **[tdd](docs/skills-reference.md#tdd)** — red-green-refactor loop, integration-test first.
 - **[diagnose](docs/skills-reference.md#diagnose)** — disciplined loop for hard bugs and perf regressions: reproduce → minimise → hypothesise → instrument → fix → regression-test.
 
