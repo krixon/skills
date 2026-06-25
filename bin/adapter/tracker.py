@@ -24,7 +24,8 @@ import sys
 import time
 from typing import Any, Callable, Mapping, Sequence, TextIO
 
-from adapter import cli, enums, ghcmd, identity as identity_mod
+from adapter import aclicmd, cli, enums, ghcmd, identity as identity_mod, jira as jira_mod
+from adapter.preflight import preflight
 
 # How long to wait between stale-`mergeable` re-polls, and the poll cap. The
 # value settles in a few seconds after a base move; the cap stops an UNKNOWN
@@ -944,6 +945,18 @@ def _resolve_repo(runner: ghcmd.Runner | None) -> str:
                           "--jq", ".nameWithOwner"], runner=runner)
 
 
+def required_tools(env: Mapping[str, str]) -> tuple[str, ...]:
+    """The substrate the active backend shells out to, for the startup preflight.
+
+    Each backend declares its own set so the check never rejects an environment
+    over a tool the chosen backend never uses: the GitHub backend drives `gh`,
+    the Jira backend drives `acli`; both need `git`.
+    """
+    if env.get("ISSUE_TRACKER", "github") == "jira":
+        return ("git", "acli")
+    return ("git", "gh")
+
+
 def run(argv: Sequence[str], env: Mapping[str, str] | None = None,
         runner: ghcmd.Runner | None = None, repo: str | None = None,
         stream: TextIO | None = None, stdin_body: str | None = None) -> int:
@@ -958,11 +971,18 @@ def run(argv: Sequence[str], env: Mapping[str, str] | None = None,
     stream = stream or sys.stdout
 
     tracker_kind = env.get("ISSUE_TRACKER", "github")
-    if tracker_kind != "github":
-        return cli.halt(cli.UNSUPPORTED,
-                        message=f"unsupported tracker backend: {tracker_kind}",
-                        info={"backend": tracker_kind}, stream=stream)
+    if tracker_kind == "github":
+        return _run_github(argv, env, runner, repo, stream, stdin_body)
+    if tracker_kind == "jira":
+        return _run_jira(argv, env, runner, stream, stdin_body)
+    return cli.halt(cli.UNSUPPORTED,
+                    message=f"unsupported tracker backend: {tracker_kind}",
+                    info={"backend": tracker_kind}, stream=stream)
 
+
+def _run_github(argv: Sequence[str], env: Mapping[str, str],
+                runner: ghcmd.Runner | None, repo: str | None,
+                stream: TextIO, stdin_body: str | None) -> int:
     # The identity startup check runs before any gh call — a half-configured
     # state must refuse before the adapter shells out, not after.
     try:
@@ -975,6 +995,35 @@ def run(argv: Sequence[str], env: Mapping[str, str] | None = None,
 
     args = _build_parser().parse_args(argv)
     return _route(be, args, stream=stream, stdin_body=stdin_body)
+
+
+def _run_jira(argv: Sequence[str], env: Mapping[str, str],
+              runner: aclicmd.Runner | None, stream: TextIO,
+              stdin_body: str | None) -> int:
+    """Dispatch a tracker command to the Jira backend.
+
+    The startup check mirrors the GitHub path's shape: resolve the single
+    credential (refusing the incomplete state) and verify `acli` is itself
+    authenticated, both before the adapter shells out for the command.
+    """
+    try:
+        credential = aclicmd.resolve_credential(env)
+    except aclicmd.CredentialIncomplete as exc:
+        return cli.halt(str(exc), stream=stream)
+    if not aclicmd.is_authenticated(runner=runner):
+        return cli.halt(
+            "acli is not authenticated to Jira; run `acli jira auth login`",
+            stream=stream)
+
+    project = env.get("JIRA_PROJECT")
+    if not project:
+        return cli.halt("JIRA_PROJECT is required for the Jira backend",
+                        stream=stream)
+
+    be = jira_mod.JiraBackend(credential=credential, project=project,
+                              runner=runner)
+    args = _build_jira_parser().parse_args(argv)
+    return _route_jira(be, args, stream=stream, stdin_body=stdin_body)
 
 
 def _route(be: GithubBackend, args: argparse.Namespace,
@@ -1157,6 +1206,57 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _route_jira(be: jira_mod.JiraBackend, args: argparse.Namespace,
+                stream: TextIO | None, stdin_body: str | None) -> int:
+    """Route a parsed command to the Jira backend.
+
+    The symmetric counterpart to _route: the same concept surface, keyed on the
+    opaque Jira issue key rather than an integer number.
+    """
+    group, command = args.group, args.command
+
+    if group == "issue":
+        if command == "view":
+            return cli.present_json(be.issue_view(args.key), stream=stream)
+        if command == "create":
+            return cli.acted(
+                be.issue_create(args.title, stdin_body, category=args.category),
+                stream=stream)
+        if command == "comment":
+            return cli.acted(be.issue_comment(args.key, stdin_body), stream=stream)
+        if command == "label":
+            return cli.acted(
+                be.issue_label(args.key, add=args.add_label,
+                               remove=args.remove_label), stream=stream)
+        if command == "close":
+            return cli.acted(be.issue_close(args.key), stream=stream)
+        if command == "done":
+            return cli.present_json({"done": be.is_done(args.key)}, stream=stream)
+
+    return cli.halt(f"unknown command: {group} {command}", stream=stream)
+
+
+def _build_jira_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="tracker",
+        description="Issue and PR mechanics (Jira backend).",
+    )
+    groups = parser.add_subparsers(dest="group", required=True)
+
+    issue = groups.add_parser("issue").add_subparsers(dest="command", required=True)
+    i_view = issue.add_parser("view"); i_view.add_argument("--key", required=True)
+    i_create = issue.add_parser("create"); i_create.add_argument("--title", required=True)
+    i_create.add_argument("--category", required=True)
+    i_comment = issue.add_parser("comment"); i_comment.add_argument("--key", required=True)
+    i_label = issue.add_parser("label"); i_label.add_argument("--key", required=True)
+    i_label.add_argument("--add-label", action="append", default=[])
+    i_label.add_argument("--remove-label", action="append", default=[])
+    i_close = issue.add_parser("close"); i_close.add_argument("--key", required=True)
+    i_done = issue.add_parser("done"); i_done.add_argument("--key", required=True)
+
+    return parser
+
+
 # Commands whose body/notes ride stdin (the out-of-band channel).
 _STDIN_COMMANDS: set[tuple[str, str]] = {
     ("issue", "create"), ("issue", "comment"),
@@ -1166,6 +1266,14 @@ _STDIN_COMMANDS: set[tuple[str, str]] = {
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    # The substrate preflight runs first, with the set the active backend shells
+    # out to (gh vs acli, both with git) — so a missing tool surfaces as one
+    # named blocker before any subprocess, and the check never rejects over a
+    # tool the chosen backend never uses.
+    rc = preflight(required=required_tools(os.environ))
+    if rc != 0:
+        return rc
+
     argv = list(sys.argv[1:] if argv is None else argv)
     # Peek the group/command to decide whether a stdin body is expected, so a
     # body-bearing command reads it before dispatch and the rest never block.
