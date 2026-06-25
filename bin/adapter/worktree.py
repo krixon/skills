@@ -139,7 +139,17 @@ def cmd_sync_main(repo_root: str, stream: TextIO | None = None) -> int:
     if gitcmd.is_ancestor(repo_root, f"origin/{BASE}", BASE):
         return cli.present_json({"status": "up-to-date"}, stream=stream)
 
-    gitcmd.run_git(["merge", "--ff-only", f"origin/{BASE}"], cwd=repo_root)
+    try:
+        gitcmd.run_git(["merge", "--ff-only", f"origin/{BASE}"], cwd=repo_root)
+    except gitcmd.GitError:
+        # origin/main can move between the ancestry guard above and this merge
+        # (a raced push, a sibling land), so a guard that just passed can still
+        # see --ff-only fail. This is a best-effort sync, so degrade to a
+        # skip-with-reason like the dirty and diverged cases rather than raising
+        # and aborting a caller's tail (land's apply emits its roll-up after).
+        return cli.present_json(
+            {"status": "skipped", "reason": "could not fast-forward"},
+            stream=stream)
     return cli.present_json({"status": "fast-forwarded"}, stream=stream)
 
 
