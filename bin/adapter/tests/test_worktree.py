@@ -12,6 +12,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 from adapter import gitcmd, worktree
 
@@ -193,6 +194,34 @@ class TestSyncMain(WorktreeFixture):
         payload = json.loads(out.getvalue())
         self.assertEqual(payload["status"], "skipped")
         self.assertEqual(payload["reason"], "diverged")
+
+    def test_skips_when_fast_forward_fails(self) -> None:
+        # origin/main can move between the ancestry guard and the ff-merge (a
+        # raced push, a sibling land), so a guard that just passed can still see
+        # --ff-only fail. A behind+clean tree reaches the merge; patching only
+        # that call to raise reproduces the race deterministically, since a
+        # single process can't move origin between the guard and the merge.
+        self._advance_remote_main()
+        real_run_git = gitcmd.run_git
+
+        def raise_on_ff(args, cwd=None, check=True):
+            if list(args[:2]) == ["merge", "--ff-only"]:
+                raise gitcmd.GitError(list(args), 128,
+                                      "Not possible to fast-forward, aborting.")
+            return real_run_git(args, cwd=cwd, check=check)
+
+        out = io.StringIO()
+        with mock.patch.object(worktree.gitcmd, "run_git",
+                               side_effect=raise_on_ff):
+            rc = worktree.cmd_sync_main(self.repo, stream=out)
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["status"], "skipped")
+        # A reason distinct from "dirty tree" / "diverged", so a raced
+        # fast-forward is told apart from a genuinely diverged tree.
+        self.assertEqual(payload["reason"], "could not fast-forward")
+        # Never landed origin's commit — the ff-merge was the failing step.
+        self.assertFalse(os.path.isfile(os.path.join(self.repo, "upstream.txt")))
 
 
 class TestRebase(WorktreeFixture):
