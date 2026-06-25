@@ -88,9 +88,6 @@ Each skill below links to its fuller entry in the [skills reference](docs/skills
 - **[field](docs/skills-reference.md#field)** — field questions put to the agent and converge on shared understanding; the dual of design, run on PR-review rework.
 - **[slice](docs/skills-reference.md#slice)** — turn a plan, the current conversation, or an existing issue into one agent-brief issue or N tracer-bullet issues under a lean epic.
 
-### Issue tracking
-- **[triage](docs/skills-reference.md#triage)** — drive issues through a triage state machine by label.
-
 ### Audits
 - **[audit-coverage](docs/skills-reference.md#audits)** — audit for high-risk untested paths; static-first, surfaces findings to `capture`.
 - **[audit-security](docs/skills-reference.md#audits)** — sweep for security exposure (authz, injection, secrets); static-first, surfaces findings to `capture`.
@@ -112,9 +109,10 @@ Each skill below links to its fuller entry in the [skills reference](docs/skills
 
 ### Commands
 
-Commands are the entry points over the `bin/` adapter ([ADR 0008](docs/adr/0008-deterministic-mechanics-code-adapter.md)) — thin wrappers that hold no mechanics, invoked the same way as a skill (`/land`). Two shapes: **pure commands** that never launch an agent (`land`, `reap`), and **command-launches-agent** that reach a synthesis step handed to an agent — in-session by the host agent, or a subagent under `auto` (`capture`).
+Commands are the entry points over the `bin/` adapter ([ADR 0008](docs/adr/0008-deterministic-mechanics-code-adapter.md)) — thin wrappers that hold no mechanics, invoked the same way as a skill (`/land`). Two shapes: **pure commands** that never launch an agent (`land`, `reap`), and **command-launches-agent** that reach a synthesis step handed to an agent — in-session by the host agent, or a subagent under `auto` (`capture`, `triage`).
 
 - **[capture](docs/skills-reference.md#capture)** — turn audit findings or ad-hoc observations into deduped `needs-triage` issues: the dedupe and filing run in `bin/capture`, an agent shapes raw observations into findings where the input isn't already shaped (command-launches-agent).
+- **[triage](docs/skills-reference.md#triage)** — drive issues through the triage state machine by label: the queue/candidate present, the advisory claim, and the state transitions run in `bin/triage`, an agent evaluates the issue and drafts the promoted brief (command-launches-agent, interactive-only).
 - **[land](docs/skills-reference.md#land)** — merge approved PRs, strip `in-progress`, and tear down the branch/worktree; pure command, human-invoked only.
 - **[reap](docs/skills-reference.md#reap)** — sweep workflow state for staleness — abandoned claims, quiet `needs-info`, orphaned worktrees/branches, emptied epics — and clean each up one human-confirmed action at a time; pure command, human-invoked only.
 

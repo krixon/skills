@@ -46,18 +46,6 @@ Each entry names its default handover hop — the recommended next skill — on 
 
 **Chains to.** `pickup` — implement a ready issue.
 
-## Issue tracking
-
-### triage
-
-**What it does.** Drives issues through a triage state machine by label, routing each to `ready-for-agent`, `ready-for-human`, `needs-info`, or `wontfix`. It's the human gate at the end of the findings chain — promotion to a `ready-*` label is the maintainer's call. Claims the issue it works (advisory assignee claim) and honors another session's claim, surfacing it in a separate "claimed / active elsewhere" bucket rather than offering it.
-
-**When to reach for it.** You have incoming issues — bugs, feature requests, or `needs-triage` findings — to sort, or you want to prepare issues for an AFK agent to pick up.
-
-**Example.** `/triage` the `needs-triage` queue, promoting the clear ones and asking for info on the rest.
-
-**Chains to.** Terminal — the maintainer decides promotion; `pickup` is an alternative for an issue promoted to a `ready-*` label.
-
 ## Audits
 
 The nine `audit-*` skills are one method applied through nine risk lenses. Each is a static-first sweep — it reasons from the code, tests, and prose already in the tree, never requiring an instrumented run or a scanner (the shared method is in [skills/AUDIT-METHOD.md](../skills/AUDIT-METHOD.md)). Each maps risk through its lens, scores observations into findings carrying a severity and confidence, and hands them off identically: findings → `capture` → `needs-triage` → `triage`. None files issues itself.
@@ -135,7 +123,7 @@ They differ only by what they look for:
 
 ## Commands
 
-Commands are the entry points over the `bin/` adapter ([ADR 0008](adr/0008-deterministic-mechanics-code-adapter.md)) — thin in-session wrappers rather than agent-native skills, with the mechanics in tested code and only the binary named. Two shapes: **pure commands** (`land`, `reap`) that never launch an agent, and **command-launches-agent** (`capture`) that reach a synthesis step handed to an agent — the host agent in-session, or a subagent under `auto`.
+Commands are the entry points over the `bin/` adapter ([ADR 0008](adr/0008-deterministic-mechanics-code-adapter.md)) — thin in-session wrappers rather than agent-native skills, with the mechanics in tested code and only the binary named. Two shapes: **pure commands** (`land`, `reap`) that never launch an agent, and **command-launches-agent** (`capture`, `triage`) that reach a synthesis step handed to an agent — the host agent in-session, or a subagent under `auto`.
 
 ### capture
 
@@ -146,6 +134,16 @@ Commands are the entry points over the `bin/` adapter ([ADR 0008](adr/0008-deter
 **Example.** `/capture` the findings from an `audit-security` run as deduped `needs-triage` issues.
 
 **Chains to.** `triage` — promote them out of `needs-triage`.
+
+### triage
+
+**What it does.** Drives issues through the triage state machine by label, routing each to `ready-for-agent`, `ready-for-human`, `needs-info`, or `wontfix`. The queue/candidate present, the advisory assignee claim, and the state-machine label transitions (strip the old state, add the new, reconcile category and priority, file the brief/notes/reason) run in the `bin/triage` adapter command (present/act); the synthesis — evaluating the issue, deciding which transition it takes, and drafting the promoted brief — sits between present and act and is reached by the host agent in-session or a subagent under `auto`, never a headless `claude -p`. It honours another session's claim, holding it aside in a separate "claimed / active elsewhere" bucket rather than offering it. The human gate at the end of the findings chain — promotion to a `ready-*` label is the maintainer's call. Copies the `capture` present→synthesis→act boundary.
+
+**When to reach for it.** You have incoming issues — bugs, feature requests, or `needs-triage` findings — to sort, or you want to prepare issues for an AFK agent to pick up.
+
+**Example.** `/triage` the `needs-triage` queue, promoting the clear ones and asking for info on the rest.
+
+**Chains to.** Terminal — the maintainer decides promotion; `pickup` is an alternative for an issue promoted to a `ready-*` label. Interactive-only; `auto` never enters it.
 
 ### land
 
