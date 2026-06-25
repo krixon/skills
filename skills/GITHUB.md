@@ -145,6 +145,7 @@ Prefixing `GH_TOKEN` is atomic per command — it never mutates the active `gh` 
   ```
 - **Read the review** — the comments that form the rework brief:
   `gh pr view <n> --comments` (or `--json reviews,comments`).
+- **Read the merged diff** — what the work actually shipped, for a post-merge read (`retro`): `gh pr diff <n>`. Works on a merged PR and needs no local checkout.
 - **Update a PR**: push more commits to its branch; the open PR tracks the branch, no re-create needed.
 
 ## Releases

@@ -50,6 +50,9 @@ Hand off per [../skills/HANDOVER.md](../skills/HANDOVER.md) → *Autonomy*. End 
 
 - **artifact:** merged PRs — issues closed and de-labelled, branches and worktrees cleaned
 - **default:** — (terminal; the work is merged and the trail is clean)
-- **alternatives:** the project's **release process**, surfaced only when the project's `CLAUDE.md` documents one — offered after a land so accumulated changes can be versioned. Discover it from the in-context `CLAUDE.md`; never hunt the tree for a release command. Otherwise just `stop`
+- **alternatives:**
+  - [`retro`](../skills/retro/SKILL.md) — a post-merge work retro on a just-landed item, reading its brief against the merged PR to harvest process learnings to the tracker. Offered **only when this land closed a brief-carrying issue** — one whose body or comments hold an agent brief ([../skills/contracts/agent-brief.md](../skills/contracts/agent-brief.md)); a land that closed no such issue has nothing to retro, so don't offer it. When more than one brief-carrying issue landed, name the item to retro.
+  - the project's **release process**, surfaced only when the project's `CLAUDE.md` documents one — offered after a land so accumulated changes can be versioned. Discover it from the in-context `CLAUDE.md`; never hunt the tree for a release command.
+  - otherwise just `stop`
 
-**Interactive-only** (see *Autonomy* in [../skills/HANDOVER.md](../skills/HANDOVER.md)) — merging is the human-authorised act `auto` must not take, and the implement loop halts before it. The conditional release-process alternative does not change this: cutting a release is its own human-invoked act, never reached unattended.
+**Interactive-only** (see *Autonomy* in [../skills/HANDOVER.md](../skills/HANDOVER.md)) — merging is the human-authorised act `auto` must not take, and the implement loop halts before it. The conditional `retro` and release-process alternatives do not change this: a post-merge retro and cutting a release are each their own human-invoked act, never reached unattended.

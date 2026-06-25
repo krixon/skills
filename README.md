@@ -65,7 +65,8 @@ Start from the task, not the skill. Each entry is the head of a chain — run th
 | Build a feature test-first | `/tdd` | red-green-refactor loop (usually reached via `pickup`) |
 | Debug a hard bug or perf regression | `/diagnose` | reproduce → minimise → fix → regression test (usually reached via `pickup`) |
 | Ask questions on a PR review (not just request changes) | Comment them on the PR, then `/pickup` | `pickup`'s rework query catches the unresolved thread → routes the questions to `field`, where the agent works each to a converged answer with you → the answers post back to the thread |
-| Merge an approved PR | `/land` | merges, strips `in-progress`, deletes the branch/worktree (human-invoked only) |
+| Merge an approved PR | `/land` | merges, strips `in-progress`, deletes the branch/worktree (human-invoked only) → offers `retro` after a brief-carrying land |
+| Harvest process learnings from a just-merged item | `/retro` | reads the original brief against the merged PR → process-feedback findings → `capture` → `needs-triage`; filing nothing is the common, first-class outcome |
 | Clean up stale workflow state | `/reap` | sweeps abandoned claims, quiet `needs-info`, orphaned worktrees/branches, and emptied epics → proposes each fix, confirms per item (human-invoked only) |
 | Write a new skill | `/write-skill` | scaffolds structure + progressive disclosure |
 | Run a whole pipeline unattended | `/auto <skill>` (e.g. `/auto audit-coverage`) | walks the chain head-down, halting at the first human gate |
@@ -106,6 +107,7 @@ Each skill below links to its fuller entry in the [skills reference](docs/skills
 - **[patch](docs/skills-reference.md#patch)** — ship a small fix straight from a conversation, no tracked issue: worktree branch → review gate → a no-issue PR (`No-issue:` marker, degraded [review-aid](skills/REVIEW-AID.md) summary) a human lands; human-invoked.
 - **[tdd](docs/skills-reference.md#tdd)** — red-green-refactor loop, integration-test first.
 - **[diagnose](docs/skills-reference.md#diagnose)** — disciplined loop for hard bugs and perf regressions: reproduce → minimise → hypothesise → instrument → fix → regression-test.
+- **[retro](docs/skills-reference.md#retro)** — a post-merge work retro: read a landed item's original brief against the merged PR, surface where brief and reality diverged, and file the process-feedback gaps worth acting on through `capture`; reached from `land` after a brief-carrying merge, filing nothing when nothing rises to a process issue.
 
 ### Commands
 
