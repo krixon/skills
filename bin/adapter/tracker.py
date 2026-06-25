@@ -24,7 +24,8 @@ import sys
 import time
 from typing import Any, Callable, Mapping, Sequence, TextIO
 
-from adapter import aclicmd, cli, enums, ghcmd, identity as identity_mod, jira as jira_mod
+from adapter import (aclicmd, cli, enums, ghcmd, identity as identity_mod,
+                     jira as jira_mod, jiracmd)
 from adapter.preflight import preflight
 
 # How long to wait between stale-`mergeable` re-polls, and the poll cap. The
@@ -950,22 +951,25 @@ def required_tools(env: Mapping[str, str]) -> tuple[str, ...]:
 
     Each backend declares its own set so the check never rejects an environment
     over a tool the chosen backend never uses: the GitHub backend drives `gh`,
-    the Jira backend drives `acli`; both need `git`.
+    the Jira backend drives `acli` for its reads and create/comment/label writes
+    and `curl` for the all-REST close path; both need `git`.
     """
     if env.get("ISSUE_TRACKER", "github") == "jira":
-        return ("git", "acli")
+        return ("git", "acli", "curl")
     return ("git", "gh")
 
 
 def run(argv: Sequence[str], env: Mapping[str, str] | None = None,
         runner: ghcmd.Runner | None = None, repo: str | None = None,
-        stream: TextIO | None = None, stdin_body: str | None = None) -> int:
+        stream: TextIO | None = None, stdin_body: str | None = None,
+        jira_curl_runner: jiracmd.Runner | None = None) -> int:
     """Dispatch a tracker command.
 
-    Resolves the backend from `$ISSUE_TRACKER` (only `github` is built here),
-    resolves the bot identity (halting on the half-configured state), and routes
-    to a present or act command. `stdin_body` stands in for a piped body in
-    tests; in the binary it is read from sys.stdin when a command needs it.
+    Resolves the backend from `$ISSUE_TRACKER`, resolves the bot identity
+    (halting on the half-configured state), and routes to a present or act
+    command. `stdin_body` stands in for a piped body in tests; in the binary it
+    is read from sys.stdin when a command needs it. `jira_curl_runner` is the
+    Jira REST seam, injected so the close path's curl calls run offline in tests.
     """
     env = env if env is not None else os.environ
     stream = stream or sys.stdout
@@ -974,7 +978,7 @@ def run(argv: Sequence[str], env: Mapping[str, str] | None = None,
     if tracker_kind == "github":
         return _run_github(argv, env, runner, repo, stream, stdin_body)
     if tracker_kind == "jira":
-        return _run_jira(argv, env, runner, stream, stdin_body)
+        return _run_jira(argv, env, runner, stream, stdin_body, jira_curl_runner)
     return cli.halt(cli.UNSUPPORTED,
                     message=f"unsupported tracker backend: {tracker_kind}",
                     info={"backend": tracker_kind}, stream=stream)
@@ -999,7 +1003,8 @@ def _run_github(argv: Sequence[str], env: Mapping[str, str],
 
 def _run_jira(argv: Sequence[str], env: Mapping[str, str],
               runner: aclicmd.Runner | None, stream: TextIO,
-              stdin_body: str | None) -> int:
+              stdin_body: str | None,
+              curl_runner: jiracmd.Runner | None = None) -> int:
     """Dispatch a tracker command to the Jira backend.
 
     The startup check mirrors the GitHub path's shape: resolve the single
@@ -1020,8 +1025,10 @@ def _run_jira(argv: Sequence[str], env: Mapping[str, str],
         return cli.halt("JIRA_PROJECT is required for the Jira backend",
                         stream=stream)
 
-    be = jira_mod.JiraBackend(credential=credential, project=project,
-                              runner=runner)
+    be = jira_mod.JiraBackend(
+        credential=credential, project=project, runner=runner,
+        curl_runner=curl_runner,
+        done_resolution=jira_mod.JiraBackend.done_resolution_from(env))
     args = _build_jira_parser().parse_args(argv)
     return _route_jira(be, args, stream=stream, stdin_body=stdin_body)
 

@@ -15,34 +15,26 @@ The security boundary (SECURITY.md) holds the same shape as the `gh` half:
 
 `acli` owns its own stored auth (the startup check verifies it via `acli jira
 auth status`), but it offers no supported way to hand that stored credential to
-a urllib call. `acli jira workitem transition` takes only `--status <name>` and
-exposes no transition-listing verb, so resolving a target status by category at
-call time needs the REST `GET /rest/api/3/issue/{key}/transitions` endpoint
-directly. `fetch_transitions` is that one mandatory urllib call — it takes an
-injectable opener seam so the resolution is tested against a canned response
-with no network, and authenticates with HTTP Basic `email:api_token` against the
-same site (the operator's api_token is the shared source for both code paths,
-which is why the adapter pins api_token auth — under OAuth there is no static
-token to share).
+a direct REST call, and `acli jira workitem transition` (which took only
+`--status <name>`) cannot attach a required field like a mandatory Resolution.
+So the close path resolves and performs the transition over REST through the
+`curl` seam in `jiracmd` — `curl` honours the OS trust store where Python's
+urllib does not. The credential this file resolves (`JiraCredential`,
+`eval_token`) is the source that REST path authenticates with: the operator's
+api_token, which is why the adapter pins api_token auth — under OAuth there is no
+static token to hand to the curl Basic header.
 """
 
 from __future__ import annotations
 
-import base64
 import json
 import os
 import subprocess
-import urllib.request
 from typing import Any, Callable, Mapping, Sequence
 
 # The `acli` runner seam: any callable with run_acli's signature, returning an
 # AcliResult. The Jira backend takes one so tests can substitute a recording fake.
 Runner = Callable[..., "AcliResult"]
-
-# The urllib opener seam for the /transitions fallback: a callable taking a
-# urllib.request.Request and returning an object whose .read() yields the body
-# bytes (a urlopen stand-in). Injectable so the REST call is tested offline.
-Opener = Callable[..., Any]
 
 
 class AcliError(RuntimeError):
@@ -142,10 +134,11 @@ class JiraCredential:
     """The resolved Jira credential: the single source `(site, email, token)`.
 
     `site` is the Atlassian base URL; `email` and the api_token (evaluated from
-    `token_cmd`) form the HTTP Basic pair the urllib `/transitions` call uses.
-    `acli` carries its own stored auth — this credential exists for the one REST
-    call acli cannot make, and pins api_token auth (under OAuth there is no
-    static token to share between the two code paths).
+    `token_cmd`) form the HTTP Basic pair the `curl` REST close path uses.
+    `acli` carries its own stored auth — this credential exists for the REST
+    calls acli cannot make (enumerate transitions, POST one with a required
+    field), and pins api_token auth (under OAuth there is no static token to
+    hand to the curl Basic header).
     """
 
     def __init__(self, site: str, email: str, token_cmd: str) -> None:
@@ -167,8 +160,8 @@ def resolve_credential(env: Mapping[str, str] | None = None) -> JiraCredential:
 
     All three vars must be set and non-empty. Unlike the GitHub identity — where
     "all unset" is a valid solo-dev mode — the Jira backend has no unconfigured
-    state: the api_token is the shared source for both acli's REST site and the
-    urllib `/transitions` fallback, so a missing one is always a refusal.
+    state: the api_token is the shared source for both acli's stored auth and the
+    `curl` REST close path, so a missing one is always a refusal.
     """
     if env is None:
         env = os.environ
@@ -226,48 +219,3 @@ def is_authenticated(runner: Runner | None = None) -> bool:
         return False
     text = result.stdout.lower()
     return "authenticated" in text and "not authenticated" not in text
-
-
-# --- the mandatory urllib /transitions fallback -----------------------------
-
-def fetch_transitions(credential: JiraCredential, key: str,
-                      opener: Opener | None = None,
-                      token_evaluator: Callable[[str], str] | None = None,
-                      ) -> list[dict[str, str]]:
-    """The reachable transitions for an issue, each with its target status's
-    name and platform-stable category key.
-
-    This is the one urllib REST call the adapter is forced to make: `acli`
-    transitions only by status name and cannot enumerate transitions, so
-    resolving a target category (`indeterminate`/`done`) to a concrete reachable
-    status name *at call time* — the binding that survives a project workflow
-    rename — has no acli path. It calls `GET {site}/rest/api/3/issue/{key}/
-    transitions`, which returns each `transitions[].to.name` alongside its
-    `transitions[].to.statusCategory.key`.
-
-    Auth is HTTP Basic `email:api_token` against the same site; the api_token is
-    evaluated from the credential's command (the operator's indirection) so it
-    materialises only on this one request and never persists. `opener` and
-    `token_evaluator` are injectable seams so the call is tested offline.
-    """
-    opener = opener or urllib.request.urlopen
-    token_evaluator = token_evaluator or eval_token
-
-    token = token_evaluator(credential.token_cmd)
-    basic = base64.b64encode(
-        f"{credential.email}:{token}".encode("utf-8")).decode("ascii")
-    url = f"{credential.site}/rest/api/3/issue/{key}/transitions"
-    req = urllib.request.Request(url, headers={
-        "Authorization": f"Basic {basic}",
-        "Accept": "application/json",
-    })
-    with opener(req) as resp:
-        payload = json.loads(resp.read().decode("utf-8"))
-    out = []
-    for tr in payload.get("transitions") or []:
-        to = tr.get("to") or {}
-        out.append({
-            "name": to.get("name"),
-            "category": (to.get("statusCategory") or {}).get("key"),
-        })
-    return out

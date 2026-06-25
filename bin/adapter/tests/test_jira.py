@@ -4,18 +4,23 @@ Symmetric with test_tracker.py: every test drives the backend through a scripted
 acli runner seam — a run_acli stand-in that pops a canned AcliResult per call and
 records argv — so the unit covers the command built and the logic applied, never
 the network. The named acceptance criteria get dedicated cases: statusCategory.key
-resolution (reads and the already-done no-op), the call-time category→status-name
-mapping (via the injected /transitions fetcher), and the concept→primitive map.
+resolution (the already-done no-op), the all-REST close path through the curl
+seam (transitions GET, done-category pick, resolution-only-when-required POST),
+the two-zone issue_view envelope, and the concept→primitive map. The close path
+drives an injected curl runner (a run_curl stand-in recording method/URL/payload)
+so its REST requests are asserted offline, with the api_token never in argv.
 """
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 import unittest
 from typing import Any, Sequence
 
-from adapter import aclicmd, jira, tracker
+from adapter import aclicmd, jira, jiracmd, tracker
+from adapter.jiracmd import CurlResult
 
 
 class ScriptedRunner:
@@ -50,15 +55,49 @@ class ScriptedRunner:
         return self.calls[i]["args"]
 
 
+class ScriptedCurl:
+    """A run_curl stand-in: returns queued results in order, records each call.
+
+    Each queued entry is (body, status, returncode); a bare string is a 200 with
+    that body. Calls beyond the script reuse the last entry. Records the request
+    (method, URL, config, payload) so a test asserts the REST request built and
+    the credential's place in the config — never argv — offline.
+    """
+
+    def __init__(self, script: Sequence[Any]) -> None:
+        self._script = [self._norm(s) for s in script]
+        self.calls: list[dict[str, Any]] = []
+
+    @staticmethod
+    def _norm(entry: Any) -> tuple[str, int | None, int]:
+        if isinstance(entry, tuple):
+            body = entry[0]
+            status = entry[1] if len(entry) > 1 else 200
+            rc = entry[2] if len(entry) > 2 else 0
+            return (body, status, rc)
+        return (entry, 200, 0)
+
+    def __call__(self, method: str, url: str, config: str,
+                 payload: str | None = None) -> CurlResult:
+        self.calls.append({"method": method, "url": url, "config": config,
+                           "payload": payload})
+        idx = min(len(self.calls) - 1, len(self._script) - 1)
+        body, status, rc = self._script[idx]
+        return CurlResult(method=method, url=url, returncode=rc, body=body,
+                          status=status)
+
+
 def _cred() -> aclicmd.JiraCredential:
     return aclicmd.JiraCredential(site="https://acme.atlassian.net",
                                   email="bot@acme.io", token_cmd="printf tok")
 
 
 def _backend(runner: Any, project: str = "PROJ",
-             transitions_fetcher: Any = None) -> jira.JiraBackend:
+             curl_runner: Any = None,
+             token_evaluator: Any = None) -> jira.JiraBackend:
     return jira.JiraBackend(credential=_cred(), project=project, runner=runner,
-                            transitions_fetcher=transitions_fetcher)
+                            curl_runner=curl_runner,
+                            token_evaluator=token_evaluator or (lambda cmd: "tok"))
 
 
 # --- concept -> Jira primitive mapping (named criterion) --------------------
@@ -121,96 +160,173 @@ class TestStatusCategoryRead(unittest.TestCase):
         self.assertFalse(be.is_done("PROJ-7"))
 
 
-# --- transitions resolve category -> status name at call time (named) -------
+# --- AC2/AC3: the all-REST curl close path ----------------------------------
 
-class TestTransitionResolution(unittest.TestCase):
+class TestRestClose(unittest.TestCase):
+    """The close path is all-REST through the curl seam (AC2/AC3).
+
+    The is_done short-circuit reads the status category through acli (the runner)
+    as before; the transition itself is GET /transitions then POST /transitions
+    through the injected curl runner — the urllib /transitions GET and the
+    `acli ... transition --status` write are both gone.
+    """
+
     @staticmethod
     def _view(category: str) -> str:
         return json.dumps({"fields": {"status": {
             "name": "x", "statusCategory": {"key": category}}}})
 
-    def _fetcher(self, transitions: list[dict[str, str]]) -> Any:
-        calls = []
+    @staticmethod
+    def _transitions(*, require_resolution: bool,
+                     done_id: str = "31") -> str:
+        # The GET /transitions payload: an indeterminate transition and the
+        # done-category one, keyed by the platform-stable to.statusCategory.key.
+        fields: dict[str, Any] = {}
+        if require_resolution:
+            fields["resolution"] = {"required": True, "name": "Resolution"}
+        return json.dumps({"transitions": [
+            {"id": "11", "name": "Start",
+             "to": {"statusCategory": {"key": "indeterminate"}}},
+            {"id": done_id, "name": "Ship It",
+             "to": {"statusCategory": {"key": "done"}}, "fields": fields},
+        ]})
 
-        def fetch(credential: Any, key: str, **kw: Any) -> list[dict[str, str]]:
-            calls.append({"key": key})
-            return transitions
-
-        fetch.calls = calls  # type: ignore[attr-defined]
-        return fetch
-
-    def test_resolves_target_category_to_reachable_status_name(self) -> None:
-        # view: currently indeterminate (not yet done, so the transition runs).
-        runner = ScriptedRunner([
-            (self._view("indeterminate"),),  # is_done check
-            ("{}",),                          # the transition
+    def test_close_gets_then_posts_the_done_transition_all_rest(self) -> None:
+        runner = ScriptedRunner([(self._view("indeterminate"),)])  # is_done check
+        curl = ScriptedCurl([
+            self._transitions(require_resolution=False),  # GET /transitions
+            ("", 204),                                    # POST transition (204)
         ])
-        fetch = self._fetcher([
-            {"name": "Back to Todo", "category": "new"},
-            {"name": "Ship It", "category": "done"},
+        be = _backend(runner, curl_runner=curl)
+        result = be.issue_close("PROJ-7")
+        self.assertEqual(result["outcome"], "ok")
+        self.assertEqual(result["state"], "closed")
+        # Exactly two REST calls: GET transitions, POST the done transition.
+        self.assertEqual(len(curl.calls), 2)
+        get, post = curl.calls
+        self.assertEqual(get["method"], "GET")
+        self.assertIn("/rest/api/3/issue/PROJ-7/transitions", get["url"])
+        self.assertEqual(post["method"], "POST")
+        self.assertIn("/rest/api/3/issue/PROJ-7/transitions", post["url"])
+        payload = json.loads(post["payload"])
+        # It picked the done-category transition by its id (31), not the
+        # indeterminate one — resolved by category at call time, never hard-coded.
+        self.assertEqual(payload["transition"]["id"], "31")
+        # No resolution field when the transition does not require one.
+        self.assertNotIn("fields", payload)
+
+    def test_close_sets_resolution_only_when_transition_requires_it(self) -> None:
+        runner = ScriptedRunner([(self._view("indeterminate"),)])
+        curl = ScriptedCurl([
+            self._transitions(require_resolution=True),
+            ("", 204),
         ])
-        be = _backend(runner, transitions_fetcher=fetch)
-        be.transition_to_category("PROJ-7", jira.CATEGORY_DONE)
-        # It transitioned by the status NAME carrying the target category — the
-        # name was resolved at call time, never hard-coded.
-        transition_argv = runner.argv(1)
-        self.assertEqual(transition_argv[:3], ["jira", "workitem", "transition"])
-        self.assertIn("--status", transition_argv)
-        self.assertIn("Ship It", transition_argv)
-        # The name "Done" is never assumed.
-        self.assertNotIn("Done", transition_argv)
-        # acli names the work item by --key and needs --yes (no TTY to confirm).
-        self.assertIn("--key", transition_argv)
-        self.assertIn("PROJ-7", transition_argv)
-        self.assertIn("--yes", transition_argv)
+        be = _backend(runner, curl_runner=curl)
+        be.issue_close("PROJ-7")
+        payload = json.loads(curl.calls[1]["payload"])
+        self.assertEqual(payload["transition"]["id"], "31")
+        # The resolution field is attached, defaulting to "Done".
+        self.assertEqual(payload["fields"]["resolution"]["name"], "Done")
+
+    def test_close_uses_configured_done_resolution_name(self) -> None:
+        runner = ScriptedRunner([(self._view("indeterminate"),)])
+        curl = ScriptedCurl([
+            self._transitions(require_resolution=True),
+            ("", 204),
+        ])
+        be = jira.JiraBackend(credential=_cred(), project="PROJ", runner=runner,
+                              curl_runner=curl,
+                              token_evaluator=lambda cmd: "tok",
+                              done_resolution="Fixed")
+        be.issue_close("PROJ-7")
+        payload = json.loads(curl.calls[1]["payload"])
+        self.assertEqual(payload["fields"]["resolution"]["name"], "Fixed")
 
     def test_rename_does_not_break_the_binding(self) -> None:
-        # The project renamed its done status to "Closed"; resolution still finds
-        # it by category, with no code change.
-        runner = ScriptedRunner([(self._view("indeterminate"),), ("{}",)])
-        fetch = self._fetcher([{"name": "Closed", "category": "done"}])
-        be = _backend(runner, transitions_fetcher=fetch)
-        be.transition_to_category("PROJ-7", jira.CATEGORY_DONE)
-        self.assertIn("Closed", runner.argv(1))
-
-    def test_already_in_target_category_is_a_noop(self) -> None:
-        # Already done → no transition issued (the already-done no-op check).
-        runner = ScriptedRunner([(self._view("done"),)])
-        fetch = self._fetcher([{"name": "Ship It", "category": "done"}])
-        be = _backend(runner, transitions_fetcher=fetch)
-        result = be.transition_to_category("PROJ-7", jira.CATEGORY_DONE)
-        self.assertTrue(result.get("noop"))
-        # Only the is_done read ran — no transition call.
-        self.assertEqual(len(runner.calls), 1)
-
-    def test_no_reachable_transition_for_category_raises(self) -> None:
+        # The done transition resolves by category, so a renamed done status
+        # (any id) is still found with no code change.
         runner = ScriptedRunner([(self._view("indeterminate"),)])
-        fetch = self._fetcher([{"name": "Back to Todo", "category": "new"}])
-        be = _backend(runner, transitions_fetcher=fetch)
-        with self.assertRaises(jira.NoSuchTransition):
-            be.transition_to_category("PROJ-7", jira.CATEGORY_DONE)
+        curl = ScriptedCurl([
+            self._transitions(require_resolution=False, done_id="99"),
+            ("", 204),
+        ])
+        be = _backend(runner, curl_runner=curl)
+        be.issue_close("PROJ-7")
+        self.assertEqual(json.loads(curl.calls[1]["payload"])["transition"]["id"],
+                         "99")
 
-    def test_fetcher_is_called_with_the_issue_key(self) -> None:
-        runner = ScriptedRunner([(self._view("indeterminate"),), ("{}",)])
-        fetch = self._fetcher([{"name": "Ship It", "category": "done"}])
-        be = _backend(runner, transitions_fetcher=fetch)
-        be.transition_to_category("PROJ-7", jira.CATEGORY_DONE)
-        self.assertEqual(fetch.calls[0]["key"], "PROJ-7")
+    def test_already_done_is_a_noop_no_rest_call(self) -> None:
+        runner = ScriptedRunner([(self._view("done"),)])
+        curl = ScriptedCurl([self._transitions(require_resolution=False)])
+        be = _backend(runner, curl_runner=curl)
+        result = be.issue_close("PROJ-7")
+        # An already-done issue is still reported closed; the noop flag rides info.
+        self.assertEqual(result["state"], "closed")
+        self.assertTrue(result["info"]["noop"])
+        # Only the is_done read ran — no transitions GET or POST.
+        self.assertEqual(len(curl.calls), 0)
+
+    def test_no_done_transition_raises(self) -> None:
+        runner = ScriptedRunner([(self._view("indeterminate"),)])
+        no_done = json.dumps({"transitions": [
+            {"id": "11", "name": "Reopen",
+             "to": {"statusCategory": {"key": "new"}}}]})
+        curl = ScriptedCurl([no_done])
+        be = _backend(runner, curl_runner=curl)
+        with self.assertRaises(jira.NoSuchTransition):
+            be.issue_close("PROJ-7")
+        # It GETs the transitions but never POSTs.
+        self.assertEqual(len(curl.calls), 1)
+
+    def test_token_rides_the_config_not_argv(self) -> None:
+        # The api_token (evaluated from the credential command) rides the curl
+        # config as a base64 Basic credential, never the URL (argv).
+        runner = ScriptedRunner([(self._view("indeterminate"),)])
+        curl = ScriptedCurl([self._transitions(require_resolution=False),
+                             ("", 204)])
+        be = _backend(runner, curl_runner=curl,
+                      token_evaluator=lambda cmd: "s3cr3t")
+        be.issue_close("PROJ-7")
+        for call in curl.calls:
+            self.assertNotIn("s3cr3t", call["url"])
+        expected = base64.b64encode(b"bot@acme.io:s3cr3t").decode()
+        self.assertIn(expected, curl.calls[0]["config"])
 
 
 # --- issue concept methods (the dispatched surface) -------------------------
 
 class TestIssueConcepts(unittest.TestCase):
-    def test_issue_view_reads_workitem_all_fields(self) -> None:
-        payload = json.dumps({"key": "PROJ-7", "fields": {
-            "summary": "t", "status": {"statusCategory": {"key": "new"}}}})
+    def test_issue_view_projects_two_zone_contract_envelope(self) -> None:
+        # AC1: the neutral state resolves from statusCategory, the key/url ride
+        # info, and the read still goes through acli's all-fields view.
+        payload = json.dumps({"key": "PROJ-7", "url": "https://acme/browse/PROJ-7",
+                              "fields": {
+            "summary": "t", "labels": ["bug"],
+            "status": {"name": "In Progress",
+                       "statusCategory": {"key": "indeterminate"}}}})
         runner = ScriptedRunner([(payload,)])
         be = _backend(runner)
         out = be.issue_view("PROJ-7")
-        self.assertEqual(out["key"], "PROJ-7")
+        # Neutral fields at the top level; the opaque key is the id.
+        self.assertEqual(out["id"], "PROJ-7")
+        self.assertEqual(out["state"], "open")
+        self.assertEqual(out["title"], "t")
+        self.assertEqual(out["labels"], ["bug"])
+        # The Jira key and url ride the info sidecar, not the top level.
+        self.assertEqual(out["info"]["key"], "PROJ-7")
+        self.assertEqual(out["info"]["url"], "https://acme/browse/PROJ-7")
+        self.assertNotIn("key", out)
+        self.assertNotIn("url", out)
         argv = runner.argv(0)
         self.assertEqual(argv[:3], ["jira", "workitem", "view"])
         self.assertIn("--json", argv)
+
+    def test_issue_view_done_category_maps_to_closed(self) -> None:
+        payload = json.dumps({"key": "PROJ-9", "fields": {
+            "summary": "s", "labels": [],
+            "status": {"statusCategory": {"key": "done"}}}})
+        be = _backend(ScriptedRunner([(payload,)]))
+        self.assertEqual(be.issue_view("PROJ-9")["state"], "closed")
 
     def test_issue_create_uses_issue_type_for_category_and_body_via_file(self) -> None:
         runner = ScriptedRunner([(json.dumps({"key": "PROJ-9"}),)])
@@ -295,9 +411,14 @@ class TestRequiredTools(unittest.TestCase):
         self.assertEqual(tracker.required_tools({"ISSUE_TRACKER": "github"}),
                          ("git", "gh"))
 
-    def test_jira_requires_git_and_acli(self) -> None:
-        self.assertEqual(tracker.required_tools({"ISSUE_TRACKER": "jira"}),
-                         ("git", "acli"))
+    def test_jira_requires_git_acli_and_curl(self) -> None:
+        # AC4: the all-REST close path shells out to curl, so the Jira preflight
+        # names it alongside acli (still used for the reads) and git.
+        tools = tracker.required_tools({"ISSUE_TRACKER": "jira"})
+        self.assertEqual(set(tools), {"git", "acli", "curl"})
+
+    def test_github_does_not_require_curl(self) -> None:
+        self.assertNotIn("curl", tracker.required_tools({"ISSUE_TRACKER": "github"}))
 
     def test_default_is_github(self) -> None:
         self.assertEqual(tracker.required_tools({}), ("git", "gh"))
@@ -332,7 +453,47 @@ class TestJiraDispatch(unittest.TestCase):
             env=self._ENV, runner=runner, stream=out,
         )
         self.assertEqual(rc, 0)
-        self.assertEqual(json.loads(out.getvalue())["key"], "PROJ-7")
+        # The two-zone envelope: the opaque key is the id, the key rides info.
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["id"], "PROJ-7")
+        self.assertEqual(payload["info"]["key"], "PROJ-7")
+
+    def test_issue_close_dispatches_through_the_curl_seam(self) -> None:
+        view = json.dumps({"fields": {"status": {
+            "name": "x", "statusCategory": {"key": "indeterminate"}}}})
+        runner = ScriptedRunner([(self._AUTHED,), (view,)])
+        transitions = json.dumps({"transitions": [
+            {"id": "31", "to": {"statusCategory": {"key": "done"}},
+             "fields": {}}]})
+        curl = ScriptedCurl([transitions, ("", 204)])
+        out = io.StringIO()
+        rc = tracker.run(
+            ["issue", "close", "--key", "PROJ-7"],
+            env=self._ENV, runner=runner, jira_curl_runner=curl, stream=out,
+        )
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["outcome"], "ok")
+        self.assertEqual(payload["state"], "closed")
+
+    def test_close_honours_jira_done_resolution_env_var(self) -> None:
+        # AC2: the resolution name comes from JIRA_DONE_RESOLUTION through
+        # dispatch, not just the direct constructor — the env override is wired.
+        view = json.dumps({"fields": {"status": {
+            "name": "x", "statusCategory": {"key": "indeterminate"}}}})
+        runner = ScriptedRunner([(self._AUTHED,), (view,)])
+        transitions = json.dumps({"transitions": [
+            {"id": "31", "to": {"statusCategory": {"key": "done"}},
+             "fields": {"resolution": {"required": True}}}]})
+        curl = ScriptedCurl([transitions, ("", 204)])
+        env = dict(self._ENV, JIRA_DONE_RESOLUTION="Fixed")
+        rc = tracker.run(
+            ["issue", "close", "--key", "PROJ-7"],
+            env=env, runner=runner, jira_curl_runner=curl, stream=io.StringIO(),
+        )
+        self.assertEqual(rc, 0)
+        payload = json.loads(curl.calls[1]["payload"])
+        self.assertEqual(payload["fields"]["resolution"]["name"], "Fixed")
 
     def test_unauthenticated_acli_halts_at_startup(self) -> None:
         runner = ScriptedRunner([(self._NOT_AUTHED,)])
@@ -355,6 +516,98 @@ class TestJiraDispatch(unittest.TestCase):
         )
         self.assertNotEqual(rc, 0)
         self.assertEqual(json.loads(out.getvalue())["status"], "halted")
+
+
+# --- the curl REST seam helpers ---------------------------------------------
+
+class TestCurlSeam(unittest.TestCase):
+    def test_request_json_parses_2xx_body(self) -> None:
+        runner = ScriptedCurl([(json.dumps({"ok": True}), 200)])
+        out = jiracmd.request_json("GET", "https://x/y", "cfg", runner=runner)
+        self.assertEqual(out, {"ok": True})
+
+    def test_request_json_empty_204_yields_default(self) -> None:
+        runner = ScriptedCurl([("", 204)])
+        out = jiracmd.request_json("POST", "https://x/y", "cfg", payload={"a": 1},
+                                   runner=runner, default=None)
+        self.assertIsNone(out)
+        # The payload was serialised to JSON for the body.
+        self.assertEqual(json.loads(runner.calls[0]["payload"]), {"a": 1})
+
+    def test_request_raises_on_non_2xx(self) -> None:
+        runner = ScriptedCurl([("forbidden", 403)])
+        with self.assertRaises(jiracmd.JiraError) as ctx:
+            jiracmd.request("GET", "https://x/y", "cfg", runner=runner)
+        self.assertEqual(ctx.exception.status, 403)
+
+    def test_request_raises_on_curl_transport_error(self) -> None:
+        # A non-zero curl exit (TLS/DNS) with no HTTP status still raises.
+        runner = ScriptedCurl([("", None, 35)])
+        with self.assertRaises(jiracmd.JiraError) as ctx:
+            jiracmd.request("GET", "https://x/y", "cfg", runner=runner)
+        self.assertIsNone(ctx.exception.status)
+
+    def test_config_for_carries_basic_credential_off_argv(self) -> None:
+        # The config the backend feeds curl carries the api_token as a base64
+        # Basic header, evaluated once from the credential command.
+        config = jiracmd.config_for(_cred(), token_evaluator=lambda cmd: "s3cr3t")
+        expected = base64.b64encode(b"bot@acme.io:s3cr3t").decode()
+        self.assertIn(f"Basic {expected}", config)
+        self.assertNotIn("s3cr3t", config.replace(expected, ""))
+
+    def test_run_curl_keeps_credential_off_argv(self) -> None:
+        # run_curl builds argv with the URL and flags only — the config (carrying
+        # the credential) is delivered via --config - on stdin, never as argv.
+        captured: dict[str, Any] = {}
+
+        class FakeCompleted:
+            returncode = 0
+            stdout = "{}" + jiracmd._STATUS_MARKER + "200"
+            stderr = ""
+
+        def fake_run(args, **kw):
+            captured["args"] = args
+            captured["input"] = kw.get("input")
+            return FakeCompleted()
+
+        orig = jiracmd.subprocess.run
+        jiracmd.subprocess.run = fake_run
+        try:
+            jiracmd.run_curl("GET", "https://acme.atlassian.net/x",
+                             'header = "Authorization: Basic ZZZ"')
+        finally:
+            jiracmd.subprocess.run = orig
+        self.assertNotIn("ZZZ", " ".join(captured["args"]))
+        self.assertIn("--config", captured["args"])
+        self.assertIn("-", captured["args"])
+        self.assertIn("ZZZ", captured["input"])
+
+    def test_data_payload_rides_the_stdin_config_not_argv(self) -> None:
+        # The POST body travels the same -K stdin channel as the credential, so
+        # neither rides argv; embedded quotes survive the config escaping.
+        captured: dict[str, Any] = {}
+
+        class FakeCompleted:
+            returncode = 0
+            stdout = "" + jiracmd._STATUS_MARKER + "204"
+            stderr = ""
+
+        def fake_run(args, **kw):
+            captured["args"] = args
+            captured["input"] = kw.get("input")
+            return FakeCompleted()
+
+        orig = jiracmd.subprocess.run
+        jiracmd.subprocess.run = fake_run
+        try:
+            jiracmd.run_curl("POST", "https://acme/x", "cfg",
+                             payload='{"transition": {"id": "31"}}')
+        finally:
+            jiracmd.subprocess.run = orig
+        joined = " ".join(captured["args"])
+        self.assertNotIn("transition", joined)
+        self.assertIn('data = "{\\"transition\\": {\\"id\\": \\"31\\"}}"',
+                      captured["input"])
 
 
 if __name__ == "__main__":
