@@ -389,23 +389,35 @@ class JiraBackend:
         return self._neutral_issue(native, key=key)
 
     @staticmethod
-    def _list_jql(project: str, label: str | None, state: str) -> str:
+    def _jql_quote(value: str) -> str:
+        """Quote a value as a JQL string literal, escaping what would break out.
+
+        Backslash and double-quote are the two characters JQL treats specially
+        inside a double-quoted string, so both are escaped before the value is
+        wrapped. Today's callers pass controlled workflow labels and the
+        configured project, but escaping at the boundary keeps the clause
+        injection-proof if a fetched value is ever wired in.
+        """
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+
+    @classmethod
+    def _list_jql(cls, project: str, label: str | None, state: str) -> str:
         """The JQL for a summary list read, scoped to the project.
 
         Filters by neutral state through the platform-stable `statusCategory`
         (never a renameable status name): `open` is everything not yet `Done`,
         `closed` is `Done`. A label, when given, narrows further. Values are
-        quoted so a multi-word label or project key still parses; the inputs are
-        controlled workflow labels and the configured project, never untrusted
-        external text.
+        quoted through `_jql_quote` so a multi-word value still parses and an
+        embedded quote can't break out of the clause.
         """
-        clauses = [f'project = "{project}"']
+        clauses = [f"project = {cls._jql_quote(project)}"]
         if state == "open":
             clauses.append("statusCategory != Done")
         elif state == "closed":
             clauses.append("statusCategory = Done")
         if label:
-            clauses.append(f'labels = "{label}"')
+            clauses.append(f"labels = {cls._jql_quote(label)}")
         return " AND ".join(clauses)
 
     def issue_list(self, label: str | None = None,

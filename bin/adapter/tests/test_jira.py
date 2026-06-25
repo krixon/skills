@@ -540,6 +540,12 @@ class TestIssueConcepts(unittest.TestCase):
         self.assertIn("statusCategory = Done", jql)
         self.assertIn('labels = "needs-triage"', jql)
 
+    def test_list_jql_escapes_embedded_quote_in_label(self) -> None:
+        # A value carrying a double-quote is escaped, not left to break out of
+        # its clause — defence in depth, so a future fetched label can't inject.
+        jql = jira.JiraBackend._list_jql("PROJ", label='ne"ed', state="open")
+        self.assertIn(r'labels = "ne\"ed"', jql)
+
     def test_issue_list_empty_search_yields_no_rows(self) -> None:
         # An empty stdout is the no-hits case (acli_json's default), not a crash.
         be = _backend(ScriptedRunner([("",)]))
