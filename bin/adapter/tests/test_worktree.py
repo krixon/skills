@@ -217,10 +217,9 @@ class TestSyncMain(WorktreeFixture):
         self.assertEqual(rc, 0)
         payload = json.loads(out.getvalue())
         self.assertEqual(payload["status"], "skipped")
-        self.assertEqual(payload["reason"], "could not fast-forward")
-        # The reason is distinct from the other skip reasons, so a raced
+        # A reason distinct from "dirty tree" / "diverged", so a raced
         # fast-forward is told apart from a genuinely diverged tree.
-        self.assertNotIn(payload["reason"], {"dirty tree", "diverged"})
+        self.assertEqual(payload["reason"], "could not fast-forward")
         # Never landed origin's commit — the ff-merge was the failing step.
         self.assertFalse(os.path.isfile(os.path.join(self.repo, "upstream.txt")))
 
