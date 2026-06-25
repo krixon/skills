@@ -2,10 +2,17 @@
 """Entry point for the `tracker` command group.
 
 Invoked by absolute path under ${CLAUDE_PLUGIN_ROOT}/bin/ (ADR 0008), not via
-PATH. This stays thin: it puts the adapter package on the path and hands argv to
-adapter.tracker.main, which holds the command logic, the GitHub backend, and the
-internal bot-identity dance. Sibling of bin/worktree over the same bin/adapter
-substrate.
+PATH. This stays thin: it puts the adapter package on the path, runs the
+substrate preflight for the resolved tracker backend, and hands argv to
+adapter.tracker.main, which holds the command logic, the GitHub/Jira backends,
+and the internal bot-identity dance. Sibling of bin/worktree over the same
+bin/adapter substrate.
+
+The required-tools set is per-backend (ADR 0008): the GitHub backend shells out
+to `gh`, the Jira backend to `curl` (it trusts the OS trust store behind
+enterprise TLS interception). The preflight resolves the backend from
+`$ISSUE_TRACKER` and checks only that backend's tools, so neither environment is
+rejected over a tool the other backend uses.
 """
 
 import os
@@ -13,7 +20,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from adapter.tracker import main
+from adapter.preflight import preflight
+from adapter.tracker import main, required_tools
 
 if __name__ == "__main__":
+    tracker_kind = os.environ.get("ISSUE_TRACKER", "github")
+    rc = preflight(required=required_tools(tracker_kind))
+    if rc != 0:
+        sys.exit(rc)
     sys.exit(main())

@@ -1263,15 +1263,15 @@ class TestDispatchAndShapes(unittest.TestCase):
         out = io.StringIO()
         rc = tracker.run(
             ["issue", "view", "--id", "7"],
-            env={"ISSUE_TRACKER": "jira"},
+            env={"ISSUE_TRACKER": "bugzilla"},
             runner=ScriptedRunner([("{}",)]), repo="x", stream=out,
         )
-        # jira is not built in this slice; the dispatcher halts, not crashes.
+        # An unbuilt backend (jira is now built; bugzilla is not) halts, not crashes.
         self.assertNotEqual(rc, 0)
         payload = json.loads(out.getvalue())
         # A coded outcome, with free text confined to message (ADR 0009).
         self.assertEqual(payload["outcome"], "unsupported")
-        self.assertIn("jira", payload["message"])
+        self.assertIn("bugzilla", payload["message"])
 
     def test_half_configured_identity_halts_at_startup(self) -> None:
         out = io.StringIO()

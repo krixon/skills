@@ -24,7 +24,7 @@ import sys
 import time
 from typing import Any, Callable, Mapping, Sequence, TextIO
 
-from adapter import cli, enums, ghcmd, identity as identity_mod
+from adapter import cli, enums, ghcmd, identity as identity_mod, jiracmd
 
 # How long to wait between stale-`mergeable` re-polls, and the poll cap. The
 # value settles in a few seconds after a base move; the cap stops an UNKNOWN
@@ -936,7 +936,158 @@ class GithubBackend:
         return {"url": result.stdout.strip(), "tag": tag}
 
 
+# --- Jira backend -----------------------------------------------------------
+
+class JiraBackend:
+    """The Jira-backed implementation of the tracker concepts (issue axis).
+
+    Jira is driven over its REST API through a `curl` shell-out (jiracmd) rather
+    than `acli` or `urllib`: `curl` trusts the OS/corporate trust store, so the
+    calls survive an enterprise TLS-intercepting proxy that breaks Python's
+    `urllib` with `CERTIFICATE_VERIFY_FAILED`. The backend projects Jira's native
+    `{key, fields}` JSON into the same neutral two-zone contract the GitHub
+    backend speaks (ADR 0009): the opaque Jira key is the `id`, with `key`/`url`
+    quarantined under `info`; `state` resolves through `statusCategory`; act
+    results carry a coded `outcome`.
+
+    `config` is the resolved Jira configuration (base URL, email, api_token, and
+    the done-resolution name); `runner` is the curl subprocess seam, injectable
+    so the request built and the contract projected are unit-tested against canned
+    REST JSON without the network. The api_token never rides argv — it goes into
+    a `curl -K -` config on stdin (jiracmd.auth_config).
+    """
+
+    def __init__(self, config: Mapping[str, str],
+                 runner: jiracmd.Runner | None = None) -> None:
+        self.base_url = config["JIRA_BASE_URL"].rstrip("/")
+        self.email = config["JIRA_EMAIL"]
+        self.api_token = config["JIRA_API_TOKEN"]
+        self.done_resolution = config.get("JIRA_DONE_RESOLUTION", "Done")
+        self.runner = runner or jiracmd.run_curl
+
+    # -- internal helpers ----------------------------------------------------
+
+    def _config(self) -> str:
+        """The curl config (Basic auth + JSON headers) for one REST call."""
+        return jiracmd.auth_config(self.email, self.api_token)
+
+    def _url(self, path: str) -> str:
+        return f"{self.base_url}/rest/api/3/{path}"
+
+    def _get(self, path: str) -> Any:
+        return jiracmd.request_json("GET", self._url(path), self._config(),
+                                    runner=self.runner)
+
+    def _post(self, path: str, payload: Any) -> Any:
+        return jiracmd.request_json("POST", self._url(path), self._config(),
+                                    payload=payload, runner=self.runner)
+
+    @staticmethod
+    def _neutral_issue(native: Mapping[str, Any]) -> dict[str, Any]:
+        """Project Jira's native issue JSON into the neutral two-zone envelope.
+
+        The opaque id is the Jira key; `state` maps the status category through
+        the closed-vocab mapper (`done`→closed, else open); `title` is the
+        summary and `labels` carry across as plain strings. The native key and
+        the issue's REST `self` url ride the `info` sidecar.
+        """
+        fields = native.get("fields") or {}
+        status = fields.get("status") or {}
+        category = (status.get("statusCategory") or {}).get("key")
+        return {
+            "id": native["key"],
+            "state": enums.jira_issue_state(category),
+            "title": fields.get("summary"),
+            "labels": list(fields.get("labels") or []),
+            "info": {"key": native["key"], "url": native.get("self")},
+        }
+
+    def _done_transition(self, id: str) -> dict[str, Any]:
+        """The transition that lands the issue in the done category.
+
+        GETs the issue's available transitions and returns the first whose target
+        status is in the `done` category. Raises when none reaches done — the
+        close cannot resolve a target, which is a clear failure, not a transition
+        to guess at.
+        """
+        # expand=transitions.fields makes Jira return each transition's screen
+        # fields with their `required` flag — without it the mandatory-resolution
+        # check below has no data and a required Resolution would silently break
+        # the POST (the live failure #232 fixes).
+        data = self._get(f"issue/{id}/transitions?expand=transitions.fields")
+        for transition in data.get("transitions", []):
+            to = transition.get("to") or {}
+            if (to.get("statusCategory") or {}).get("key") == "done":
+                return transition
+        raise ValueError(
+            f"no done-category transition available for issue {id}")
+
+    @staticmethod
+    def _requires_resolution(transition: Mapping[str, Any]) -> bool:
+        """Whether the transition's screen makes `resolution` a required field.
+
+        Jira returns each transition's fields with a `required` flag when
+        `expand=transitions.fields` is requested; a transition with a mandatory
+        Resolution carries `fields.resolution.required == true`. The transition
+        POST sets `resolution` only when this holds (the close's mandatory-field
+        guard), so a transition with no required resolution is posted bare.
+        """
+        fields = transition.get("fields") or {}
+        resolution = fields.get("resolution") or {}
+        return bool(resolution.get("required"))
+
+    # -- issues --------------------------------------------------------------
+
+    def issue_view(self, id: str) -> dict[str, Any]:
+        """View an issue, projected into the neutral two-zone contract envelope."""
+        native = self._get(f"issue/{id}")
+        return self._neutral_issue(native)
+
+    def issue_close(self, id: str,
+                    comment: str | None = None) -> dict[str, Any]:
+        """Close an issue all-REST: resolve the done-category transition, then
+        POST it, attaching `resolution` only when that transition requires it.
+
+        This replaces the broken path (a urllib `/transitions` GET that fails
+        behind TLS interception, then an `acli --status` transition that fails on
+        a mandatory field): the GET and POST both go through the curl seam, and
+        the resolution rides the transition payload so a required Resolution no
+        longer blocks the close. Returns the contract act envelope.
+
+        `comment` is accepted for signature parity with the GitHub backend's
+        close but is not yet wired onto the transition (a transition comment is a
+        separate `update.comment` payload); this slice closes via the transition
+        only. Carrying a comment through is a follow-up, not silently honoured.
+        """
+        transition = self._done_transition(id)
+        payload: dict[str, Any] = {"transition": {"id": transition["id"]}}
+        if self._requires_resolution(transition):
+            payload["fields"] = {"resolution": {"name": self.done_resolution}}
+        self._post(f"issue/{id}/transitions", payload)
+        return {"outcome": cli.OK, "id": id, "state": "closed"}
+
+
 # --- dispatch ---------------------------------------------------------------
+
+# Per-tracker required-tools sets for the startup substrate preflight (ADR 0008).
+# The GitHub backend shells out to `gh`; the Jira backend drives REST through
+# `curl` (it trusts the OS trust store behind enterprise TLS interception). The
+# entry point preflights the set for the resolved tracker, so neither environment
+# is rejected over a tool the other backend uses.
+_REQUIRED_TOOLS: Mapping[str, tuple[str, ...]] = {
+    "github": ("gh",),
+    "jira": ("curl",),
+}
+
+
+def required_tools(tracker_kind: str) -> tuple[str, ...]:
+    """The substrate tools the given tracker backend shells out to.
+
+    An unknown tracker resolves to the empty set — the dispatch halts on it with
+    a coded `unsupported` outcome, so the preflight need not reject it first.
+    """
+    return _REQUIRED_TOOLS.get(tracker_kind, ())
+
 
 def _resolve_repo(runner: ghcmd.Runner | None) -> str:
     """Discover owner/name from the current clone's origin."""
@@ -946,18 +1097,26 @@ def _resolve_repo(runner: ghcmd.Runner | None) -> str:
 
 def run(argv: Sequence[str], env: Mapping[str, str] | None = None,
         runner: ghcmd.Runner | None = None, repo: str | None = None,
-        stream: TextIO | None = None, stdin_body: str | None = None) -> int:
+        stream: TextIO | None = None, stdin_body: str | None = None,
+        jira_runner: jiracmd.Runner | None = None) -> int:
     """Dispatch a tracker command.
 
-    Resolves the backend from `$ISSUE_TRACKER` (only `github` is built here),
-    resolves the bot identity (halting on the half-configured state), and routes
-    to a present or act command. `stdin_body` stands in for a piped body in
-    tests; in the binary it is read from sys.stdin when a command needs it.
+    Resolves the backend from `$ISSUE_TRACKER` (`github` and `jira` are built),
+    resolves the bot identity for GitHub (halting on the half-configured state),
+    and routes to a present or act command. `stdin_body` stands in for a piped
+    body in tests; in the binary it is read from sys.stdin when a command needs
+    it. `runner`/`jira_runner` are the gh/curl subprocess seams (test injection).
     """
     env = env if env is not None else os.environ
     stream = stream or sys.stdout
 
     tracker_kind = env.get("ISSUE_TRACKER", "github")
+    args = _build_parser().parse_args(argv)
+
+    if tracker_kind == "jira":
+        be = JiraBackend(config=env, runner=jira_runner)
+        return _route_jira(be, args, stream=stream)
+
     if tracker_kind != "github":
         return cli.halt(cli.UNSUPPORTED,
                         message=f"unsupported tracker backend: {tracker_kind}",
@@ -973,8 +1132,27 @@ def run(argv: Sequence[str], env: Mapping[str, str] | None = None,
     repo = repo or _resolve_repo(runner)
     be = GithubBackend(identity=ident, repo=repo, runner=runner)
 
-    args = _build_parser().parse_args(argv)
     return _route(be, args, stream=stream, stdin_body=stdin_body)
+
+
+def _route_jira(be: JiraBackend, args: argparse.Namespace,
+                stream: TextIO | None) -> int:
+    """Route the issue-axis commands the Jira backend implements (#232 slice:
+    view and close). Every other command halts with a coded `unsupported` — the
+    rest of the surface (create/comment/label, relations, claims, the PR axis)
+    is out of scope for this slice, so the dispatch refuses it cleanly rather
+    than calling a method that does not exist."""
+    if args.group == "issue":
+        if args.command == "view":
+            return cli.present_json(be.issue_view(args.id), stream=stream)
+        if args.command == "close":
+            return cli.present_json(
+                be.issue_close(args.id, comment=args.comment), stream=stream)
+    return cli.halt(
+        cli.UNSUPPORTED,
+        message=f"jira backend does not implement: {args.group} {args.command}",
+        info={"backend": "jira", "group": args.group, "command": args.command},
+        stream=stream)
 
 
 def _route(be: GithubBackend, args: argparse.Namespace,

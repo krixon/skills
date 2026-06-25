@@ -28,6 +28,18 @@ _GITHUB_ISSUE_STATE: Mapping[str, str] = {
     "CLOSED": "closed",
 }
 
+# Jira's native `statusCategory.key` values → neutral issue-state tokens. Jira
+# has no two-value open/closed status; it carries a three-value status *category*
+# (`new`, `indeterminate`, `done`) underneath every project-defined status. Only
+# the `done` category is closed; `new` and `indeterminate` are both open work
+# (ADR 0009 keeps the neutral vocabulary at two tokens). An unknown category
+# raises through `map_enum` rather than guessing.
+_JIRA_ISSUE_STATE: Mapping[str, str] = {
+    "new": "open",
+    "indeterminate": "open",
+    "done": "closed",
+}
+
 # The closed neutral review-decision vocabulary. A PR's aggregate review state
 # is exactly these three tokens — approved, changes requested, or a required
 # review still outstanding (which also covers "only comment-state reviews so
@@ -85,6 +97,16 @@ def map_enum(mapping: Mapping[str, str], native: str) -> str:
 def issue_state(native: str) -> str:
     """Map a GitHub native issue state to the neutral `{open, closed}` token."""
     return map_enum(_GITHUB_ISSUE_STATE, native)
+
+
+def jira_issue_state(status_category: str) -> str:
+    """Map a Jira `statusCategory.key` to the neutral `{open, closed}` token.
+
+    Jira resolves issue state through the status *category* — `done` is closed,
+    `new`/`indeterminate` are open — not the project-specific status name (which
+    is open-vocabulary and unmappable). An unknown category raises `UnmappedValue`.
+    """
+    return map_enum(_JIRA_ISSUE_STATE, status_category)
 
 
 def review_decision(native: str | None) -> str:
