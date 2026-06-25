@@ -133,6 +133,16 @@ They differ only by what they look for:
 
 **Chains to.** Terminal — open a PR for review.
 
+### retro
+
+**What it does.** Runs a post-merge **work retro** on a single landed item. It reads the original agent brief against what actually shipped — the merged PR's diff and its review, sourced through the code host with no dependency on a local worktree (`land` tears the worktree down first) — and surfaces where brief and reality diverged. It harvests **process feedback only**: a brief-vs-reality gap that should improve the brief-writing machinery (the agent-brief contract, a skill, or triage), never durable knowledge or a machine-local memory ([ADR 0010](adr/0010-retro-harvests-process-learnings-to-the-tracker.md)). It decides which gaps clear the bar to file, shapes the survivors as findings, and routes them through `capture`. Most lands teach nothing worth filing — finishing clean having filed nothing is the common, first-class outcome, not a failure.
+
+**When to reach for it.** A brief-carrying PR just merged and you want the work to teach the next brief. Reached as an alternative hop from `land`'s handover after a successful land; invokable directly on a landed item too. It never runs unattended — the implement loop halts before `land`, which is human-invoked only.
+
+**Example.** `/retro #42` — read the brief that drove the merged PR for #42 against its diff and review, and file any process-improvement worth tracking.
+
+**Chains to.** `capture` — dedups the process-feedback findings against open issues, culls, and files survivors as `needs-triage`. When nothing clears the bar the run is terminal: it files nothing and reports that the land taught no process learning.
+
 ## Commands
 
 Commands are the entry points over the `bin/` adapter ([ADR 0008](adr/0008-deterministic-mechanics-code-adapter.md)) — thin in-session wrappers rather than agent-native skills, with the mechanics in tested code and only the binary named. Two shapes: **pure commands** (`land`, `reap`) that never launch an agent, and **command-launches-agent** (`capture`) that reach a synthesis step handed to an agent — the host agent in-session, or a subagent under `auto`.
