@@ -22,7 +22,7 @@ import argparse
 import os
 import sys
 import time
-from typing import Any, Callable, Mapping, Sequence, TextIO
+from typing import Any, Callable, Mapping, Protocol, Sequence, TextIO
 
 from adapter import (aclicmd, cli, enums, ghcmd, identity as identity_mod,
                      jira as jira_mod, jiracmd)
@@ -961,78 +961,111 @@ def required_tools(env: Mapping[str, str]) -> tuple[str, ...]:
     return ("git", "gh")
 
 
+class IssueTrackerBackend(Protocol):
+    """The neutral issue-tracker-axis surface a command depends on (ADR 0009).
+
+    Both `GithubBackend` and `JiraBackend` satisfy it structurally. A command
+    types against this rather than a concrete backend so it runs unchanged under
+    whichever `$ISSUE_TRACKER` the shared resolver hands back. Only the methods a
+    tracker-axis command actually reaches are declared; `issue_create` is widened
+    to `*args, **kwargs` because the two backends diverge on the non-neutral tail
+    of the create (GitHub takes `labels`, Jira a `category`/`--set` pair), while
+    the neutral `(title, body)` head and the `issue_list` read are common.
+    """
+
+    def issue_list(self, label: str | None = ...,
+                   state: str = ...) -> list[dict[str, Any]]: ...
+
+    def issue_create(self, title: str, body: str, *args: Any,
+                     **kwargs: Any) -> dict[str, Any]: ...
+
+
+def resolve_backend(
+        env: Mapping[str, str],
+        runner: Any = None, repo: str | None = None,
+        stream: TextIO | None = None,
+        curl_runner: jiracmd.Runner | None = None,
+) -> tuple[IssueTrackerBackend | None, int | None]:
+    """Resolve `$ISSUE_TRACKER` to a constructed, checked backend — the one place.
+
+    The single source of the tracker-axis resolution: it dispatches on
+    `$ISSUE_TRACKER`, runs the per-backend startup checks before any subprocess
+    (the GitHub identity half-configured refusal; the Jira credential / auth /
+    `JIRA_PROJECT` refusals), and constructs the matching backend. Every
+    command on this axis — `tracker`'s own dispatch and `capture` — goes through
+    here, so the unknown-backend and half-configured halts read identically
+    everywhere.
+
+    Returns `(backend, None)` on success, or `(None, rc)` when a halt was already
+    emitted to `stream` and `rc` is its exit code, so the caller threads the halt
+    back out without re-deriving it.
+    """
+    stream = stream or sys.stdout
+    tracker_kind = env.get("ISSUE_TRACKER", "github")
+
+    if tracker_kind == "github":
+        # The identity startup check runs before any gh call — a half-configured
+        # state must refuse before the adapter shells out, not after.
+        try:
+            ident = identity_mod.resolve(env)
+        except identity_mod.HalfConfigured as exc:
+            return None, cli.halt(cli.UNCONFIGURED, message=str(exc),
+                                  stream=stream)
+        repo = repo or _resolve_repo(runner)
+        return GithubBackend(identity=ident, repo=repo, runner=runner), None
+
+    if tracker_kind == "jira":
+        # Mirror the GitHub path's shape: resolve the single credential (refusing
+        # the incomplete state) and verify acli is itself authenticated, both
+        # before the adapter shells out for the command.
+        try:
+            credential = aclicmd.resolve_credential(env)
+        except aclicmd.CredentialIncomplete as exc:
+            return None, cli.halt(str(exc), stream=stream)
+        if not aclicmd.is_authenticated(runner=runner):
+            return None, cli.halt(
+                "acli is not authenticated to Jira; run `acli jira auth login`",
+                stream=stream)
+        project = env.get("JIRA_PROJECT")
+        if not project:
+            return None, cli.halt(
+                "JIRA_PROJECT is required for the Jira backend", stream=stream)
+        be = jira_mod.JiraBackend(
+            credential=credential, project=project, runner=runner,
+            curl_runner=curl_runner,
+            done_resolution=jira_mod.JiraBackend.done_resolution_from(env),
+            required_fields=jira_mod.JiraBackend.required_fields_from(env),
+            field_values=jira_mod.JiraBackend.field_values_from(env))
+        return be, None
+
+    return None, cli.halt(cli.UNSUPPORTED,
+                          message=f"unsupported tracker backend: {tracker_kind}",
+                          info={"backend": tracker_kind}, stream=stream)
+
+
 def run(argv: Sequence[str], env: Mapping[str, str] | None = None,
         runner: ghcmd.Runner | None = None, repo: str | None = None,
         stream: TextIO | None = None, stdin_body: str | None = None,
         jira_curl_runner: jiracmd.Runner | None = None) -> int:
     """Dispatch a tracker command.
 
-    Resolves the backend from `$ISSUE_TRACKER`, resolves the bot identity
-    (halting on the half-configured state), and routes to a present or act
-    command. `stdin_body` stands in for a piped body in tests; in the binary it
-    is read from sys.stdin when a command needs it. `jira_curl_runner` is the
-    Jira REST seam, injected so the close path's curl calls run offline in tests.
+    Resolves the backend through the shared `resolve_backend` (which owns the
+    half-configured, unknown-backend, and Jira startup halts), then keeps its own
+    per-backend parser/route selection. `stdin_body` stands in for a piped body
+    in tests; in the binary it is read from sys.stdin when a command needs it.
+    `jira_curl_runner` is the Jira REST seam, injected so the close path's curl
+    calls run offline in tests.
     """
     env = env if env is not None else os.environ
     stream = stream or sys.stdout
 
-    tracker_kind = env.get("ISSUE_TRACKER", "github")
-    if tracker_kind == "github":
-        return _run_github(argv, env, runner, repo, stream, stdin_body)
-    if tracker_kind == "jira":
-        return _run_jira(argv, env, runner, stream, stdin_body, jira_curl_runner)
-    return cli.halt(cli.UNSUPPORTED,
-                    message=f"unsupported tracker backend: {tracker_kind}",
-                    info={"backend": tracker_kind}, stream=stream)
-
-
-def _run_github(argv: Sequence[str], env: Mapping[str, str],
-                runner: ghcmd.Runner | None, repo: str | None,
-                stream: TextIO, stdin_body: str | None) -> int:
-    # The identity startup check runs before any gh call — a half-configured
-    # state must refuse before the adapter shells out, not after.
-    try:
-        ident = identity_mod.resolve(env)
-    except identity_mod.HalfConfigured as exc:
-        return cli.halt(cli.UNCONFIGURED, message=str(exc), stream=stream)
-
-    repo = repo or _resolve_repo(runner)
-    be = GithubBackend(identity=ident, repo=repo, runner=runner)
-
-    args = _build_parser().parse_args(argv)
-    return _route(be, args, stream=stream, stdin_body=stdin_body)
-
-
-def _run_jira(argv: Sequence[str], env: Mapping[str, str],
-              runner: aclicmd.Runner | None, stream: TextIO,
-              stdin_body: str | None,
-              curl_runner: jiracmd.Runner | None = None) -> int:
-    """Dispatch a tracker command to the Jira backend.
-
-    The startup check mirrors the GitHub path's shape: resolve the single
-    credential (refusing the incomplete state) and verify `acli` is itself
-    authenticated, both before the adapter shells out for the command.
-    """
-    try:
-        credential = aclicmd.resolve_credential(env)
-    except aclicmd.CredentialIncomplete as exc:
-        return cli.halt(str(exc), stream=stream)
-    if not aclicmd.is_authenticated(runner=runner):
-        return cli.halt(
-            "acli is not authenticated to Jira; run `acli jira auth login`",
-            stream=stream)
-
-    project = env.get("JIRA_PROJECT")
-    if not project:
-        return cli.halt("JIRA_PROJECT is required for the Jira backend",
-                        stream=stream)
-
-    be = jira_mod.JiraBackend(
-        credential=credential, project=project, runner=runner,
-        curl_runner=curl_runner,
-        done_resolution=jira_mod.JiraBackend.done_resolution_from(env),
-        required_fields=jira_mod.JiraBackend.required_fields_from(env),
-        field_values=jira_mod.JiraBackend.field_values_from(env))
+    be, rc = resolve_backend(env, runner=runner, repo=repo, stream=stream,
+                             curl_runner=jira_curl_runner)
+    if be is None:
+        return rc
+    if isinstance(be, GithubBackend):
+        args = _build_parser().parse_args(argv)
+        return _route(be, args, stream=stream, stdin_body=stdin_body)
     args = _build_jira_parser().parse_args(argv)
     return _route_jira(be, args, stream=stream, stdin_body=stdin_body)
 

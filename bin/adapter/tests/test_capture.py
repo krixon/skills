@@ -14,10 +14,49 @@ import json
 import unittest
 from typing import Any, Sequence
 
-from adapter import capture, cli, ghcmd
+from adapter import aclicmd, capture, cli, ghcmd, tracker
 from adapter.ghcmd import GhError
 from adapter.identity import Identity
 from adapter.tracker import GithubBackend
+
+
+class AcliScriptedRunner:
+    """A run_acli stand-in: returns queued results in order, records each call.
+
+    Mirrors test_jira.py's ScriptedRunner — the capture jira path drives acli
+    (the auth-status startup check, then the workitem search) with no network.
+    """
+
+    def __init__(self, script: Sequence[Any]) -> None:
+        self._script = [self._norm(s) for s in script]
+        self.calls: list[dict[str, Any]] = []
+
+    @staticmethod
+    def _norm(entry: Any) -> tuple[str, int, str]:
+        if isinstance(entry, tuple):
+            stdout = entry[0]
+            rc = entry[1] if len(entry) > 1 else 0
+            stderr = entry[2] if len(entry) > 2 else ""
+            return (stdout, rc, stderr)
+        return (entry, 0, "")
+
+    def __call__(self, args: Sequence[str], env: dict[str, str] | None = None,
+                 input: str | None = None, check: bool = True
+                 ) -> aclicmd.AcliResult:
+        self.calls.append({"args": list(args), "env": env, "input": input})
+        idx = min(len(self.calls) - 1, len(self._script) - 1)
+        stdout, rc, stderr = self._script[idx]
+        return aclicmd.AcliResult(args=list(args), returncode=rc, stdout=stdout,
+                                  stderr=stderr)
+
+
+_JIRA_ENV = {
+    "ISSUE_TRACKER": "jira",
+    "JIRA_SITE": "https://acme.atlassian.net",
+    "JIRA_EMAIL": "bot@acme.io",
+    "JIRA_API_TOKEN_CMD": "printf tok",
+    "JIRA_PROJECT": "PROJ",
+}
 
 
 class ProgrammedRunner:
@@ -265,11 +304,61 @@ class RunDispatch(unittest.TestCase):
                          repo="krixon/skills", stdin_body="garbage", stream=out)
         self.assertEqual(rc, cli.HALT_EXIT)
 
-    def test_non_github_tracker_halts(self) -> None:
+    def test_unknown_backend_halts_through_shared_path(self) -> None:
+        # An unrecognised tracker halts with the canonical UNSUPPORTED shape the
+        # shared resolver emits — a coded outcome with the backend named in the
+        # message, not capture's old free-text details form.
         out = io.StringIO()
-        rc = capture.run(["present"], env={"ISSUE_TRACKER": "jira"},
+        rc = capture.run(["present"], env={"ISSUE_TRACKER": "gitlab"},
                          repo="krixon/skills", stdin_body="[]", stream=out)
         self.assertEqual(rc, cli.HALT_EXIT)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["outcome"], "unsupported")
+        self.assertIn("gitlab", payload["message"])
+
+    def test_jira_backend_resolves_and_presents(self) -> None:
+        # Under ISSUE_TRACKER=jira capture resolves a JiraBackend through the
+        # shared resolver and the present dedupe read runs against acli — the
+        # auth-status startup check, then the workitem search.
+        search = json.dumps([
+            {"key": "PROJ-7", "fields": {
+                "summary": "Discount branch of OrderTotals.calculate is untested",
+                "labels": ["needs-triage"],
+                "status": {"statusCategory": {"key": "new"}}}},
+        ])
+        runner = AcliScriptedRunner([("authenticated",), (search,)])
+        out = io.StringIO()
+        rc = capture.run(["present"], env=_JIRA_ENV, runner=runner,
+                         stdin_body=json.dumps([_finding()]), stream=out)
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["count"], 1)
+        # The open issue read off Jira deduped the finding by title.
+        self.assertEqual(payload["findings"][0]["match"]["status"], "duplicate")
+        # The dedupe read went through acli's workitem search, not the network.
+        self.assertEqual(runner.calls[-1]["args"][:3],
+                         ["jira", "workitem", "search"])
+
+
+class SharedResolver(unittest.TestCase):
+    def test_unknown_backend_halt_identical_to_tracker(self) -> None:
+        # capture and tracker resolve through the one shared resolver, so an
+        # unknown backend halts identically — same coded outcome, same message.
+        cap_out, trk_out = io.StringIO(), io.StringIO()
+        cap_rc = capture.run(["present"], env={"ISSUE_TRACKER": "gitlab"},
+                             repo="x", stdin_body="[]", stream=cap_out)
+        trk_rc = tracker.run(["issue", "view", "--id", "7"],
+                             env={"ISSUE_TRACKER": "gitlab"},
+                             runner=None, repo="x", stream=trk_out)
+        self.assertEqual(cap_rc, trk_rc)
+        self.assertEqual(json.loads(cap_out.getvalue()),
+                         json.loads(trk_out.getvalue()))
+
+    def test_resolve_backend_returns_github_backend(self) -> None:
+        be, rc = tracker.resolve_backend(
+            {"ISSUE_TRACKER": "github"}, repo="krixon/skills")
+        self.assertIsNone(rc)
+        self.assertIsInstance(be, GithubBackend)
 
 
 if __name__ == "__main__":
