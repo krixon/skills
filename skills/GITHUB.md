@@ -45,8 +45,6 @@ Two **priority** labels (`triage` owns them, set at promotion):
 - `priority:high` — higher priority tier
 - `priority:low` — lower priority tier
 
-The tier model — default unlabelled, the at-most-one rule, how the tiers order selection — lives in the skills (`triage` sets them, `pickup` step 1 selects by them), not here.
-
 There is **no** review-state label. A claimed issue (`in-progress`) with an open PR *is* "in review"; once a human requests changes the PR carries that signal (see *Rework* below).
 
 ## Glossary — workflow concepts
@@ -78,7 +76,7 @@ Skills express the workflow in the tracker-neutral concepts below; this table is
 
 ## New-work selection
 
-The query behind `pickup`'s new-work selection — the ordering model (state pool → tier → age, absolute state precedence) lives in `pickup` step 1. Query one pool at a time, excluding claimed work, then sort by tier and age in `jq`. Substitute `ready-for-human` to drain the second pool only once the first is empty:
+The query `pickup` uses for new-work selection. Query one pool at a time, excluding claimed work, then sort by tier and age in `jq`. Substitute `ready-for-human` to drain the second pool only once the first is empty:
 
 ```
 gh issue list --state open --label ready-for-agent --json number,title,labels,createdAt \
