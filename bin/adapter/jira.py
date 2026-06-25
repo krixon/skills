@@ -345,33 +345,102 @@ class JiraBackend:
 
     # -- issues --------------------------------------------------------------
 
-    def issue_view(self, key: str) -> dict[str, Any]:
-        """Read an issue and project it into the neutral two-zone envelope.
+    @staticmethod
+    def _neutral_issue(native: Mapping[str, Any],
+                       key: str | None = None) -> dict[str, Any]:
+        """Project one acli workitem into the neutral two-zone envelope (ADR 0009).
 
-        Reads the same `--fields '*all'` view status_category reads, then shapes
-        it to the contract (ADR 0009): the opaque Jira key is the neutral `id`,
-        the neutral `state` resolves from `statusCategory.key` (`done`→`closed`,
-        else `open`), and `title`/`labels` carry across at the top level. The
-        Jira key and the issue url ride the `info` sidecar — the adapter-
-        specific data nothing branches on.
+        The shared mapping behind both the detail read (`issue_view`) and the
+        summary read (`issue_list`): the opaque Jira key is the neutral `id`, the
+        neutral `state` resolves from `statusCategory.key` (`done`→`closed`, else
+        `open`), and `title`/`labels` carry across at the top level. The Jira key
+        and the issue url ride the `info` sidecar — the adapter-specific data
+        nothing branches on. `key` is the fallback id for a detail read that
+        requested a key the payload may omit; a list row carries its own.
         """
-        native = self._json(
-            ["jira", "workitem", "view", key, "--json", "--fields", "*all"],
-            default={},
-        )
+        resolved_key = native.get("key", key)
         fields = native.get("fields") or {}
         category = ((fields.get("status") or {}).get("statusCategory") or {}
                     ).get("key")
-        info: dict[str, Any] = {"key": native.get("key", key)}
+        info: dict[str, Any] = {"key": resolved_key}
         if "url" in native:
             info["url"] = native["url"]
         return {
-            "id": native.get("key", key),
+            "id": resolved_key,
             "state": enums.jira_issue_state(category),
             "title": fields.get("summary"),
             "labels": fields.get("labels") or [],
             "info": info,
         }
+
+    def issue_view(self, key: str) -> dict[str, Any]:
+        """Read an issue and project it into the neutral two-zone envelope.
+
+        Reads the same `--fields '*all'` view status_category reads, then shapes
+        it through `_neutral_issue` (ADR 0009): the opaque Jira key is the neutral
+        `id`, the neutral `state` resolves from `statusCategory.key`
+        (`done`→`closed`, else `open`), and `title`/`labels` carry across at the
+        top level, with the key and url on the `info` sidecar.
+        """
+        native = self._json(
+            ["jira", "workitem", "view", key, "--json", "--fields", "*all"],
+            default={},
+        )
+        return self._neutral_issue(native, key=key)
+
+    @staticmethod
+    def _jql_quote(value: str) -> str:
+        """Quote a value as a JQL string literal, escaping what would break out.
+
+        Backslash and double-quote are the two characters JQL treats specially
+        inside a double-quoted string, so both are escaped before the value is
+        wrapped. Today's callers pass controlled workflow labels and the
+        configured project, but escaping at the boundary keeps the clause
+        injection-proof if a fetched value is ever wired in.
+        """
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+
+    @classmethod
+    def _list_jql(cls, project: str, label: str | None, state: str) -> str:
+        """The JQL for a summary list read, scoped to the project.
+
+        Filters by neutral state through the platform-stable `statusCategory`
+        (never a renameable status name): `open` is everything not yet `Done`,
+        `closed` is `Done`. A label, when given, narrows further. Values are
+        quoted through `_jql_quote` so a multi-word value still parses and an
+        embedded quote can't break out of the clause.
+        """
+        clauses = [f"project = {cls._jql_quote(project)}"]
+        if state == "open":
+            clauses.append("statusCategory != Done")
+        elif state == "closed":
+            clauses.append("statusCategory = Done")
+        if label:
+            clauses.append(f"labels = {cls._jql_quote(label)}")
+        return " AND ".join(clauses)
+
+    def issue_list(self, label: str | None = None,
+                   state: str = "open") -> list[dict[str, Any]]:
+        """List issues as lean neutral summary rows (ADR 0009).
+
+        The summary counterpart to `issue_view`: an `acli jira workitem search`
+        JQL read scoped to the project, filtered by neutral `state` and an
+        optional `label`, projecting each hit through the same `_neutral_issue`
+        mapping the view uses. The field set is the summary minimum
+        (`summary,status,labels`) the neutral row needs. acli's search payload is
+        a bare list of workitems, tolerantly unwrapped from an envelope shape too.
+        """
+        jql = self._list_jql(self.project, label, state)
+        payload = self._json(
+            ["jira", "workitem", "search", "--jql", jql, "--json",
+             "--fields", "summary,status,labels"],
+            default=[],
+        )
+        if isinstance(payload, dict):
+            payload = (payload.get("issues") or payload.get("workItems")
+                       or payload.get("results") or [])
+        return [self._neutral_issue(row) for row in payload]
 
     def issue_create(self, title: str, body: str, category: str,
                      set_fields: Mapping[str, str] | None = None

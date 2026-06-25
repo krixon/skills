@@ -497,6 +497,60 @@ class TestIssueConcepts(unittest.TestCase):
         be = _backend(ScriptedRunner([(payload,)]))
         self.assertEqual(be.issue_view("PROJ-9")["state"], "closed")
 
+    def test_issue_list_searches_open_and_maps_neutral_rows(self) -> None:
+        # The summary read: an acli JQL search scoped to the project and the
+        # open (not-Done) category, each hit projected through the same neutral
+        # mapping issue_view uses.
+        rows = json.dumps([
+            {"key": "PROJ-7", "fields": {
+                "summary": "first", "labels": ["needs-triage"],
+                "status": {"statusCategory": {"key": "new"}}}},
+            {"key": "PROJ-9", "fields": {
+                "summary": "second", "labels": [],
+                "status": {"statusCategory": {"key": "indeterminate"}}}},
+        ])
+        runner = ScriptedRunner([(rows,)])
+        be = _backend(runner)
+        out = be.issue_list()
+        self.assertEqual([r["id"] for r in out], ["PROJ-7", "PROJ-9"])
+        self.assertEqual(out[0]["title"], "first")
+        self.assertEqual(out[0]["state"], "open")
+        self.assertEqual(out[0]["labels"], ["needs-triage"])
+        self.assertEqual(out[0]["info"]["key"], "PROJ-7")
+        # The lean summary stays neutral: no body/comments fetched.
+        self.assertNotIn("body", out[0])
+        # The argv is the search read, with the project- and state-scoped JQL.
+        argv = runner.argv(0)
+        self.assertEqual(argv[:3], ["jira", "workitem", "search"])
+        jql = argv[argv.index("--jql") + 1]
+        self.assertIn('project = "PROJ"', jql)
+        self.assertIn("statusCategory != Done", jql)
+
+    def test_issue_list_filters_by_label_and_closed_state(self) -> None:
+        rows = json.dumps([
+            {"key": "PROJ-3", "fields": {
+                "summary": "done one", "labels": ["needs-triage"],
+                "status": {"statusCategory": {"key": "done"}}}},
+        ])
+        runner = ScriptedRunner([(rows,)])
+        be = _backend(runner)
+        out = be.issue_list(label="needs-triage", state="closed")
+        self.assertEqual(out[0]["state"], "closed")
+        jql = runner.argv(0)[runner.argv(0).index("--jql") + 1]
+        self.assertIn("statusCategory = Done", jql)
+        self.assertIn('labels = "needs-triage"', jql)
+
+    def test_list_jql_escapes_embedded_quote_in_label(self) -> None:
+        # A value carrying a double-quote is escaped, not left to break out of
+        # its clause — defence in depth, so a future fetched label can't inject.
+        jql = jira.JiraBackend._list_jql("PROJ", label='ne"ed', state="open")
+        self.assertIn(r'labels = "ne\"ed"', jql)
+
+    def test_issue_list_empty_search_yields_no_rows(self) -> None:
+        # An empty stdout is the no-hits case (acli_json's default), not a crash.
+        be = _backend(ScriptedRunner([("",)]))
+        self.assertEqual(be.issue_list(), [])
+
     def test_issue_create_uses_issue_type_for_category_and_body_via_file(self) -> None:
         runner = ScriptedRunner([(json.dumps({"key": "PROJ-9"}),)])
         be = _backend(runner)

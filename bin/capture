@@ -2,12 +2,15 @@
 """Entry point for the `capture` command group.
 
 Invoked by absolute path under ${CLAUDE_PLUGIN_ROOT}/bin/ (ADR 0008), not via
-PATH. This stays thin: it puts the adapter package on the path, runs the
-substrate preflight, and hands argv to adapter.capture.main, which holds the
-present/act orchestration. capture only touches the tracker (gh) — it files
-issues and reads open ones for dedupe — and owns no git isolation (its synthesis
-shapes findings, it writes no code), so it requires only gh. Sibling of bin/land
-and bin/reap over the same bin/adapter substrate.
+PATH. This stays thin: it puts the adapter package on the path, runs the substrate
+preflight for the tool set the active tracker backend shells out to, and hands
+argv to adapter.capture.main, which holds the present/act orchestration. capture
+only touches the tracker axis — it files issues and reads open ones for dedupe —
+and owns no git isolation (its synthesis shapes findings, it writes no code), so
+its substrate is whatever the resolved backend uses: `gh` under GitHub, `acli`
+and `curl` under Jira, both with `git`. It reads that set from `required_tools`
+rather than hardcoding it, mirroring how bin/tracker preflights. Sibling of
+bin/land and bin/reap over the same bin/adapter substrate.
 """
 
 import os
@@ -16,10 +19,11 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from adapter.preflight import preflight
+from adapter.tracker import required_tools
 from adapter.capture import main
 
 if __name__ == "__main__":
-    rc = preflight(required=("gh",))
+    rc = preflight(required=required_tools(os.environ))
     if rc != 0:
         sys.exit(rc)
     sys.exit(main())

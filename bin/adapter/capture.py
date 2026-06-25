@@ -15,9 +15,10 @@ belongs here, not behind the agent. That present→synthesis boundary is the
 reference the `triage`/`pickup` flips copy: as much as is mechanical lives in the
 binary, the agent is reached only for genuine model work.
 
-Composes the tracker GithubBackend's `gh` seam — `issue_list` for the dedupe
-read, `issue_create` for the act — taken as a parameter so the dedupe and the
-filing are unit-tested against a canned runner without the network.
+Composes a neutral tracker-axis backend (ADR 0009) resolved from `$ISSUE_TRACKER`
+through the shared `resolve_backend`, reaching only its `issue_list` for the
+dedupe read and `issue_create` for the act — taken as a parameter so the dedupe
+and the filing are unit-tested against a canned runner without the network.
 """
 
 from __future__ import annotations
@@ -29,9 +30,9 @@ import re
 import sys
 from typing import Any, Mapping, Sequence, TextIO
 
-from adapter import cli, identity as identity_mod
+from adapter import cli
 from adapter.ghcmd import GhError
-from adapter.tracker import GithubBackend, _resolve_repo
+from adapter.tracker import IssueTrackerBackend, resolve_backend
 
 # Severity/confidence order the cull (finding.md): a high/high finding leads. An
 # unrecognised level sorts last rather than crashing the present of a sibling.
@@ -166,7 +167,7 @@ def annotate(findings: Sequence[Mapping[str, Any]],
     return rows
 
 
-def present(be: GithubBackend, findings: Sequence[Mapping[str, Any]],
+def present(be: IssueTrackerBackend, findings: Sequence[Mapping[str, Any]],
             stream: TextIO | None = None) -> int:
     """Dedupe the findings against open issues and present them for the cull.
 
@@ -177,7 +178,7 @@ def present(be: GithubBackend, findings: Sequence[Mapping[str, Any]],
     return cli.present_json({"findings": rows, "count": len(rows)}, stream=stream)
 
 
-def act(be: GithubBackend, findings: Sequence[Mapping[str, Any]],
+def act(be: IssueTrackerBackend, findings: Sequence[Mapping[str, Any]],
         stream: TextIO | None = None) -> int:
     """File each confirmed finding as a `needs-triage` issue.
 
@@ -222,24 +223,19 @@ def run(argv: Sequence[str], env: Mapping[str, str] | None = None,
         stream: TextIO | None = None, stdin_body: str | None = None) -> int:
     """Dispatch a capture command.
 
-    Resolves the backend as reap/land do — `$ISSUE_TRACKER`, then the bot
-    identity (halting on the half-configured state) — and routes to present or
-    act. Both read the findings JSON from stdin (the out-of-band channel,
-    SECURITY.md); a parse failure halts rather than filing garbage. `runner` and
-    `repo` are injectable for testing.
+    Resolves the backend through the shared `resolve_backend` (the single
+    `$ISSUE_TRACKER` resolver, which owns the per-backend startup and
+    unknown-backend halts), so capture runs under whichever tracker the
+    environment selects. Routes to present or act; both read the findings JSON
+    from stdin (the out-of-band channel, SECURITY.md), and a parse failure halts
+    rather than filing garbage. `runner` and `repo` are injectable for testing.
     """
     env = env if env is not None else os.environ
     stream = stream or sys.stdout
 
-    tracker_kind = env.get("ISSUE_TRACKER", "github")
-    if tracker_kind != "github":
-        return cli.halt(f"unsupported tracker backend: {tracker_kind}",
-                        details={"backend": tracker_kind}, stream=stream)
-
-    try:
-        ident = identity_mod.resolve(env)
-    except identity_mod.HalfConfigured as exc:
-        return cli.halt(str(exc), stream=stream)
+    be, rc = resolve_backend(env, runner=runner, repo=repo, stream=stream)
+    if be is None:
+        return rc
 
     args = _build_parser().parse_args(argv)
     if args.command not in _COMMANDS:
@@ -249,9 +245,6 @@ def run(argv: Sequence[str], env: Mapping[str, str] | None = None,
         findings = parse_findings(stdin_body or "")
     except (ValueError, json.JSONDecodeError) as exc:
         return cli.halt(f"could not parse findings: {exc}", stream=stream)
-
-    repo = repo or _resolve_repo(runner)
-    be = GithubBackend(identity=ident, repo=repo, runner=runner)
 
     if args.command == "present":
         return present(be, findings, stream=stream)
