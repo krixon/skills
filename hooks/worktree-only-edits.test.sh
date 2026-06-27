@@ -19,8 +19,16 @@ repo="$(mktemp -d)"
 # macOS mktemp hands back /var/... which is a symlink to /private/var; canonicalize
 # so our expectations match what the hook's canonicalization will produce.
 repo="$(cd "$repo" && pwd -P)"
-git -C "$repo" init -q
+# Init on main with a commit so HEAD resolves to `main` — the hook's branch-state
+# check (ADR 0010) denies edits only while the main checkout holds main, so the
+# default-branch name must be deterministic, not left to init.defaultBranch.
+git -C "$repo" init -q -b main
+git -C "$repo" config user.email test@example.com
+git -C "$repo" config user.name Test
 mkdir -p "$repo/.claude/worktrees/somework"
+: > "$repo/seed.txt"
+git -C "$repo" add seed.txt
+git -C "$repo" commit -qm seed
 outside="$(mktemp -d)"
 outside="$(cd "$outside" && pwd -P)"
 trap 'rm -rf "$repo" "$outside"' EXIT
@@ -96,6 +104,21 @@ run "NotebookEdit traversal via notebook_path is denied" \
 # No path on the call => not our concern => allowed (hook exits 0 silently).
 run "empty path is allowed (not our concern)" \
     allow Write file_path ""
+
+# ADR 0010 branch-in-primary: with the main checkout on a feature branch, edits to
+# it are sanctioned branch-mode work and ALLOWED. The same paths denied above (while
+# on main) flip to allow here — the main checkout's branch is the whole signal.
+git -C "$repo" checkout -q -b feat/branch-mode
+run "main-checkout file allowed while on a feature branch" \
+    allow Write file_path "README.md"
+run "absolute main-checkout file allowed while on a feature branch" \
+    allow Write file_path "$repo/docs/guide.md"
+git -C "$repo" checkout -q main
+
+# Back on main, the same edit is denied again — the loosening is branch-scoped, not
+# a permanent relaxation of the backstop.
+run "main-checkout file denied again once back on main" \
+    deny Write file_path "README.md"
 
 echo
 echo "summary: $pass passed, $fail failed"

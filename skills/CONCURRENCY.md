@@ -1,6 +1,6 @@
 # Concurrency
 
-How concurrent sessions coordinate so two never collide on the same work. The shared principle the skills reference rather than restate: [ISOLATION.md](../ISOLATION.md) keeps their working trees apart, this keeps their *claims* apart.
+How concurrent sessions coordinate so two never collide on the same work. The shared principle the skills reference rather than restate: [ISOLATION.md](../ISOLATION.md)'s strict-worktree stance keeps their working trees apart, this keeps their *claims* apart. Concurrency is that stance's province — branch-in-primary is single-session by construction — but the claim mechanics here apply under both, coordinating *who* works an issue independent of *where* the working tree lives.
 
 ## Two classes of contention
 
