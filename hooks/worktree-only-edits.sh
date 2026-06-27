@@ -3,14 +3,16 @@
 # assoc arrays/mapfile/case-modification, no GNU-only coreutils flags.
 #
 # PreToolUse(Edit|MultiEdit|Write|NotebookEdit) guard: keep edits off the live
-# repo-root checkout. This repo's isolation invariant (ISOLATION.md) is that the
-# main working tree is read-only — every change is made in a worktree under
-# .claude/worktrees/<slug> on its own branch. This hook enforces it: a write whose
-# target resolves inside the main checkout but outside .claude/worktrees/ is denied.
+# repo-root checkout while it holds BASE. This repo's isolation invariant
+# (ISOLATION.md, ADR 0010) is that the main checkout is read-only *while on main* —
+# strict-worktree work happens in a worktree under .claude/worktrees/<slug>, and
+# branch-in-primary work sits the main checkout on a feature branch. This hook
+# enforces the invariant: a write into the main checkout, outside
+# .claude/worktrees/, IS denied — but only while the main checkout is on main.
 #
-# Always enforces — the skill suite is built on worktree isolation (ISOLATION.md),
-# so the guidance already drives every consumer into the model; this is its
-# backstop, not an opt-in. Registered in hooks/hooks.json.
+# Always enforces — the skill suite is built on this isolation (ISOLATION.md), so
+# the guidance already drives every consumer into a stance; this is its backstop,
+# not an opt-in. Registered in hooks/hooks.json.
 set -euo pipefail
 
 input=$(cat)
@@ -56,7 +58,21 @@ case "$abs" in
   "$worktrees"/*) exit 0 ;; # inside a worktree — the sanctioned place — allowed
 esac
 
-reason="Refusing to edit the live repo-root checkout — it is read-only (ISOLATION.md). Make this change in a worktree on its own branch instead:
+# Branch-in-primary stance (ADR 0010): the invariant is "no edit to the main
+# checkout while it holds BASE (main)", not "no edit to the main checkout" at all.
+# When the main checkout is on a feature branch, editing it IS the sanctioned
+# branch-mode work, so allow it. The branch state is the only signal that is always
+# present and always correct here — the per-invocation --isolation flag never
+# reaches this hook. Resolve HEAD of the main checkout specifically (a worktree
+# session shares the common .git, so query main_root, not $PWD). Loosen ONLY on a
+# positive confirmation that HEAD is a non-BASE branch; an empty or unresolvable
+# HEAD keeps the deny, so the backstop never weakens by accident.
+head=$(git -C "$main_root" rev-parse --abbrev-ref HEAD 2>/dev/null) || head=""
+if [ -n "$head" ] && [ "$head" != "main" ]; then
+  exit 0
+fi
+
+reason="Refusing to edit the live repo-root checkout while it is on main — it is read-only there (ISOLATION.md). Make this change in a worktree on its own branch instead:
 
   git worktree add .claude/worktrees/<slug> -b <kind>/<slug> main
 

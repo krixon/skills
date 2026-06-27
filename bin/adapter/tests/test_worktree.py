@@ -296,5 +296,103 @@ class TestRebase(WorktreeFixture):
         self.assertFalse(os.path.isdir(rebase_apply))
 
 
+class TestBranchMode(WorktreeFixture):
+    def _create(self, isolation=None, **kw):
+        out = io.StringIO()
+        kw.setdefault("kind", "feat")
+        kw.setdefault("title", "primary work")
+        kw.setdefault("issue", 7)
+        rc = worktree.cmd_create(self.repo, isolation=isolation, stream=out, **kw)
+        return rc, json.loads(out.getvalue())
+
+    def test_creates_branch_in_primary_no_worktree(self) -> None:
+        rc, payload = self._create(isolation="branch")
+        self.assertEqual(rc, 0)
+        self.assertEqual(payload["branch"], "feat/7-primary-work")
+        self.assertEqual(payload["isolation"], "branch")
+        # path is the primary checkout, and the branch is live there.
+        self.assertEqual(payload["path"], self.repo)
+        self.assertEqual(gitcmd.current_branch(self.repo), "feat/7-primary-work")
+        # No worktree directory was created.
+        self.assertFalse(os.path.isdir(
+            os.path.join(self.repo, ".claude", "worktrees", "feat-7-primary-work")))
+
+    def test_env_var_selects_branch_mode(self) -> None:
+        with mock.patch.dict(os.environ, {"ISOLATION_MODE": "branch"}):
+            rc, payload = self._create()
+        self.assertEqual(rc, 0)
+        self.assertEqual(payload["isolation"], "branch")
+        self.assertEqual(payload["path"], self.repo)
+
+    def test_flag_overrides_env(self) -> None:
+        # Env asks for branch; the explicit flag wins and takes the worktree path.
+        with mock.patch.dict(os.environ, {"ISOLATION_MODE": "branch"}):
+            rc, payload = self._create(isolation="worktree")
+        self.assertEqual(payload["isolation"], "worktree")
+        self.assertNotEqual(payload["path"], self.repo)
+
+    def test_default_is_worktree(self) -> None:
+        rc, payload = self._create()
+        self.assertEqual(payload["isolation"], "worktree")
+
+    def test_unknown_isolation_halts(self) -> None:
+        rc, payload = self._create(isolation="bogus")
+        # argparse would reject the flag, but the function guards too: an unknown
+        # mode halts rather than silently defaulting.
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(payload["status"], "halted")
+
+    def test_dirty_tree_halts_with_conflict(self) -> None:
+        _write(os.path.join(self.repo, "scratch.txt"), "uncommitted\n")
+        rc, payload = self._create(isolation="branch")
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(payload["outcome"], "conflict")
+        # Never switched the primary checkout off main.
+        self.assertEqual(gitcmd.current_branch(self.repo), "main")
+
+    def test_second_branch_create_halts_when_off_base(self) -> None:
+        # The clean-and-on-BASE precondition is the compare-and-swap: with the
+        # primary checkout already on a feature branch, a second branch-mode
+        # create sees a non-BASE HEAD and halts instead of colliding.
+        self._create(isolation="branch", issue=7)
+        rc, payload = self._create(isolation="branch", issue=8, title="other work")
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(payload["outcome"], "conflict")
+        self.assertEqual(payload["info"]["branch"], "feat/7-primary-work")
+
+    def test_checks_out_existing_local_branch_in_primary(self) -> None:
+        _git(self.repo, "branch", "feat/5-existing")
+        rc, payload = self._create(isolation="branch", kind="feat",
+                                   title="existing", issue=5)
+        self.assertEqual(rc, 0)
+        self.assertEqual(payload["branch"], "feat/5-existing")
+        self.assertEqual(gitcmd.current_branch(self.repo), "feat/5-existing")
+
+    def test_teardown_returns_to_base_and_deletes_branch(self) -> None:
+        self._create(isolation="branch")
+        out = io.StringIO()
+        rc = worktree.cmd_teardown(self.repo, path=self.repo,
+                                   branch="feat/7-primary-work",
+                                   isolation="branch", stream=out)
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["status"], "torn-down")
+        self.assertEqual(gitcmd.current_branch(self.repo), "main")
+        self.assertFalse(gitcmd.branch_exists(self.repo, "feat/7-primary-work"))
+
+    def test_teardown_halts_on_dirty_tree(self) -> None:
+        self._create(isolation="branch")
+        _write(os.path.join(self.repo, "scratch.txt"), "uncommitted\n")
+        out = io.StringIO()
+        rc = worktree.cmd_teardown(self.repo, path=self.repo,
+                                   branch="feat/7-primary-work",
+                                   isolation="branch", stream=out)
+        self.assertNotEqual(rc, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["outcome"], "conflict")
+        # Still on the branch — teardown refused rather than stranding work.
+        self.assertEqual(gitcmd.current_branch(self.repo), "feat/7-primary-work")
+
+
 if __name__ == "__main__":
     unittest.main()
